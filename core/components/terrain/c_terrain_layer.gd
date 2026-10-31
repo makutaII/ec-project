@@ -49,6 +49,7 @@ var _shapes: Array[CollisionShape3D] = []
 var _last_aabb := AABB()
 var _surf_side := -1   # индексы поверхностей меша (-1 нет)
 var _surf_top := -1
+var _surf_cut := -1   # XX claude-terra 13.3 S4: грани среза (стенки выреза, дно ниши, потолок тоннеля)
 
 
 ## Базовый C_Visual.on_added инстанцирует сцену; у листа сцены нет
@@ -583,46 +584,69 @@ func _outer_only(polys: Array[PackedVector2Array]) -> Array[PackedVector2Array]:
 	return res
 
 
+## Меш листа: три поверхности. 0: бока и низ (внешняя оболочка), 1: верх, 2 (13.3 S4): срез, то есть грани, которые
+## появились из-за вырезов (стенки внутри контура, дно ниши, потолок тоннеля). Срез красится отдельным материалом
+## (пористый пенопласт). Пустая поверхность не создаётся, номера в _surf_side, _surf_top, _surf_cut (-1 нет)
 func _build_mesh() -> ArrayMesh:
 	if _blocks.is_empty():
 		return null
 	var T: float = Global.settings.layer_height
-	var st := SurfaceTool.new()      # бока и низ
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var st_top := SurfaceTool.new()  # горизонтальные верхние грани
-	st_top.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lv := maxi(1, levels)
+	var contour := get_comp(C_Contour) as C_Contour
+	var outline := contour.normalized_points() if contour else PackedVector2Array()
+	var sts: Array[SurfaceTool] = []
+	for _i in 3:
+		var sf := SurfaceTool.new()
+		sf.begin(Mesh.PRIMITIVE_TRIANGLES)
+		sts.append(sf)
+	var counts: Array[int] = [0, 0, 0]
 	var any := false
 	for b in _blocks:
 		var y0: float = float(b["y0"]) * T
 		var y1: float = float(b["y1"]) * T
+		var top_natural: bool = int(b["y1"]) >= lv   # верх листа; иначе верхняя грань блока видна из-за выреза
+		var bottom_natural: bool = int(b["y0"]) <= 0
 		for poly: PackedVector2Array in b["polys"]:
 			var tris := Geometry2D.triangulate_polygon(poly)
 			if tris.is_empty():
 				continue
 			any = true
-			_add_prism(st, st_top, poly, tris, y0, y1)
+			_add_prism(sts, counts, outline, poly, tris, y0, y1, top_natural, bottom_natural)
 	_surf_side = -1
 	_surf_top = -1
+	_surf_cut = -1
 	if not any:
 		return null
 	var mesh := ArrayMesh.new()
-	st.commit(mesh)
-	_surf_side = 0
-	st_top.commit(mesh)
-	_surf_top = 1
+	for i in 3:
+		if counts[i] == 0:
+			continue
+		sts[i].commit(mesh)
+		match i:
+			0:
+				_surf_side = mesh.get_surface_count() - 1
+			1:
+				_surf_top = mesh.get_surface_count() - 1
+			_:
+				_surf_cut = mesh.get_surface_count() - 1
 	_apply_stage(mesh)
 	return mesh
 
 
-## Призма: верх (y1), низ (y0) и стенки. poly обходится против часовой (area > 0)
-func _add_prism(st: SurfaceTool, st_top: SurfaceTool, pts: PackedVector2Array, tris: PackedInt32Array, y0: float, y1: float) -> void:
+## Призма: верх (y1), низ (y0) и стенки. poly обходится против часовой (area > 0).
+## sts: поверхности (0 бока и низ, 1 верх, 2 срез), counts: сколько треугольников в каждой.
+## Верх и низ блока это срез, если они не совпадают с верхом и низом листа. Стенка это срез, если ребро не лежит на внешнем контуре
+func _add_prism(sts: Array[SurfaceTool], counts: Array[int], outline: PackedVector2Array, pts: PackedVector2Array,
+		tris: PackedInt32Array, y0: float, y1: float, top_natural: bool, bottom_natural: bool) -> void:
+	var top_i := 1 if top_natural else 2
+	var bottom_i := 0 if bottom_natural else 2
 	# верх и низ
 	for i in range(0, tris.size(), 3):
 		var a := pts[tris[i]]
 		var b := pts[tris[i + 1]]
 		var c := pts[tris[i + 2]]
-		_tri(st_top, Vector3(a.x, y1, a.y), Vector3(b.x, y1, b.y), Vector3(c.x, y1, c.y), Vector3.UP)
-		_tri(st, Vector3(a.x, y0, a.y), Vector3(b.x, y0, b.y), Vector3(c.x, y0, c.y), Vector3.DOWN)
+		_put(sts, counts, top_i, Vector3(a.x, y1, a.y), Vector3(b.x, y1, b.y), Vector3(c.x, y1, c.y), Vector3.UP)
+		_put(sts, counts, bottom_i, Vector3(a.x, y0, a.y), Vector3(b.x, y0, b.y), Vector3(c.x, y0, c.y), Vector3.DOWN)
 
 	# стенки. Наружу от ребра d это (d.y, -d.x)
 	var n := pts.size()
@@ -637,8 +661,24 @@ func _add_prism(st: SurfaceTool, st_top: SurfaceTool, pts: PackedVector2Array, t
 		var a1 := Vector3(p1.x, y0, p1.y)
 		var b0 := Vector3(p0.x, y1, p0.y)
 		var b1 := Vector3(p1.x, y1, p1.y)
-		_tri(st, a0, a1, b1, outward)
-		_tri(st, a0, b1, b0, outward)
+		var wi := 0 if (outline.is_empty() or edge_on_outline(p0, p1, outline)) else 2
+		_put(sts, counts, wi, a0, a1, b1, outward)
+		_put(sts, counts, wi, a0, b1, b0, outward)
+
+
+## 13.3 S4. Ребро блока лежит на внешнем контуре листа (середина ребра на отрезке контура с допуском 0,01 ю)
+static func edge_on_outline(a: Vector2, b: Vector2, outline: PackedVector2Array) -> bool:
+	var m := (a + b) * 0.5
+	var n := outline.size()
+	for i in n:
+		if Geometry2D.get_closest_point_to_segment(m, outline[i], outline[(i + 1) % n]).distance_to(m) < 0.01:
+			return true
+	return false
+
+
+func _put(sts: Array[SurfaceTool], counts: Array[int], idx: int, a: Vector3, b: Vector3, c: Vector3, nrm: Vector3) -> void:
+	_tri(sts[idx], a, b, c, nrm)
+	counts[idx] += 1
 
 
 ## Треугольник, лицевая сторона которого смотрит в nrm. Лицевая грань в Godot идет по часовой стрелке:
@@ -695,6 +735,8 @@ func _apply_stage(mesh: ArrayMesh) -> void:
 		mesh.surface_set_material(_surf_side, st.get_side(stage))
 	if _surf_top >= 0 and _surf_top < mesh.get_surface_count():
 		mesh.surface_set_material(_surf_top, st.get_top(stage))
+	if _surf_cut >= 0 and _surf_cut < mesh.get_surface_count():   # 13.3 S4
+		mesh.surface_set_material(_surf_cut, st.get_cut(stage))
 
 
 ## Сменить стадию материала (InfoPanel). Геометрия и физика не трогаются

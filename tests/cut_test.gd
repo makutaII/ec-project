@@ -172,5 +172,22 @@ func _ready() -> void:
 	check("Г с поперечным вырезом: все куски триангулируются", all_tri)
 	layer2.free()
 
+	# --- 13.3 S4: грани среза ---
+	var outline := poly([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])
+	check("edge_on_outline: ребро на контуре", C_TerrainLayer.edge_on_outline(Vector2(0, 0), Vector2(10, 0), outline))
+	check("edge_on_outline: часть ребра контура", C_TerrainLayer.edge_on_outline(Vector2(2, 0), Vector2(6, 0), outline))
+	check("edge_on_outline: ребро внутри контура это срез", not C_TerrainLayer.edge_on_outline(Vector2(0, 5), Vector2(10, 5), outline))
+	check("edge_on_outline: параллельное ребро в 0,5 от контура это срез", not C_TerrainLayer.edge_on_outline(Vector2(0, 0.5), Vector2(10, 0.5), outline))
+	check("edge_on_outline: допуск 0,01", C_TerrainLayer.edge_on_outline(Vector2(0, 0.005), Vector2(10, 0.005), outline))
+	var ts := TerrainStyle.new()
+	check("get_cut: сырой пенопласт имеет свой материал", ts.get_cut(0) != null and ts.get_cut(0) != ts.get_side(0))
+	check("get_cut: материал один на всех (кэш)", ts.get_cut(0) == TerrainStyle.new().get_cut(0))
+	check("get_cut: шпаклёвка и далее как бок", ts.get_cut(1) == ts.get_side(1) and ts.get_cut(3) == ts.get_side(3))
+	var custom := StandardMaterial3D.new()
+	var cm: Array[Material] = [custom]
+	ts.cut_materials = cm
+	check("get_cut: материал из стиля важнее встроенного", ts.get_cut(0) == custom)
+	check("get_cut: слот без материала берёт бок", ts.get_cut(1) == ts.get_side(1))
+
 	print("--------")
 	print("cut_test: ", "PASS" if _fails == 0 else "FAIL (%d)" % _fails)
