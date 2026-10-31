@@ -31,6 +31,8 @@ const HINTS := {
 	"build_strip": [["ЛКМ", "точка оси"], ["ЛКМ по последней точке / Enter", "закончить"], ["[ ]", "ширина (Shift ×5)"], ["Backspace", "убрать точку"], ["ПКМ", "сбросить"], ["R/F", "уровень"], ["Shift+R/F, PgUp/PgDn", "уровень ×5"], ["Ctrl+R/F", "толщина (Shift ×5)"]],
 	"cut_rect": [["ЛКМ", "угол, второй клик режет"], ["Backspace", "отменить рисунок"], ["ПКМ", "сбросить / выйти"], ["R/F", "плоскость (Shift ×5)"], ["Ctrl+R/F", "глубина (Shift ×5)"], ["End", "насквозь"], ["Ctrl+Z", "отменить вырез"]],
 	"cut_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / Enter", "вырезать"], ["Backspace", "убрать вершину"], ["ПКМ", "сбросить / выйти"], ["R/F", "плоскость (Shift ×5)"], ["Ctrl+R/F", "глубина (Shift ×5)"], ["End", "насквозь"], ["Ctrl+Z", "отменить вырез"]],
+	"cut_strip": [["ЛКМ", "точка оси"], ["ЛКМ по последней точке / Enter", "вырезать"], ["[ ]", "ширина (Shift ×5)"], ["Backspace", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["R/F", "плоскость (Shift ×5)"], ["Ctrl+R/F", "глубина (Shift ×5)"], ["End", "насквозь"], ["Ctrl+Z", "отменить вырез"]],
+	"cut_line": [["ЛКМ", "две точки прямой, третий клик отсекает сторону курсора"], ["Backspace", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["R/F", "плоскость (Shift ×5)"], ["Ctrl+R/F", "глубина (Shift ×5)"], ["End", "насквозь"], ["Ctrl+Z", "отменить вырез"]],
 	"drag": [["Отпустить ЛКМ", "поставить"], ["ПКМ", "отмена"], ["Q/E", "поворот 45° (Shift: 5°)"], ["R/F", "уровень"], ["Shift+R/F, PgUp/PgDn", "уровень ×5"], ["Home", "сброс"]],
 	"library": [["Режим в разработке", ""]],
 	"observe": [["ЛКМ по вагону", "камера Follow"], ["1-5", "перейти к закладке (пустая: сохранить)"], ["Ctrl+1-5 или Shift+карточка", "перезаписать закладку"], ["H", "скрыть UI"], ["P", "снимок"]],
@@ -124,7 +126,11 @@ func _context_key() -> String:
 		&"DragTool":
 			return "drag"
 		&"ThermoCutTool":   # XX claude-terra 13.3 S2: терморезак (контекст ставит сам инструмент)
-			return "cut_polygon" if _ctx.get(&"cut_polygon", false) else "cut_rect"
+			if _ctx.get(&"cut_polygon", false):
+				return "cut_polygon"
+			if _ctx.get(&"cut_strip", false):
+				return "cut_strip"
+			return "cut_line" if _ctx.get(&"cut_line", false) else "cut_rect"
 		&"BuildTool":
 			# XX claude-terra 13.2 B2: рисование полигона листа (контекст ставит BuildTool)
 			if _ctx.get(&"strip", false):   # XX claude-terra 13.2 B5: лист-полоса
@@ -144,7 +150,7 @@ func _compose() -> String:
 		return ""
 	var text := _format(items)
 	# Вторая строка про камеру: когда ею управляет игрок (не Follow, POV, Orbit и не фоторежим)
-	var own_camera := key in ["select_none", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "drag", "observe"]
+	var own_camera := key in ["select_none", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "cut_strip", "cut_line", "drag", "observe"]
 	if own_camera:
 		text += "\n[color=%s]%s[/color]" % [DIM_COLOR, _format(CAMERA_LINE, false)]
 	return "[center]" + text + "[/center]"

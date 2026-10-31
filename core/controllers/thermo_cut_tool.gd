@@ -2,22 +2,30 @@ class_name ThermoCutTool extends Node
 
 # XX claude-terra 13.3 S2 (новый файл)
 ##########################
-## Терморезак (ATTN_13 §13.3). Вырезы в листах пенопласта: прямоугольник и полигон.
+## Терморезак (ATTN_13 §13.3). Вырезы в листах пенопласта: прямоугольник, полигон, полоса-ущелье, линия-рез.
 ##########################
 ## Инструмент не создаёт объектов: вырез задаётся в мире (полигон XZ и диапазон высот), а FoamCutter.apply
 ## превращает его в обычные FoamCut каждого листа под ним (стопка листов режется вместе). Формат сейва не меняется.
-## Форму выбирает пресет (facet "shape": "rect" или "polygon"), ToolController кладёт её в shape перед enter().
+## Форму выбирает пресет (facet "shape": rect, polygon, strip, line), ToolController кладёт её в shape перед enter().
 ##
 ## Плоскость выреза = верх поверхности под курсором до первого клика (как D5 при рисовании листа), после клика она
 ## закреплена, R/F сдвигают её по слоям. Вырез идёт от плоскости вниз на depth слоёв или насквозь (End).
 ## Вершины на мировой сетке terrain_grid_step.
 ## Ввод: ЛКМ угол или вершина, второй клик (прямоугольник) или клик по первой вершине / Enter (полигон) режут,
+## полоса: ЛКМ точки оси, клик по последней точке или Enter режут, [ и ] ширина (Shift ×5);
+## линия-рез: две точки задают прямую, курсор выбирает сторону, третий клик отсекает эту сторону целиком;
 ## Backspace убрать вершину, ПКМ сбросить (без рисунка выйти в SelectTool), R/F и Shift+R/F, PgUp/PgDn плоскость,
 ## Ctrl+R/F глубина (Shift ×5), End насквозь, Ctrl+Z отменить последний вырез.
 ## Инструмент вызывает ToolController: enter, exit, handle_input, process_tick (как у BuildTool).
 
 const SHAPE_RECT := &"rect"
 const SHAPE_POLYGON := &"polygon"
+const SHAPE_STRIP := &"strip"
+const SHAPE_LINE := &"line"
+const SHAPES := [SHAPE_RECT, SHAPE_POLYGON, SHAPE_STRIP, SHAPE_LINE]
+const SHAPE_NAMES := {&"rect": "прямоугольник", &"polygon": "полигон", &"strip": "ущелье", &"line": "линия-рез"}
+## Ширина полосы по умолчанию, ю
+const WIDTH_DEFAULT := 4.0
 
 const COL_OK := Color(0.45, 1.0, 0.65)
 const COL_BAD := Color(1.0, 0.3, 0.3)
@@ -46,6 +54,7 @@ var _has_cursor := false
 var _base_y := 0.0                      # высота поверхности под первым кликом, кратна layer_height
 var _dy := 0                            # сдвиг плоскости от поверхности, слоёв
 var _depth := 1
+var _width := WIDTH_DEFAULT             # ширина полосы-ущелья, ю
 var _through := false                   # насквозь, до стола
 var _dirty := true
 var _reason := ""                       # почему сейчас нельзя резать ("" - можно или ещё нечего резать)
@@ -62,15 +71,17 @@ var _label: Label3D
 
 
 func enter() -> void:
+	if not SHAPES.has(shape):
+		shape = SHAPE_RECT
 	_reset_draw()
 	_ensure_preview()
-	Hints.set_context(&"cut_polygon", shape == SHAPE_POLYGON)
+	_set_hint_contexts(true)
 	controller.publish_selection(null)
 
 
 func exit(_to_drag: bool = false) -> void:
 	_reset_draw()
-	Hints.set_context(&"cut_polygon", false)
+	_set_hint_contexts(false)
 	if is_instance_valid(_mi):
 		_mi.queue_free()
 	if is_instance_valid(_label):
@@ -79,6 +90,13 @@ func exit(_to_drag: bool = false) -> void:
 	_imm = null
 	_label = null
 	controller.select_build_object(null)   # снять нажатие с кнопки каталога
+
+
+## Подсказки: контекст по форме (прямоугольник это отсутствие контекстов)
+func _set_hint_contexts(on: bool) -> void:
+	Hints.set_context(&"cut_polygon", on and shape == SHAPE_POLYGON)
+	Hints.set_context(&"cut_strip", on and shape == SHAPE_STRIP)
+	Hints.set_context(&"cut_line", on and shape == SHAPE_LINE)
 
 
 ## --- Ввод ---
@@ -102,8 +120,10 @@ func handle_input(event: InputEvent) -> void:
 	if k == null or not k.pressed or k.echo:
 		return
 	if k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER:
-		if shape == SHAPE_POLYGON and _drawing:
+		if _drawing and shape == SHAPE_POLYGON:
 			_try_commit(_polygon_shape())
+		elif _drawing and shape == SHAPE_STRIP:
+			_try_commit(FoamCutter.strip(_verts, _width), FoamCutter.strip_why(_verts, _width))
 		return
 	if k.keycode == KEY_BACKSPACE:
 		_undo_vertex()
@@ -114,6 +134,15 @@ func handle_input(event: InputEvent) -> void:
 		return
 	if k.ctrl_pressed and k.keycode == KEY_Z:
 		_undo_cut()
+		return
+
+	# [ и ] (по физической клавише): ширина полосы, Shift ×5
+	if shape == SHAPE_STRIP and (k.keycode == KEY_BRACKETLEFT or k.physical_keycode == KEY_BRACKETLEFT
+			or k.keycode == KEY_BRACKETRIGHT or k.physical_keycode == KEY_BRACKETRIGHT):
+		var wstep: float = Global.settings.terrain_grid_step * (5.0 if k.shift_pressed else 1.0)
+		var left := k.keycode == KEY_BRACKETLEFT or k.physical_keycode == KEY_BRACKETLEFT
+		_width = clampf(_width + (-wstep if left else wstep), FoamCutter.STRIP_WIDTH_MIN, FoamCutter.STRIP_WIDTH_MAX)
+		_dirty = true
 		return
 
 	# R/F (по физической клавише): плоскость. Ctrl: глубина. Shift ×5. PgUp/PgDn: ×5
@@ -148,27 +177,53 @@ func _on_click() -> void:
 		_verts = PackedVector2Array([_cursor])
 		_dirty = true
 		return
-	if shape == SHAPE_POLYGON:
-		if _closing:
-			_try_commit(_polygon_shape())
-		else:
-			var chain := _verts.duplicate()
-			chain.append(_cursor)
-			var why := C_Contour.validate_chain(chain)
-			if why != "":
-				_say(why)
+	match shape:
+		SHAPE_POLYGON:
+			if _closing:
+				_try_commit(_polygon_shape())
+			else:
+				var chain := _verts.duplicate()
+				chain.append(_cursor)
+				_add_vertex(C_Contour.validate_chain(chain))
+		SHAPE_STRIP:
+			if _closing:
+				_try_commit(FoamCutter.strip(_verts, _width), FoamCutter.strip_why(_verts, _width))
+			elif _verts.size() >= C_PolygonDraw.MAX_AXIS:
+				_say("Больше %d точек оси" % C_PolygonDraw.MAX_AXIS)
+			elif _cursor.is_equal_approx(_verts[_verts.size() - 1]):
 				return
-			_verts.append(_cursor)
-			_dirty = true
-	else:
-		_try_commit(FoamCutter.rect(_verts[0], _cursor))
+			else:
+				var axis := _verts.duplicate()
+				axis.append(_cursor)
+				_add_vertex(FoamCutter.strip_why(axis, _width) if axis.size() >= 2 else "")
+		SHAPE_LINE:
+			if _verts.size() == 1:
+				if _cursor.is_equal_approx(_verts[0]):
+					_say("Точки совпали")
+				else:
+					_verts.append(_cursor)
+					_dirty = true
+			else:
+				var hp := FoamCutter.half_plane(_verts[0], _verts[1], _cursor)
+				_try_commit(hp, "Курсор на линии: выберите сторону")
+		_:
+			_try_commit(FoamCutter.rect(_verts[0], _cursor))
 
 
-## Backspace: полигон убирает последнюю вершину, прямоугольник отменяет рисунок
+## Поставить вершину, если нет причины отказа
+func _add_vertex(why: String) -> void:
+	if why != "":
+		_say(why)
+		return
+	_verts.append(_cursor)
+	_dirty = true
+
+
+## Backspace: полигон, полоса и линия убирают последнюю точку, прямоугольник и последняя точка отменяют рисунок
 func _undo_vertex() -> void:
 	if not _drawing:
 		return
-	if shape == SHAPE_POLYGON and _verts.size() > 1:
+	if (shape == SHAPE_POLYGON or shape == SHAPE_STRIP or shape == SHAPE_LINE) and _verts.size() > 1:
 		_verts.remove_at(_verts.size() - 1)
 	else:
 		_drawing = false
@@ -205,8 +260,8 @@ func _y_low() -> float:
 	return _plane_y() - float(_depth) * T
 
 
-func _try_commit(poly: PackedVector2Array) -> void:
-	var why := FoamCutter.check(poly) if not poly.is_empty() else "Нулевой размер"
+func _try_commit(poly: PackedVector2Array, empty_why: String = "Нулевой размер") -> void:
+	var why := FoamCutter.check(poly) if not poly.is_empty() else (empty_why if empty_why != "" else "Форма не вышла")
 	if why != "":
 		_say(why)
 		return
@@ -291,24 +346,56 @@ func _refresh() -> void:
 	var poly := PackedVector2Array()
 	var step: float = Global.settings.terrain_grid_step
 	if _drawing and _has_cursor:
-		if shape == SHAPE_POLYGON:
-			_closing = _verts.size() >= 3 and _cursor.distance_to(_verts[0]) < step * 0.5
-			if _closing:
-				poly = _polygon_shape()
-				_reason = FoamCutter.check(poly)
-			else:
-				var chain := _verts.duplicate()
-				chain.append(_cursor)
-				_reason = C_Contour.validate_chain(chain)
-		else:
-			poly = FoamCutter.rect(_verts[0], _cursor)
-			_reason = "Нулевой размер" if poly.is_empty() else FoamCutter.check(poly)
+		match shape:
+			SHAPE_POLYGON:
+				_closing = _verts.size() >= 3 and _cursor.distance_to(_verts[0]) < step * 0.5
+				if _closing:
+					poly = _polygon_shape()
+					_reason = FoamCutter.check(poly)
+				else:
+					var chain := _verts.duplicate()
+					chain.append(_cursor)
+					_reason = C_Contour.validate_chain(chain)
+			SHAPE_STRIP:
+				# клик по последней точке заканчивает полосу; иначе последнее звено идёт к курсору
+				_closing = _verts.size() >= 2 and _cursor.distance_to(_verts[_verts.size() - 1]) < step * 0.5
+				var axis := _verts.duplicate()
+				if not _closing and not _cursor.is_equal_approx(_verts[_verts.size() - 1]):
+					axis.append(_cursor)
+				if axis.size() >= 2:
+					poly = FoamCutter.strip(axis, _width)
+					_reason = FoamCutter.strip_why(axis, _width)
+					if _reason == "":
+						_reason = FoamCutter.check(poly) if not poly.is_empty() else "Форма не вышла"
+			SHAPE_LINE:
+				if _verts.size() >= 2:
+					poly = FoamCutter.half_plane(_verts[0], _verts[1], _cursor)
+					_reason = "Курсор на линии: выберите сторону" if poly.is_empty() else FoamCutter.check(poly)
+			_:
+				poly = FoamCutter.rect(_verts[0], _cursor)
+				_reason = "Нулевой размер" if poly.is_empty() else FoamCutter.check(poly)
 	if not poly.is_empty() and _reason == "":
 		_hits = FoamCutter.affected(poly, _y_low(), _plane_y()).size()
 		if _hits == 0:
 			_reason = "Здесь нет пенопласта на этих слоях"
 	_redraw(poly)
 	_update_note()
+
+
+## Окно показа превью: габарит всех листов (полуплоскость уходит на сотни ю, рисовать её целиком незачем)
+func _preview_window() -> Rect2:
+	var win := Rect2()
+	var first := true
+	for e in TGM.get_layers():
+		var l := e.get_comp(C_TerrainLayer) as C_TerrainLayer
+		if l == null:
+			continue
+		var b := C_Contour.bounds_of(l.world_polygon())
+		win = b if first else win.merge(b)
+		first = false
+	if first:
+		return Rect2(_cursor - Vector2(30.0, 30.0), Vector2(60.0, 60.0))
+	return win.grow(1.0)
 
 
 func _ensure_preview() -> void:
@@ -363,17 +450,26 @@ func _redraw(poly: PackedVector2Array) -> void:
 	_line(Vector3(_cursor.x, top, _cursor.y - arm), Vector3(_cursor.x, top, _cursor.y + arm), COL_CURSOR)
 	if _drawing:
 		if not poly.is_empty():
-			_ring(poly, top, col)
-			_ring(poly, bottom, col)
-			for v in poly:
-				_line(Vector3(v.x, top, v.y), Vector3(v.x, bottom, v.y), col)
-		elif shape == SHAPE_POLYGON:
+			var pieces: Array[PackedVector2Array] = [poly]
+			if shape == SHAPE_LINE:   # полуплоскость огромна: рисуем только часть в окне листов
+				pieces = FoamCutter.clip_to_window(poly, _preview_window())
+			for pc in pieces:
+				_ring(pc, top, col)
+				_ring(pc, bottom, col)
+				for v in pc:
+					_line(Vector3(v.x, top, v.y), Vector3(v.x, bottom, v.y), col)
+		elif shape == SHAPE_LINE and _verts.size() == 1:
+			_line(Vector3(_verts[0].x, top, _verts[0].y), Vector3(_cursor.x, top, _cursor.y), COL_CHAIN)
+		elif shape == SHAPE_POLYGON or shape == SHAPE_STRIP:
 			# незамкнутая ломаная: готовые рёбра и ребро к курсору
 			var chain := _verts.duplicate()
 			chain.append(_cursor)
 			for i in chain.size() - 1:
 				_line(Vector3(chain[i].x, top, chain[i].y), Vector3(chain[i + 1].x, top, chain[i + 1].y),
 						COL_CHAIN if (i < chain.size() - 2 or ok) else COL_BAD)
+		if shape == SHAPE_STRIP and not poly.is_empty():   # ось полосы
+			for i in _verts.size() - 1:
+				_line(Vector3(_verts[i].x, top, _verts[i].y), Vector3(_verts[i + 1].x, top, _verts[i + 1].y), COL_CHAIN)
 		for v in _verts:   # кресты поставленных вершин
 			_line(Vector3(v.x - 0.4, top, v.y), Vector3(v.x + 0.4, top, v.y), COL_CHAIN)
 			_line(Vector3(v.x, top, v.y - 0.4), Vector3(v.x, top, v.y + 0.4), COL_CHAIN)
@@ -408,8 +504,12 @@ func _update_note() -> void:
 	var T: float = Global.settings.layer_height
 	var depth_text := "насквозь" if _through else "глубина %d" % _depth
 	var lines: Array[String] = [
-		"Терморезак · %s" % ("полигон" if shape == SHAPE_POLYGON else "прямоугольник"),
+		"Терморезак · %s" % SHAPE_NAMES.get(shape, "прямоугольник"),
 		"Плоскость: ур. %d · %s" % [roundi(_plane_y() / T), depth_text]]
+	if shape == SHAPE_STRIP:
+		lines[1] += " · ширина %.0f" % _width
+	elif shape == SHAPE_LINE and _drawing:
+		lines.append("Точка A и B задают прямую, курсор выбирает сторону" if _verts.size() >= 2 else "Вторая точка прямой")
 	var col := Color.WHITE
 	if _msg != "":
 		lines.append(_msg)
