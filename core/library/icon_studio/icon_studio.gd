@@ -781,7 +781,7 @@ func _load_objects() -> void:
 			if not file.ends_with(".tres"):
 				continue
 			var res := load(dir + file)
-			if res is EntitySetting:
+			if res is EntitySetting and res.build_behavior != EntitySetting.BuildBehavior.CUT_TOOL:   # 13.3 S2: инструмент не объект
 				_all.append(res)
 	_all.sort_custom(func(a: EntitySetting, b: EntitySetting) -> bool:
 		if a.category != b.category:

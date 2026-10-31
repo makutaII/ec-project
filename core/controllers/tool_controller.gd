@@ -20,6 +20,8 @@ class_name ToolController extends Node3D
 @onready var select_tool = %SelectTool
 @onready var drag_tool: DragTool = %DragTool
 @onready var observe_tool = get_node_or_null('%ObserveTool')
+# XX claude-terra 13.3 S2: терморезак. Узел создаётся кодом в _ready (game_root.tscn не правим)
+var cut_tool: ThermoCutTool
 #@onready var save_controller: SaveManager = %SaveManager
 
 
@@ -52,6 +54,11 @@ func _ready() -> void:
 
 	# Выбор объекта на панели (select_build_object) и кнопка «Дубль» (duplicate_last_object) подключает
 	# сам ToolbarController. Обратные сигналы: BuildTool.last_changed и build_selection_cleared
+
+	# XX claude-terra 13.3 S2: терморезак живёт среди остальных инструментов, но создаётся кодом
+	cut_tool = ThermoCutTool.new()
+	cut_tool.name = &"ThermoCutTool"
+	%Tools.add_child(cut_tool)
 
 	# Инициализируем инструменты, передав им ссылку на себя
 	for tool in %Tools.get_children():
@@ -129,6 +136,12 @@ func select_build_object(setting: EntitySetting) -> void:
 	if setting == null :
 		# Очищаем селекта в UI если null
 		build_selection_cleared.emit()
+		return
+
+	# XX claude-terra 13.3 S2: кнопка терморезака включает инструмент, призрака нет. Форма выреза из facet "shape"
+	if setting.build_behavior == EntitySetting.BuildBehavior.CUT_TOOL:
+		cut_tool.shape = StringName(setting.get_facet(&"shape")) if setting.get_facet(&"shape") != "" else ThermoCutTool.SHAPE_RECT
+		switch_tool(cut_tool)
 		return
 
 	build_tool.ghost_setting = setting
