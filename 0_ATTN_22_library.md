@@ -10,3 +10,4 @@
 - сборка зданий и вагонов «из литников», генерация зданий (roadmap п. 11 и 12);
 - реставрация сошедших вагонов;
 - прототипы режима: [ATTN_18_icon_studio.md](ATTN_18_icon_studio.md), [ATTN_20_track_studio.md](ATTN_20_track_studio.md).
+
