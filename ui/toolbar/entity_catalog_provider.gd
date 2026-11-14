@@ -96,6 +96,8 @@ func get_tags(category: StringName) -> Array[Dictionary]:
 	var tags: Array = _data.get(category, {}).keys()
 	if not _consists(category).is_empty():
 		tags.append(ConsistSetting.TAG)
+	if not _my_buildings(category).is_empty():
+		tags.append(BuildingPresetSetting.TAG)   # XX claude-library L8
 	for tag in CatalogMeta.sort_tags(category, tags):
 		var tag_name: String = CatalogMeta.tag_info(category, tag).get("name", str(tag))
 		out.append({"id": tag, "name": tag_name, "icon": _tag_icon(category, tag), "tooltip": CatalogMeta.tag_info(category, tag).get("tooltip", "")})
@@ -151,6 +153,8 @@ func _tag_icon(category: StringName, tag: StringName) -> Texture2D:
 func _items(category: StringName, tag: StringName) -> Array:
 	if tag == ConsistSetting.TAG:
 		return _consists(category)
+	if tag == BuildingPresetSetting.TAG:
+		return _my_buildings(category)   # XX claude-library L8
 	return _data.get(category, {}).get(tag, [])
 
 
@@ -165,6 +169,29 @@ func _consists(category: StringName) -> Array:
 		by_key[obj.get_key()] = obj
 	for tpl in ConsistStore.load_all():
 		var s := ConsistSetting.from_template(tpl, by_key)
+		if s != null:
+			out.append(s)
+	return out
+
+
+## XX claude-library L8. Кнопки «Мои здания» (категория building режима стройки). Читаются при каждом обращении,
+## поэтому только что сохранённое в Library здание появляется без перезапуска игры
+func _my_buildings(category: StringName) -> Array:
+	var out: Array = []
+	if category != &"building" or not CatalogMeta.categories_for_mode(mode).has(category):
+		return out
+	var entries := BuildingStore.list_all()
+	if entries.is_empty():
+		return out
+	var base: EntitySetting = null
+	for obj in load_all():
+		if obj.get_key() == BuildingGenSetting.OBJECT_KEY:
+			base = obj
+			break
+	if base == null:
+		return out
+	for entry in entries:
+		var s := BuildingPresetSetting.from_entry(entry, base)
 		if s != null:
 			out.append(s)
 	return out

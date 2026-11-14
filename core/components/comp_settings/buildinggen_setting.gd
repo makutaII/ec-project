@@ -8,6 +8,9 @@ class_name BuildingGenSetting extends ComponentSettings
 ## свет считает генератор (BuildingBuilder.make_lights) по раскладке окон.
 ## Порядок в массиве components .tres: Identity, BuildingGen, затем Draggable, Hoverable, Selectable, Blockable.
 
+## Ключ объекта-генератора в каталоге (data/buildings/objects/building_gen.tres)
+const OBJECT_KEY := &"building.house.building_gen"
+
 
 func create_component(entity: Entity) -> Component:
 	var vis := C_BuildingGen.new()

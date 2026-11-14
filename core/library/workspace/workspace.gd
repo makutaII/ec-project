@@ -47,3 +47,8 @@ func on_loading(_setting: EntitySetting) -> void:
 
 func on_subject(_setting: EntitySetting, _info: Dictionary, _ms: int) -> void:
 	pass
+
+
+## «В игру»: область может добавить своё в исполнение, которое уйдёт в игру (например, здание из генератора)
+func extend_variant(_variant: Dictionary) -> void:
+	pass

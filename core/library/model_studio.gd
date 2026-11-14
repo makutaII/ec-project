@@ -21,6 +21,7 @@ const StudioSettings := preload("res://core/library/icon_studio/studio_settings.
 const StageClean := preload("res://core/library/stage/stage_clean.gd")
 const Overview := preload("res://core/library/workspace/overview.gd")
 const Paint := preload("res://core/library/workspace/paint.gd")
+const Building := preload("res://core/library/workspace/building.gd")
 
 const SETTINGS_PATH := "user://library.cfg"
 ## Кадров «settle» после создания объекта (как DEFAULT_SETTLE в Icon Studio)
@@ -34,7 +35,7 @@ const WORKSPACE_TABS := [
 	[&"parts", "Детали", false],
 	[&"fit", "Свет", false],
 	[&"test", "Стенд", false],
-	[&"building", "Здания", false],
+	[&"building", "Здания", true],
 	[&"kit", "Сборка", false],
 	[&"restore", "Реставрация", false],
 ]
@@ -437,6 +438,8 @@ func _on_place_pressed() -> void:
 		v = VariantIO.embed_layers(v, variant.id)   # сохранённый слой: PNG из файла
 	if PaintData.is_blank(v["paint"]):
 		v = {}
+	if workspace != null:
+		workspace.extend_variant(v)   # XX claude-library L8: здание из генератора
 	place_requested.emit(_current, v)
 
 
@@ -467,6 +470,8 @@ func _on_tab(id: StringName) -> void:
 	match id:
 		&"paint":
 			ws = Paint.new()
+		&"building":
+			ws = Building.new()
 		_:
 			ws = Overview.new()
 	_set_workspace(ws)

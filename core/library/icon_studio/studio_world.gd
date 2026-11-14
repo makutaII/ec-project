@@ -305,6 +305,22 @@ func set_subject(setting: EntitySetting, source: int, settle_frames: int) -> Dic
 	return info
 
 
+## Замерить показанный объект заново после перестройки на месте (здание из генератора) и обновить границы.
+## refit: заодно вписать камеру (зум и сдвиг сброшены)
+func remeasure(refit := false) -> void:
+	if not is_instance_valid(subject):
+		return
+	var stat := _measure(subject)
+	if int(stat.meshes) == 0:
+		return
+	bounds = stat.aabb
+	_update_ground()
+	if refit:
+		fit()
+	else:
+		_compute_fit()
+
+
 func _after_measure(info: Dictionary, node: Node3D) -> void:
 	var stat := _measure(node)
 	info.meshes = stat.meshes

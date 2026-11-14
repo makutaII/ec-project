@@ -196,6 +196,12 @@ func select_build_object(setting: EntitySetting, variant: Dictionary = {}) -> vo
 	if consist_setting != null:
 		setting = consist_setting.head
 
+	# XX claude-library L8: кнопка «Мои здания» это обёртка. Ставится общий объект генератора, здание игрока идёт в исполнении
+	var building_preset := setting as BuildingPresetSetting
+	if building_preset != null:
+		variant = building_preset.make_variant()
+		setting = building_preset.base
+
 	# XX claude-terra 13.3 S2: кнопка терморезака включает инструмент, призрака нет. Форма выреза из facet "shape"
 	if setting.build_behavior == EntitySetting.BuildBehavior.CUT_TOOL:
 		cut_tool.shape = StringName(setting.get_facet(&"shape")) if setting.get_facet(&"shape") != "" else ThermoCutTool.SHAPE_RECT

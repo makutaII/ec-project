@@ -37,7 +37,7 @@ const CATEGORIES := {
 const TAGS := {
 	&"train": [&"loco", &"boxcar", &"parts", &"consist"],
 	&"track": [&"straight", &"curve", &"junction", &"special"],
-	&"building": [&"house"],
+	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"water", &"plaster", &"brush"],
 	&"table": [&"section"],
 	&"dc_controller": [&"2d", &"3d", &"switch", &"wire"],
@@ -49,6 +49,9 @@ const TAG_META := {
 	&"train": {
 		&"parts": {"name": "Составные", "tooltip": "Части составов по отдельности: паровоз, тендер, секции"},
 		&"consist": {"name": "Составы", "tooltip": "Готовые составы: ставятся одной кнопкой. Свой состав: «Записать состав» во вкладке «Положение»"},
+	},
+	&"building": {
+		&"mybuildings": {"name": "Мои здания", "tooltip": "Здания игрока из генератора. Свои здания: Library, вкладка «Здания», «Сохранить»"},
 	},
 	&"track": {
 		&"straight": {"name": "Прямые"},
