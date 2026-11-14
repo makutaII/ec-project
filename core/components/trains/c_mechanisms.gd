@@ -152,6 +152,7 @@ var _lamp_order: Array[StringName] = []
 var _saved_lights: Dictionary = {}   # id(String) -> {t, manual, enabled}
 var _gizmos_on := false
 var _ghost := false
+var _lights_built := false     # on_entity_ready создал источники (set_light_configs пересоздаёт их)
 ## Направление движения для DIRECTION: 1 носом (-Z) вперёд, -1 хвостом
 var _dir := 1
 var _has_dir := false       # есть источники с правилом DIRECTION
@@ -195,6 +196,12 @@ func on_entity_ready() -> void:
 	for id in _order:
 		_mechs[id].apply()
 
+	_create_lamps(vis)
+	_lights_built = true
+
+
+## Источники света по light_configs: узлы, правила, шина, бюджет
+func _create_lamps(vis: C_Visual) -> void:
 	for c in light_configs:
 		var lc := c as LightConfig
 		if lc == null or _lamps.has(lc.id):
@@ -207,6 +214,33 @@ func on_entity_ready() -> void:
 	_register_bus()
 	if not _lamps.is_empty() and GFX.light_budget:
 		GFX.light_budget.register(self)
+
+
+## Заменить набор источников света (XX claude-library L7: здание из генератора меняет окна вместе с формой).
+## До on_entity_ready только запоминает конфиги; после пересоздаёт источники. Сохранённые состояния
+## (_saved_lights) остаются и применяются к источникам с теми же id
+func set_light_configs(configs: Array[LightConfig]) -> void:
+	light_configs = configs
+	if not _lights_built:
+		return
+	_clear_lamps()
+	var vis := get_comp(C_Visual) as C_Visual
+	if vis != null and vis.parts != null:
+		_create_lamps(vis)
+
+
+func _clear_lamps() -> void:
+	for id in _lamp_order:
+		var l: Lamp = _lamps[id]
+		for n in [l.light, l.glow, l.gizmo]:
+			if n != null and is_instance_valid(n):
+				(n as Node).queue_free()
+	_lamps.clear()
+	_lamp_order.clear()
+	if is_instance_valid(PGM):
+		PGM.bus.remove_consumer(self)
+	if is_instance_valid(GFX) and GFX.light_budget:
+		GFX.light_budget.unregister(self)
 
 
 ## ANIM: находит в модели AnimationPlayer с нужной анимацией, берёт её Animation и дорожки позиции, поворота и масштаба узлов.

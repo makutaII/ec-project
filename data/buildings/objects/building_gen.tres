@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="EntitySetting" load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" path="res://setting/object_config.gd" id="2_oc"]
+[ext_resource type="Script" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" path="res://core/components/comp_settings/buildinggen_setting.gd" id="4_bg"]
+[ext_resource type="Script" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="5_dr"]
+[ext_resource type="Script" path="res://core/components/comp_settings/hoverable_setting.gd" id="6_ho"]
+[ext_resource type="Script" path="res://core/components/comp_settings/selectable_setting.gd" id="7_se"]
+[ext_resource type="Script" path="res://core/components/comp_settings/blockable_setting.gd" id="8_bl"]
+[ext_resource type="Script" path="res://core/entity_setting.gd" id="9_es"]
+[ext_resource type="Texture2D" path="res://ui/icons/house/house.svg" id="10_ic"]
+
+[sub_resource type="Resource" id="Resource_oc"]
+script = ExtResource("2_oc")
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_id")
+object_config = SubResource("Resource_oc")
+
+[sub_resource type="Resource" id="Resource_bg"]
+script = ExtResource("4_bg")
+
+[sub_resource type="Resource" id="Resource_dr"]
+script = ExtResource("5_dr")
+
+[sub_resource type="Resource" id="Resource_ho"]
+script = ExtResource("6_ho")
+
+[sub_resource type="Resource" id="Resource_se"]
+script = ExtResource("7_se")
+
+[sub_resource type="Resource" id="Resource_bl"]
+script = ExtResource("8_bl")
+
+[resource]
+script = ExtResource("9_es")
+key = &"building.house.building_gen"
+name = "building_gen"
+description = "Генератор зданий"
+category = &"building"
+tag = &"house"
+sort_order = 10
+icon = ExtResource("10_ic")
+build_behavior = 1
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_bg"), SubResource("Resource_dr"), SubResource("Resource_ho"), SubResource("Resource_se"), SubResource("Resource_bl")])

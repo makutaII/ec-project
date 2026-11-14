@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="ModelInfo" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/library/common/model_info.gd" id="1_info"]
+
+[resource]
+script = ExtResource("1_info")
+key = &"building.house.building_gen"
+title = "Генератор зданий"
