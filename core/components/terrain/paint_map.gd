@@ -247,6 +247,50 @@ func _blend(i: int, j: int, cls: int, a: float) -> bool:
 	return true
 
 
+## K3c. Убрать краску там, где нет бинта: own (w x d, ячейка (0, 0) это ячейка (i0, j0) карты) меньше 0 или ячейка вне поля.
+## Краска живёт на гипсе: снят бинт или удалён лист, и краски под ним не остаётся (иначе она всплывала бы при новом бинте).
+## Возвращает число обнулённых ячеек. Мазок и его отмену это не затрагивает: чистка идёт при пересборке оболочки
+func prune_unowned(i0: int, j0: int, w: int, d: int, own: PackedInt32Array) -> int:
+	var cleared := 0
+	var keys: Array = []
+	var gone: Array = []
+	for key: Vector2i in _chunks:
+		var data: PackedByteArray = _chunks[key]
+		var gx0 := key.x * CHUNK
+		var gz0 := key.y * CHUNK
+		var touched := false
+		var kept := false
+		for cj in CHUNK:
+			var gj := gz0 + cj - j0
+			for ci in CHUNK:
+				var o := (cj * CHUNK + ci) * CHANNELS
+				if (data[o] | data[o + 1] | data[o + 2] | data[o + 3]) == 0:
+					continue
+				var gi := gx0 + ci - i0
+				if gi >= 0 and gi < w and gj >= 0 and gj < d and own[gj * w + gi] >= 0:
+					kept = true
+					continue
+				data[o] = 0
+				data[o + 1] = 0
+				data[o + 2] = 0
+				data[o + 3] = 0
+				cleared += 1
+				touched = true
+		if touched:
+			keys.append(key)
+			if kept:
+				_chunks[key] = data
+			else:
+				gone.append(key)
+	for key: Vector2i in gone:
+		_chunks.erase(key)
+	if _chunks.is_empty():
+		cell = 0.0
+	if not keys.is_empty():
+		changed.emit(keys)
+	return cleared
+
+
 ## Убрать всю краску (новый макет, загрузка)
 func clear() -> void:
 	var keys := _chunks.keys()

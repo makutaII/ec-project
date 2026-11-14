@@ -784,7 +784,11 @@ func _apply_stage(mesh: ArrayMesh) -> void:
 		return
 	var st := style if style != null else TerrainStyle.new()
 	if _surf_side >= 0 and _surf_side < mesh.get_surface_count():
-		mesh.surface_set_material(_surf_side, st.get_side(stage))
+		var wall: Material = st.get_side(stage)
+		# XX claude-terra 13.13 K3c: стенка листа с бинтом красится от края верха (плоскость и пандус краски не меняет)
+		if smooth > 0 and TGM.splat != null and bool(Global.settings.plaster_paint_walls):
+			wall = TGM.splat.wall_material(st, stage)
+		mesh.surface_set_material(_surf_side, wall)
 	if _surf_top >= 0 and _surf_top < mesh.get_surface_count():
 		mesh.surface_set_material(_surf_top, st.get_top(stage))
 	if _surf_cut >= 0 and _surf_cut < mesh.get_surface_count():   # 13.3 S4
@@ -798,6 +802,8 @@ func set_smooth(run: int) -> void:
 	if run == smooth:
 		return
 	smooth = run
+	if mesh_node:
+		_apply_stage(mesh_node.mesh as ArrayMesh)   # K3c: материал стенки зависит от бинта
 	TGM.plaster_dirty()
 
 

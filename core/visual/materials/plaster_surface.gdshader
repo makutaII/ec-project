@@ -13,6 +13,8 @@ uniform float base_scale = 0.15;
 uniform sampler2D splat : filter_linear, repeat_disable;
 // x0, z0, ширина, глубина сплэта в мире; ширина 0 = краски нет
 uniform vec4 splat_rect = vec4(0.0);
+// K3c. Полклетки краски, ю: у стенки краска берётся на столько внутрь листа (стенка красится от края верха)
+uniform float splat_shift = 0.0;
 
 uniform sampler2D edge_noise : filter_linear_mipmap, repeat_enable;
 uniform sampler2D grass_tex : source_color, filter_linear_mipmap, repeat_enable;
@@ -53,7 +55,9 @@ void fragment() {
 	vec3 col = base_color.rgb * tri(base_tex, w_pos, n, base_scale);
 
 	if (splat_rect.z > 0.0) {
-		vec2 suv = (w_pos.xz - splat_rect.xy) / splat_rect.zw;
+		// стенка (нормаль почти горизонтальна): точка краски сдвигается внутрь листа, на плоскости и пандусе сдвига нет
+		float wall = 1.0 - smoothstep(0.25, 0.6, abs(n.y));
+		vec2 suv = (w_pos.xz - n.xz * wall * splat_shift - splat_rect.xy) / splat_rect.zw;
 		if (suv.x >= 0.0 && suv.y >= 0.0 && suv.x <= 1.0 && suv.y <= 1.0) {
 			vec3 cw = texture(splat, suv).rgb;
 			float total = cw.r + cw.g + cw.b;

@@ -143,7 +143,15 @@ func _process(_delta: float) -> void:
 
 ## Материал верха оболочки для стадии листа: основа стадии + краска. Кэшируется по материалу основы
 func surface_material(style: TerrainStyle, stage: int) -> Material:
-	var base := style.get_top(stage)
+	return _material_for(style, style.get_top(stage))
+
+
+## K3c. Материал стенки листа с бинтом: боковая основа стадии + та же краска. Краска стенки это краска на её верхнем крае
+func wall_material(style: TerrainStyle, stage: int) -> Material:
+	return _material_for(style, style.get_side(stage))
+
+
+func _material_for(style: TerrainStyle, base: Material) -> Material:
 	var std := base as StandardMaterial3D
 	if std == null:
 		return base
@@ -171,6 +179,7 @@ func surface_material(style: TerrainStyle, stage: int) -> Material:
 func _apply(m: ShaderMaterial) -> void:
 	m.set_shader_parameter("splat", _tex)
 	m.set_shader_parameter("splat_rect", rect())
+	m.set_shader_parameter("splat_shift", map.cell * 0.5 if map != null else 0.0)
 
 
 func _apply_all() -> void:
