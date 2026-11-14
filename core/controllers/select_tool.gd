@@ -200,6 +200,9 @@ func handle_input(event: InputEvent):
 	# XX claude-terra T6: тоннельный флаг выбранного трака (у не-траков события никто не слушает)
 	if selected_entity and Actions.pressed(event, &"tunnel_toggle"):
 		selected_entity.send_event("on_tunnel_toggle", {})
+	# XX claude-terra 13.13 K5: стиль портала (у не-тоннельных траков события никто не слушает)
+	if selected_entity and Actions.pressed(event, &"tunnel_portal"):
+		selected_entity.send_event("on_portal_cycle", {})
 
 	if selected_entity and Actions.pressed(event, &"wagon_kick_fwd"):
 		selected_entity.send_event("on_train_kicked", {"power_kick": 10.0}) # Пинок силой 10m\s

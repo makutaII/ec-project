@@ -66,6 +66,8 @@ func _register_defaults() -> void:
 	register(&"flex_limits_toggle", "action.flex_limits_toggle", &"build", [G_BUILD], _key(KEY_L))
 	register(&"flex_zones_toggle", "action.flex_zones_toggle", &"build", [G_BUILD], _key(KEY_Z))
 	register(&"tunnel_toggle", "action.tunnel_toggle", &"build", [G_BUILD, G_SELECT], _key(KEY_U))
+	# XX claude-terra 13.13 K5: стиль портала выбранного тоннельного трака (нет, бетон, камень)
+	register(&"tunnel_portal", "action.tunnel_portal", &"build", [G_SELECT], _key(KEY_G))
 	# Select
 	# Del работает во всех режимах SelectTool; в «Секциях» убирает секцию. Пинок вагона и стрелка: не в «Секциях»
 	# (там PgUp/PgDn это высота стола, SelectTool возвращается раньше, до пинка)

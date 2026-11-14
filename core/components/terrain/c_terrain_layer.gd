@@ -49,6 +49,8 @@ var body: StaticBody3D
 ## Слои [y0, y1), полигоны простые (без дыр), обход против часовой, локальные координаты листа
 var _blocks: Array[Dictionary] = []
 var _recomputing := false   # защита от повторного входа: пересчет канав сам шлет terrain_changed
+## 13.13 K5. Узел с рамками порталов тоннелей (дети TunnelPortal.make_node), null: рамок нет
+var _portal_root: Node3D
 var _shapes: Array[CollisionShape3D] = []
 var _last_aabb := AABB()
 var _surf_side := -1   # индексы поверхностей меша (-1 нет)
@@ -249,15 +251,61 @@ func recompute_auto_cuts() -> void:
 	if _recomputing or entity == null or not entity.is_inside_tree() or entity.is_queued_for_deletion():
 		return
 	if has_comp(C_Ghost) or has_comp(C_Drag):
+		_clear_portals()   # XX claude-terra 13.13 K5: в драге листа рамки остались бы на месте
 		return
 	_recomputing = true
 	var mine := world_polygon()
 	var inv := entity.global_transform.affine_inverse()
 	var res: Array[FoamCut] = []
+	var portals: Array[Dictionary] = []
 	for t in TGM.get_tracks():
-		res.append_array(_track_cuts(t.get_comp(C_Path) as C_Path, mine, inv))
+		var path := t.get_comp(C_Path) as C_Path
+		res.append_array(_track_cuts(path, mine, inv))
+		portals.append_array(_track_portals(path, mine))
 	set_auto_cuts(res)
+	_build_portals(portals)
 	_recomputing = false
+
+
+## XX claude-terra 13.13 K5. Устья тоннельных траков с порталом на этом листе: там, где ось трака выходит на внешний контур
+## и свод над проёмом есть (лист выше габарита). Проём берётся теми же слоями, что режет автовырез
+func _track_portals(path: C_Path, mine: PackedVector2Array) -> Array[Dictionary]:
+	var res: Array[Dictionary] = []
+	if path == null or not path.allows_underground():
+		return res
+	var tun := path.get_comp(C_Tunnel) as C_Tunnel
+	if tun == null or tun.portal == TunnelPortal.STYLE_NONE:
+		return res
+	var T: float = Global.settings.layer_height
+	var body: float = Global.settings.get_track_height() + float(Global.settings.tunnel_clearance)
+	var margin: float = Global.settings.terrain_cut_margin
+	for m in TunnelPortal.mouths(path.ballast_samples(), mine):
+		var op := TunnelPortal.opening(m["lo"], m["hi"], base_y(), maxi(1, levels), T, body, float(Global.settings.underground_tolerance))
+		if op.is_empty():
+			continue
+		res.append({"style": tun.portal, "p": m["p"], "out": m["out"], "width": float(m["width"]) + 2.0 * margin,
+			"floor": op["floor"], "vault": op["vault"]})
+	return res
+
+
+## Рамки порталов (декор, без коллизии). Узел в мировых координатах (top_level): сдвиг листа пересчитывает автовырезы и рамки заново
+func _build_portals(list: Array[Dictionary]) -> void:
+	_clear_portals()
+	if list.is_empty():
+		return
+	_portal_root = Node3D.new()
+	_portal_root.name = "Portals"
+	_portal_root.top_level = true
+	entity.add_child(_portal_root)
+	var top := top_y()
+	for p in list:
+		_portal_root.add_child(TunnelPortal.make_node(p["style"], p["p"], p["out"], p["width"], p["floor"], p["vault"], top))
+
+
+func _clear_portals() -> void:
+	if _portal_root != null and is_instance_valid(_portal_root):
+		_portal_root.queue_free()
+	_portal_root = null
 
 
 ## Вырезы одного трака. mine: контур листа в мире, inv: из мира в локальные координаты листа

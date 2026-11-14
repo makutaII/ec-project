@@ -17,6 +17,8 @@ const LABEL_PIXEL_SIZE := 0.0015
 const LABEL_FONT_SIZE := 32
 
 var _label: TrackNote.Line   # строка общей метки TrackNote
+## 13.13 K5. Стиль портала (TunnelPortal.STYLES): пусто = нет. Рамку рисует лист в устье выреза, здесь хранится только стиль
+var portal: StringName = TunnelPortal.STYLE_NONE
 
 
 func _init() -> void:
@@ -43,19 +45,37 @@ func on_curve_changed(_d: Dictionary) -> void:
 	_place_label()
 
 
-## Призрак -> настоящий объект: флаг переходит вместе с состоянием
+## Призрак -> настоящий объект: флаг и стиль портала переходят вместе с состоянием
 func on_clone_state_to(data: Dictionary) -> void:
 	var target: Entity = data.target
-	if target and not target.has_comp(C_Tunnel):
-		target.add_component(C_Tunnel.new())
+	if target == null:
+		return
+	var t := target.get_comp(C_Tunnel) as C_Tunnel
+	if t == null:
+		t = C_Tunnel.new()
+		target.add_component(t)
+	t.portal = portal
+
+
+## XX claude-terra 13.13 K5. Событие: следующий стиль портала (нет, бетон, камень). Шлёт SelectTool на выбранном траке.
+## Листы пересчитают устья по on_tunnel_changed
+func on_portal_cycle(_d: Dictionary) -> void:
+	portal = TunnelPortal.next_style(portal)
+	_update_label()
+	entity.send_event("on_tunnel_changed", {})
 
 
 func _ensure_label() -> void:
 	if _label:
 		return
 	_label = TrackNote.line(entity, &"tunnel", 20)   # самой нижней строкой
-	_label.text = "TUNNEL"
+	_update_label()
 	_label.modulate = Color(0.45, 0.8, 1.0)
+
+
+func _update_label() -> void:
+	if _label:
+		_label.text = "TUNNEL" if portal == TunnelPortal.STYLE_NONE else "TUNNEL · портал: %s" % TunnelPortal.NAMES.get(portal, "?")
 
 
 func _place_label() -> void:
@@ -71,8 +91,13 @@ func _place_label() -> void:
 ## --- Сейв ---
 ## Без save_data флаг после загрузки пропал бы: SaveManager досоздает такой компонент сам
 func save_data() -> Dictionary:
-	return {"on": true}
+	if portal == TunnelPortal.STYLE_NONE:
+		return {"on": true}
+	return {"on": true, "portal": String(portal)}
 
 
-func load_data(_data: Dictionary) -> void:
-	pass
+## Старые сейвы без поля portal: портала нет. Неизвестный стиль тоже сводится к «нет»
+func load_data(data: Dictionary) -> void:
+	var p := StringName(String(data.get("portal", "")))
+	portal = p if TunnelPortal.STYLES.has(p) else TunnelPortal.STYLE_NONE
+	_update_label()

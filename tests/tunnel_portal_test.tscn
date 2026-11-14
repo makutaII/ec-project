@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://4ekmi1in6lx4c"]
+
+[ext_resource type="Script" uid="uid://61v5rf62uyt58" path="res://tests/tunnel_portal_test.gd" id="1"]
+
+[node name="TunnelPortalTest" type="Node"]
+script = ExtResource("1")
