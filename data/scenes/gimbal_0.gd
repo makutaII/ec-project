@@ -86,6 +86,8 @@ const GROUND_PLANE = Plane(Vector3.UP, 0)
 #_unhandled_input не работает над UI элементами, поэтому _input как земена при необходимости
 func _unhandled_input(event: InputEvent) -> void: 
 	if !camera.current: return
+	# U10/U11: пока открыто модальное окно, колесо, МСМ и ПКМ камеру не двигают
+	if UIPointer.modal_open(): return
 	#rotate and elevate
 	if Input.is_action_pressed("mmb"):
 		#Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)		# скрыли курсор
