@@ -36,7 +36,7 @@
 | `MechanismConfig`: заготовки `Source { WHEEL_PHASE, SPEED, POWERED, DIRECTION }`, `Actuator { SPIN, CLIP, LIGHT, PARTICLES }` | `setting/mechanism_config.gd` | заготовки, не реализованы |
 | `LightConfig` и `Lamp` (SPOT, OMNI, EMISSIVE; правила COMMAND, NIGHT, DIRECTION, ALWAYS; бюджет; свечение) | `setting/light_config.gd`, `setting/glow_rect.gd`, `C_Mechanisms`, `core/graphics/light_budget.gd` | **L0–L6** |
 | Вкладка «Механизмы» в InfoPanel (слайдер, «Открыто», «вкл», статус) | `ui/panels/info_panel.gd` | работает, добавлен раздел «Свет» |
-| `GFX.time_of_day_changed(id)`, лампа стола | `core/graphics/graphics_manager.gd` | есть, подписчиков нет |
+| `GFX.time_of_day_changed(id)`, лампа стола | `core/graphics/graphics_manager.gd` | есть; подписан `C_Mechanisms` (правило `NIGHT`, шаг L3) |
 | `C_Switch`: `on_switch_changed {route}`, `on_switch_moving` | `core/components/tracks/c_switch.gd` | есть, на траках `C_Mechanisms` нет |
 
 Решение по `MechanismConfig.Actuator.LIGHT`: **не используем**, свет живёт в `LightConfig`. Значение enum оставляем до чистки, в коде оно ни на что не влияет.

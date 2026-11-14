@@ -21,3 +21,4 @@
 - [ATTN_23_layout_table.md](docs/ATTN_23_layout_table.md) — Подмакетник (Layout Table): кастомизация, модули, крепление, задник, подстольный слой, план T0–T10.
 - [0_ATTN_24_model_pipeline.md](0_ATTN_24_model_pipeline.md) — Модели из Blender: экспорт в `.glb`, роли, покраска, механизмы, свет.
 - [ATTN_25_rooms.md](ATTN_25_rooms.md) — Комнаты: активная комната, Room Studio, Observe без комнаты, пайплайн Blender для комнат, план RM0–RM9.
+- [ATTN_26_sound.md](ATTN_26_sound.md) — Звук: аудит, архитектура (`C_Sound`, `SND`), план S1–S3 (объекты, интерфейс, музыка), звук локо через DCC, карта звукового файла тепловоза.

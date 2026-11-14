@@ -141,6 +141,8 @@ Miniature / tabletop / model railway:
 - трансформатор;
 - окружение.
 
+Подробное содержание: [ATTN_26_sound.md](ATTN_26_sound.md): аудит, архитектура, план этапов (звуки объектов, звуки интерфейса, музыка), звук локомотивов через DCC.
+
 ## 14. UX
 Build UI, Operate UI, InfoPanel, Power Layer, диагностические представления.
 
@@ -173,3 +175,4 @@ Build UI, Operate UI, InfoPanel, Power Layer, диагностические п�
 - [ATTN_22_library.md](ATTN_22_library.md) — Library (Model Studio): коллекция, кастомизация, сборка и генерация зданий
 - [ATTN_23_layout_table.md](docs/ATTN_23_layout_table.md) — Подмакетник (Layout Table): кастомизация, модули, задник, подстольный слой
 - [ATTN_25_rooms.md](ATTN_25_rooms.md) — Комнаты: активная комната, Room Studio, Observe без комнаты, пайплайн Blender для комнат, план RM0–RM9.
+- [ATTN_26_sound.md](ATTN_26_sound.md) — Звук: объекты, интерфейс, музыка, звук локо через DCC.
