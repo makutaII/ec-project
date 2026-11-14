@@ -61,6 +61,16 @@ func erase_value(section: String, key: String) -> void:
 		_timer.start()
 
 
+## Удаляет секцию целиком (сброс раскладки окон и т.п.)
+func erase_section(section: String) -> void:
+	if not _cfg.has_section(section):
+		return
+	_cfg.erase_section(section)
+	_dirty = true
+	if _timer and is_inside_tree():
+		_timer.start()
+
+
 ## Немедленная запись. Вызывается сама по таймеру, при закрытии окна и при выходе из дерева
 func save_now() -> void:
 	if not _dirty:

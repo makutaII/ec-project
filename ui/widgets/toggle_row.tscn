@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/widgets/toggle_row.gd" id="1_row"]
+
+[node name="ToggleRow" type="HBoxContainer"]
+theme_override_constants/separation = 8
+script = ExtResource("1_row")
+
+[node name="Caption" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="Toggle" type="CheckButton" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResetButton" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 24)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"ButtonSmall"
+tooltip_text = "Значение по умолчанию"
+text = "Сброс"

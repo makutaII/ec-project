@@ -3,7 +3,7 @@ class_name SystemMenu extends Node
 # U10 (ATTN_17 §17.3.1): новый файл, заменяет меню из TopPanel
 ## Системное меню (кнопка в TopBar): Новый, Сохранить, Загрузить, Подсказки, Настройки, Выход.
 ## Новый и Выход спрашивают подтверждение. Save и Load открывают SaveLoadDialog.
-## Настройки (SettingsWindow) появятся в U11: пока пункт отключён.
+## Настройки открывают SettingsWindow (U11).
 
 const ID_NEW := 0
 const ID_SAVE := 1
@@ -15,6 +15,7 @@ const ID_EXIT := 5
 @onready var _top_bar: TopBar = %TopBar
 @onready var _confirm: ConfirmDialog = %ConfirmDialog
 @onready var _save_load: SaveLoadDialog = %SaveLoadDialog
+@onready var _settings: SettingsWindow = %SettingsWindow
 @onready var _save_manager: SaveManager = get_node("/root/GameRoot/SaveManager")
 
 var _popup: PopupMenu
@@ -34,11 +35,11 @@ func _ready() -> void:
 	_popup.add_check_item("Подсказки", ID_HINTS)
 	_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
 	_popup.add_item("Настройки…", ID_SETTINGS)
-	_popup.set_item_disabled(_popup.get_item_index(ID_SETTINGS), true)
-	_popup.set_item_tooltip(_popup.get_item_index(ID_SETTINGS), "Скоро")
 	_popup.add_separator()
 	_popup.add_item("Выход", ID_EXIT)
 	_popup.id_pressed.connect(_on_id_pressed)
+	# Подсказки можно переключить и в окне настроек: галочка в меню следует за Settings
+	Settings.changed.connect(_on_setting_changed)
 
 
 func _on_id_pressed(id: int) -> void:
@@ -52,8 +53,15 @@ func _on_id_pressed(id: int) -> void:
 		ID_HINTS:
 			Hints.set_enabled(not Hints.enabled)
 			_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
+		ID_SETTINGS:
+			_settings.open()
 		ID_EXIT:
 			_exit()
+
+
+func _on_setting_changed(section: String, key: String, _value: Variant) -> void:
+	if section == "ui" and key == "hints_enabled":
+		_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
 
 
 func _new_layout() -> void:

@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" path="res://ui/hud/top_bar.tscn" id="13_topbar"]
 [ext_resource type="PackedScene" path="res://ui/windows/confirm_dialog.tscn" id="14_confirm"]
 [ext_resource type="PackedScene" path="res://ui/windows/save_load_dialog.tscn" id="15_saveload"]
+[ext_resource type="PackedScene" path="res://ui/windows/settings_window.tscn" id="17_settings"]
 [ext_resource type="Script" uid="uid://c6287df8pqrh" path="res://ui/hud/system_menu.gd" id="16_sysmenu"]
 [ext_resource type="Script" uid="uid://b1a08tultjehh" path="res://ui/ui.gd" id="99_uigd"]
 
@@ -199,6 +200,9 @@ grow_vertical = 1
 
 [node name="Windows" type="CanvasLayer" parent="." unique_id=1311200802]
 layer = 20
+
+[node name="SettingsWindow" parent="Windows" unique_id=1311200823 instance=ExtResource("17_settings")]
+unique_name_in_owner = true
 
 [node name="ConfirmDialog" parent="Windows" unique_id=1311200820 instance=ExtResource("14_confirm")]
 unique_name_in_owner = true
