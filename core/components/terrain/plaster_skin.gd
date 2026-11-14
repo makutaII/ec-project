@@ -265,7 +265,7 @@ func rebuild() -> void:
 		run_arr = cf["run"]
 		up_arr = cf["up"]
 		_lap("классы краски")
-	var sk := PlasterField.smooth(hh, run_arr, f, w, d, c, T, max_up, up_arr)
+	var sk := PlasterField.smooth(hh, run_arr, f, w, d, c, T, max_up, up_arr, clampf(float(gs.plaster_lip), 0.0, 1.0))
 	_lap("оболочка")
 	if not wt.is_empty():
 		# K4: мелкий рельеф только вверх. K3: на плоском верху оболочка есть только в крашеных ячейках

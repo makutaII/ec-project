@@ -26,17 +26,20 @@ const RELIEF_AMP: Array[float] = [0.12, 0.45, 0.10]
 
 
 ## Оболочка. Все массивы длиной w * d. cell: сторона ячейки (ю), T: высота слоя, max_up: наибольший подъём (ю).
-## up (K4): наибольший подъём по ячейкам, ю; пустой массив = везде max_up
+## up (K4): наибольший подъём по ячейкам, ю; пустой массив = везде max_up.
+## lip (0..1): доля первого шага пандуса, которую убираем у края ступени. Центр ячейки стоит в полуячейке от среза, поэтому без
+## этого оболочка у верха стенки на шаг ниже среза и срез торчит над гипсом «стеклянным бортиком». 0 = как раньше, 1 = первая
+## ячейка у среза вровень с верхом (оболочка и верх листа в одной плоскости, возможна рябь)
 static func smooth(h: PackedFloat32Array, run: PackedFloat32Array, f: PackedFloat32Array, w: int, d: int,
-		cell: float, T: float, max_up: float, up: PackedFloat32Array = PackedFloat32Array()) -> PackedFloat32Array:
+		cell: float, T: float, max_up: float, up: PackedFloat32Array = PackedFloat32Array(), lip: float = 0.0) -> PackedFloat32Array:
 	var s := h.duplicate()
 	if up.is_empty():
 		up = PackedFloat32Array()
 		up.resize(w * d)
 		up.fill(max_up)
 	for _i in 2:
-		_sweep(s, h, run, w, d, cell, T, up, true)
-		_sweep(s, h, run, w, d, cell, T, up, false)
+		_sweep(s, h, run, w, d, cell, T, up, true, lip)
+		_sweep(s, h, run, w, d, cell, T, up, false, lip)
 	var out := PackedFloat32Array()
 	out.resize(w * d)
 	for i in w * d:
@@ -45,7 +48,7 @@ static func smooth(h: PackedFloat32Array, run: PackedFloat32Array, f: PackedFloa
 
 
 static func _sweep(s: PackedFloat32Array, h: PackedFloat32Array, run: PackedFloat32Array, w: int, d: int,
-		cell: float, T: float, up: PackedFloat32Array, forward: bool) -> void:
+		cell: float, T: float, up: PackedFloat32Array, forward: bool, lip: float = 0.0) -> void:
 	# XX claude-terra 13.13 K0b: соседи записаны развёрнуто (без массива направлений и проверок границ на каждый шаг).
 	# Порядок обхода и арифметика прежние, результат побитово тот же. Вперёд: (i-1,j) (i,j-1) и диагонали (i-1,j-1) (i+1,j-1);
 	# назад: (i+1,j) (i,j+1) и диагонали (i+1,j+1) (i-1,j+1)
@@ -60,22 +63,24 @@ static func _sweep(s: PackedFloat32Array, h: PackedFloat32Array, run: PackedFloa
 					continue
 				var drop := T / r * cell   # падение высоты на шаг по стороне ячейки
 				var drop_d := drop * DIAG
+				var drop_src := drop * (1.0 - lip)   # шаг от ячейки, которая ещё не поднята (край ступени): lip убирает его долю
+				var drop_d_src := drop_src * DIAG
 				var best := s[idx]
 				var cand := 0.0
 				if i > 0:
-					cand = s[idx - 1] - drop
+					cand = s[idx - 1] - (drop_src if s[idx - 1] == h[idx - 1] else drop)
 					if cand > best:
 						best = cand
 				if j > 0:
-					cand = s[idx - w] - drop
+					cand = s[idx - w] - (drop_src if s[idx - w] == h[idx - w] else drop)
 					if cand > best:
 						best = cand
 					if i > 0:
-						cand = s[idx - w - 1] - drop_d
+						cand = s[idx - w - 1] - (drop_d_src if s[idx - w - 1] == h[idx - w - 1] else drop_d)
 						if cand > best:
 							best = cand
 					if i < wm:
-						cand = s[idx - w + 1] - drop_d
+						cand = s[idx - w + 1] - (drop_d_src if s[idx - w + 1] == h[idx - w + 1] else drop_d)
 						if cand > best:
 							best = cand
 				s[idx] = minf(best, h[idx] + up[idx])
@@ -90,22 +95,24 @@ static func _sweep(s: PackedFloat32Array, h: PackedFloat32Array, run: PackedFloa
 					continue
 				var drop := T / r * cell
 				var drop_d := drop * DIAG
+				var drop_src := drop * (1.0 - lip)   # шаг от ячейки, которая ещё не поднята (край ступени): lip убирает его долю
+				var drop_d_src := drop_src * DIAG
 				var best := s[idx]
 				var cand := 0.0
 				if i < wm:
-					cand = s[idx + 1] - drop
+					cand = s[idx + 1] - (drop_src if s[idx + 1] == h[idx + 1] else drop)
 					if cand > best:
 						best = cand
 				if j < dm:
-					cand = s[idx + w] - drop
+					cand = s[idx + w] - (drop_src if s[idx + w] == h[idx + w] else drop)
 					if cand > best:
 						best = cand
 					if i < wm:
-						cand = s[idx + w + 1] - drop_d
+						cand = s[idx + w + 1] - (drop_d_src if s[idx + w + 1] == h[idx + w + 1] else drop_d)
 						if cand > best:
 							best = cand
 					if i > 0:
-						cand = s[idx + w - 1] - drop_d
+						cand = s[idx + w - 1] - (drop_d_src if s[idx + w - 1] == h[idx + w - 1] else drop_d)
 						if cand > best:
 							best = cand
 				s[idx] = minf(best, h[idx] + up[idx])

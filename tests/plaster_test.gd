@@ -162,6 +162,21 @@ func _ready() -> void:
 	var kold := PlasterField.smooth(kh, krun, kf, kn, kn, 0.5, kT, kT)
 	var knew := PlasterField.smooth(kh, krun, kf, kn, kn, 0.5, kT, kT, filled(kn * kn, kT))
 	check("K4 smooth: подъём по ячейкам = скалярному, если везде одинаков", _max_abs_diff(kold, knew) == 0.0)
+	# XX claude-terra 13.13 K3b: lip убирает долю первого шага у края ступени
+	var kfoot := 2 * kn + 2
+	var kl0 := PlasterField.smooth(kh, krun, kf, kn, kn, 0.5, kT, kT, PackedFloat32Array(), 0.0)
+	var kl5 := PlasterField.smooth(kh, krun, kf, kn, kn, 0.5, kT, kT, PackedFloat32Array(), 0.5)
+	var kl1 := PlasterField.smooth(kh, krun, kf, kn, kn, 0.5, kT, kT, PackedFloat32Array(), 1.0)
+	check("K3b lip 0: как раньше", _max_abs_diff(kl0, kold) == 0.0)
+	check("K3b lip 0: у среза шаг 0,2", near(kl0[kfoot], kT - 0.2, 0.0001), str(kl0[kfoot]))
+	check("K3b lip 0,5: у среза шаг 0,1", near(kl5[kfoot], kT - 0.1, 0.0001), str(kl5[kfoot]))
+	check("K3b lip 1: у среза вровень с верхом", near(kl1[kfoot], kT, 0.0001), str(kl1[kfoot]))
+	var lip_ok := true
+	for kk in kn * kn:
+		if kl1[kk] < kl0[kk] - 0.0001 or kl1[kk] > maxf(kh[kk], kT) + 0.0001 or kl1[kk] < kh[kk]:
+			lip_ok = false
+	check("K3b lip: оболочка не ниже ступеней и не выше верха", lip_ok)
+	check("K3b lip: верх ступени не тронут", near(kl1[2 * kn + 4], kT, 0.0001))
 	var knone := PlasterField.smooth(kh, krun, kf, kn, kn, 0.5, kT, kT, filled(kn * kn, 0.0))
 	check("K4 smooth: подъём 0 даёт оболочку по ступеням (обрыв остаётся)", _max_abs_diff(knone, kh) == 0.0)
 	check("K4 smooth: при подъёме выше нуля пандус есть", _max_abs_diff(kold, kh) > 0.1)

@@ -330,6 +330,11 @@ func set_selection(entity_to_select: Entity):
 
 
 func _start_drag(target: Entity):
+	# XX claude-terra 13.13: лист с гипсовым бинтом не таскаем (краска привязана к миру, оболочка к ячейкам). Сначала снять бинт
+	var tl := target.get_comp(C_TerrainLayer) as C_TerrainLayer
+	if tl != null and tl.smooth > 0:
+		_tooltip.set_note("Лист с гипсовым бинтом не сдвинуть. Снимите бинт (Гипсовый бинт, Ctrl+ЛКМ) и двигайте")
+		return
 	controller.drag_tool.target_entity = target
 	controller.switch_tool(controller.drag_tool)
 
