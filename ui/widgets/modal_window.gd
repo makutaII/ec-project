@@ -21,6 +21,8 @@ func open(title_text: String = "") -> void:
 	if title_text != "":
 		_title_label.text = title_text
 	visible = true
+	if get_parent() != null:
+		get_parent().move_child(self, -1)   # поверх остальных окон слоя (вопрос поверх списка)
 	WindowStack.push(self)
 	_opened()
 
