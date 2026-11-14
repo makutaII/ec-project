@@ -158,6 +158,7 @@ func rebuild() -> void:
 		if l.smooth > 0:
 			smooth_sheets.append(l)
 	if smooth_sheets.is_empty():
+		_prune_paint(0, 0, 0, 0, PackedInt32Array())   # K3c: бинта нигде нет, краски тоже
 		clear()
 		return
 
@@ -182,6 +183,7 @@ func rebuild() -> void:
 		box = b if first else box.merge(b)
 		first = false
 	if zones.is_empty():
+		_prune_paint(0, 0, 0, 0, PackedInt32Array())
 		clear()
 		return
 
@@ -242,6 +244,7 @@ func rebuild() -> void:
 						var p := origin + Vector2((float(i) + 0.5) * c, (float(j) + 0.5) * c)
 						if Geometry2D.is_point_in_polygon(p, poly):
 							own[j * w + i] = zi
+	_prune_paint(i0, j0, w, d, own)   # K3c: краска остаётся только под бинтом (до классов краски, они берут веса отсюда)
 	var run_arr := PackedFloat32Array()
 	run_arr.resize(w * d)
 	for k in w * d:
@@ -279,6 +282,15 @@ func rebuild() -> void:
 	_f_w = w
 	_f_d = d
 	_build_mesh(sk, hh, own, zones, origin, c, w, d)
+
+
+## K3c. Снять краску в ячейках без бинта (own < 0 или вне поля w x d от ячейки (i0, j0))
+func _prune_paint(i0: int, j0: int, w: int, d: int, own: PackedInt32Array) -> void:
+	if paint == null or paint.is_empty():
+		return
+	var n := paint.prune_unowned(i0, j0, w, d, own)
+	if n > 0 and _log:
+		_log_info += ", краски снято %d яч." % n
 
 
 ## 13.13 K0. Закрыть очередную фазу пересборки: сколько мс она заняла

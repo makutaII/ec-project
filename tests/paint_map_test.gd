@@ -194,6 +194,40 @@ func _ready() -> void:
 	check("chunk_pixels: больше ничего не закрашено", other == 16, str(other))
 	check("chunk_pixels: неверный размер даёт нули", not PaintSplat.chunk_pixels(PackedByteArray([1, 2, 3])).has(1))
 
+	# K3c: краска живёт только под бинтом
+	m = _fresh()
+	m.stamp(Vector2(0.25, 0.25), 3.0, 1.0, PaintMap.GRASS, 1.0)   # ячейки около (0, 0), в том числе в чанках (-1, *) и (*, -1)
+	m.stamp(Vector2(10.25, 10.25), 1.0, 1.0, PaintMap.GRASS, 1.0)   # далеко от поля: чанк (1, 1)
+	check("prune: далёкая краска есть до чистки", not m.chunk_bytes(Vector2i(1, 1)).is_empty())
+	var p_own := PackedInt32Array()
+	p_own.resize(8 * 8)
+	p_own.fill(-1)
+	for pj in range(2, 6):
+		for pi in range(2, 6):
+			p_own[pj * 8 + pi] = 0   # бинт на ячейках (i, j) = (-4 + 2 .. -4 + 5) поля с началом (-4, -4): -2..1
+	var p_before := m.weights(0, 0)
+	var far_before := m.weights(-5, 0)   # левее поля (его первая ячейка -4)
+	_signals = 0
+	var p_gone := m.prune_unowned(-4, -4, 8, 8, p_own)
+	check("prune: снята краска вне бинта", p_gone > 0 and _signals == 1, "%d %d" % [p_gone, _signals])
+	check("prune: под бинтом краска цела", m.weights(0, 0) == p_before and p_before.r > 0.9, str(m.weights(0, 0)))
+	check("prune: вне бинта нет краски", _sum(m.weights(-3, -3)) == 0.0 and _sum(m.weights(2, 2)) == 0.0, str([m.weights(-3, -3), m.weights(2, 2)]))
+	check("prune: ячейка вне поля тоже снята", far_before.r > 0.0 and _sum(m.weights(-5, 0)) == 0.0, str(far_before))
+	check("prune: опустевший чанк не хранится, чанк с краской остался", m.chunk_bytes(Vector2i(1, 1)).is_empty() and not m.chunk_bytes(Vector2i(0, 0)).is_empty())
+	_signals = 0
+	check("prune: повторно ничего не меняет", m.prune_unowned(-4, -4, 8, 8, p_own) == 0 and _signals == 0)
+	var empty_own := PackedInt32Array()
+	m.prune_unowned(0, 0, 0, 0, empty_own)
+	check("prune: бинта нет нигде, карта пуста и ячейка сброшена", m.is_empty() and m.cell == 0.0)
+	m = _fresh()
+	m.stamp(Vector2(0.25, 0.25), 2.0, 1.0, PaintMap.ROCK, 1.0)
+	m.begin_stroke()
+	m.stamp(Vector2(0.25, 0.25), 2.0, 1.0, PaintMap.GRAVEL, 1.0)
+	var p_rec := m.end_stroke()
+	m.prune_unowned(0, 0, 0, 0, empty_own)
+	m.restore(p_rec)
+	check("prune: отмена мазка после чистки не падает", not m.is_empty())
+
 	# clear
 	m = _fresh()
 	m.stamp(Vector2.ZERO, 3.0, 1.0, PaintMap.GRASS, 1.0)
