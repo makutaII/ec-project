@@ -81,7 +81,7 @@ var _token_re: RegEx
 func _ready() -> void:
 	_token_re = RegEx.create_from_string("@([a-z0-9_]+)(?:([/-])@([a-z0-9_]+))?")
 	Actions.binding_changed.connect(_on_binding_changed)
-	Global.build_options.changed.connect(func(_k: StringName) -> void: _on_binding_changed(&""))   # шаг поворота в тексте (U12)
+	Global.build_options.option_changed.connect(func(_k: StringName) -> void: _on_binding_changed(&""))   # шаг поворота в тексте (U12)
 	enabled = bool(Settings.get_value("ui", "hints_enabled", true))
 	_build_ui()
 	_refresh()

@@ -6,8 +6,8 @@ class_name BuildOptions extends Resource
 ## меняют SideDock и клавиша L. Значения пишутся в settings.cfg ([build]) при изменении.
 ## Загрузка сохранённых значений: load_saved() (из SideDock при старте UI, Settings к этому времени готов).
 
-## ⚡ Значение изменилось (из панели, клавишей или загрузкой)
-signal changed(key: StringName)
+## ⚡ Значение изменилось (из панели, клавишей или загрузкой). Не `changed`: такой сигнал уже есть у Resource
+signal option_changed(key: StringName)
 
 const SECTION := "build"
 ## Допустимые шаги поворота, градусы
@@ -59,7 +59,7 @@ var _persist := false
 func _commit(key: StringName, value: Variant) -> void:
 	if _persist:
 		Settings.set_value(SECTION, String(key), value)
-	changed.emit(key)
+	option_changed.emit(key)
 
 
 ## Читает сохранённые значения и дальше пишет изменения. Вызывать один раз после старта Settings

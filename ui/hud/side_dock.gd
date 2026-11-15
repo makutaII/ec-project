@@ -74,7 +74,7 @@ func _ready() -> void:
 
 	_pin.toggled.connect(func(on: bool) -> void: pinned = on)
 	opened.connect(_refresh)
-	_opts.changed.connect(func(_k: StringName) -> void: _refresh())
+	_opts.option_changed.connect(func(_k: StringName) -> void: _refresh())
 	PGM.power_layer_toggled.connect(func(_on: bool) -> void: _refresh())
 	GFX.track_shadows_changed.connect(func(_on: bool) -> void: _refresh())
 	TSM.current_changed.connect(func(_id: StringName) -> void: _refresh())
