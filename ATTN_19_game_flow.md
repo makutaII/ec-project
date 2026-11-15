@@ -204,7 +204,7 @@ game ──→ library (кнопка в ModePanel, как сейчас) ──�
 | T8 | `menu` | `new_game` | Новая игра | | `push` |
 | T9 | `new_game` | `sandbox_setup` | Песочница | | `push` |
 | T10 | `sandbox_setup` | `game` | Создать | название не пустое, комната выбрана (по умолчанию стоит) | `new_layout({title})` под шторкой, `source = new`, `dirty = false` |
-| T11 | `menu` | `library` | Library | | `push`; `Esc` или «Назад» возвращают в `menu` |
+| T11 | `menu` | `library` | Library | | `push`; `Esc` или «Закрыть» возвращают в `menu` |
 | T12 | любой | `settings` | Настройки | U11 готов | `push` без смены паузы; Esc закрывает |
 | T13 | `game` | `pause` | Esc | порядок Esc §19.5.3: ничего не закрылось | `push`, дерево на паузе |
 | T14 | `pause` | `game` | Продолжить / Esc | | `pop` |
@@ -213,7 +213,7 @@ game ──→ library (кнопка в ModePanel, как сейчас) ──�
 | T17 | `pause` | `menu` | В главное меню | `dirty` → тот же вопрос | `go(menu)`; под шторкой грузится макет-фон, прежний макет из памяти заменён; «Продолжить» грузит `last_save` |
 | T18 | `pause`, `menu` | конец | Выход / крестик | `dirty` → Сохранить / Не сохранять / Отмена; иначе Да / Нет | `request_quit()`: автосейв, `Settings.save_now()`, `quit()` |
 | T19 | `game` | `library` | кнопка Library | | существующий оверлей; после F5 через роутер |
-| T20 | `library` | `game` | Назад / Esc | студия разрешила уйти (`request_leave`) | прежний режим HUD |
+| T20 | `library` | `game` | Закрыть / Esc | студия разрешила уйти (`request_leave`) | прежний режим HUD |
 | T21 | `new_game` | `campaign` | Кампания | P3 | позже |
 
 Правило **[решено автором]**: загрузка (T4, T6, T16) и «Новая игра» (T10) всегда включают режим Build: `ModeController` переключается в Build после `load_game` и `new_layout`, режим в сейв не пишется.

@@ -4,12 +4,12 @@ class_name LibraryScreen extends Control
 ########################
 ## LibraryScreen. Оболочка экрана Library, ATTN_22 §22.5.4, шаги L1, L1b
 ########################
-## Верхняя полоса: «Назад», название, кнопки студий (Model Studio, Track Studio, Icon Studio, Room Studio). Всё ниже полосы это
+## Верхняя полоса: название, кнопки студий (Model Studio, Track Studio, Icon Studio, Room Studio), у правого края «Закрыть». Всё ниже полосы это
 ## дочернее окно выбранной студии. Model Studio (прежнее тело экрана, model_studio.gd) создаётся один раз и при уходе
 ## скрывается; остальные студии создаются при открытии и освобождаются при уходе. Студии окном не управляют.
 ## Два способа запуска:
 ##   - оверлей поверх игры (ModeController): дерево на паузе, 3D главного вьюпорта выключено на время;
-##   - отдельно (F6 на library_screen.tscn): без паузы, кнопки «Назад» нет.
+##   - отдельно (F6 на library_screen.tscn): без паузы, кнопки «Закрыть» нет.
 ## Перед уходом из студии и закрытием экрана активную студию спрашивают request_leave(proceed): она может не пустить
 ## (несохранённая работа) и сама спросит игрока. При закрытии Model Studio снимает объект через kill_me
 ## (регистрация в PGM), пауза и 3D возвращаются.
@@ -162,16 +162,10 @@ func _build_ui() -> void:
 	root.add_child(_holder)
 
 
-## Верхняя полоса: «Назад», название, кнопки студий
+## Верхняя полоса: название, кнопки студий, у правого края «Закрыть»
 func _build_header() -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
-
-	if _embedded:
-		var back := Button.new()
-		back.text = "← Назад"
-		back.pressed.connect(close)
-		h.add_child(back)
 
 	var title := Label.new()
 	title.text = "LIBRARY"
@@ -188,6 +182,18 @@ func _build_header() -> Control:
 			b.pressed.connect(_on_tool_pressed.bind(t["id"]))
 			_buttons[t["id"]] = b
 			h.add_child(b)
+
+	# «Закрыть» у правого края: распорка забирает свободную ширину (кнопки студий остаются слева)
+	if _embedded:
+		var spacer := Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(spacer)
+		var close_btn := Button.new()
+		close_btn.text = "Закрыть"
+		close_btn.tooltip_text = "Вернуться в игру (Esc в Model Studio)"
+		close_btn.pressed.connect(close)
+		h.add_child(close_btn)
 	return h
 
 
