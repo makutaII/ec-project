@@ -17,9 +17,12 @@ var default_value: Variant = null
 var _available := true
 
 
-## Подпись и значение по умолчанию. Вызывать после add_child
-func setup(title: String, default: Variant) -> void:
+## Подпись и значение по умолчанию. Вызывать после add_child.
+## Узкий вариант (боковая панель): caption_width меньше, with_reset = false убирает «Сброс»
+func setup(title: String, default: Variant, caption_width: float = 240.0, with_reset: bool = true) -> void:
 	_caption.text = title
+	_caption.custom_minimum_size.x = caption_width
+	_reset.visible = with_reset
 	default_value = default
 	if not _reset.pressed.is_connected(_on_reset_pressed):
 		_reset.pressed.connect(_on_reset_pressed)

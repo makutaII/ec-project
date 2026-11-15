@@ -384,6 +384,8 @@ func _head_h() -> float:
 ## Ближайший свободный сокет чужого трака (по горизонтали от курсора).
 ## Возвращает {area, pos, out} или {}
 func _find_end_socket(world: Vector3) -> Dictionary:
+	if not Global.build_options.socket_snap:
+		return {}   # U12: привязка к сокетам выключена
 	var radius_max: float = Global.settings.flex_snap_radius
 	#var start_w := entity.global_position
 	var start_w := entity.global_position + Vector3(0.0, _head_h(), 0.0)

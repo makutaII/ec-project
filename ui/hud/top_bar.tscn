@@ -90,22 +90,6 @@ size_flags_vertical = 4
 tooltip_text = "Остальная статистика"
 text = "…"
 
-[node name="Switches" type="HBoxContainer" parent="Margin/Row"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="PowerSchemaCheck" type="CheckBox" parent="Margin/Row/Switches"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 0
-text = "Power schema"
-
-[node name="TrackShadowsCheck" type="CheckBox" parent="Margin/Row/Switches"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 0
-text = "Тени траков"
-
 [node name="ModePanel" type="MarginContainer" parent="Margin/Row"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -158,8 +142,6 @@ toggle_mode = true
 button_group = SubResource("ButtonGroup_modes")
 icon = ExtResource("8_build")
 
-[connection signal="toggled" from="Margin/Row/Switches/PowerSchemaCheck" to="." method="_on_power_schema_check_toggled"]
-[connection signal="toggled" from="Margin/Row/Switches/TrackShadowsCheck" to="." method="_on_track_shadows_check_toggled"]
 [connection signal="pressed" from="Margin/Row/ModePanel/VBoxContainer/LibraryButton" to="Margin/Row/ModePanel" method="_on_library_button_pressed"]
 [connection signal="pressed" from="Margin/Row/ModePanel/VBoxContainer/SectionsButton" to="Margin/Row/ModePanel" method="_on_sections_button_pressed"]
 [connection signal="pressed" from="Margin/Row/ModePanel/VBoxContainer/ObserveButton" to="Margin/Row/ModePanel" method="_on_observe_button_pressed"]

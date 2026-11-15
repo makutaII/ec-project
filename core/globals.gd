@@ -55,8 +55,16 @@ var active_ui_category := 1
 ## Текущий режим из : &'build' &'operate' &'observe' &'library'
 var current_mode :StringName = &'build' 
 
-## F2: контроль лимитов flex (R, L, уклон, "под землёй"). Переключается клавишей L в BuildTool
-var flex_limits := false
+## Общие опции строительства (U12): шаг поворота, привязки, лимиты flex. Панель SideDock меняет их же
+var build_options := BuildOptions.new()
+
+## F2: контроль лимитов flex (R, L, уклон, "под землёй"). Переключается клавишей L в BuildTool.
+## Свойство-посредник: значение живёт в build_options (U12), старые читатели не менялись
+var flex_limits: bool:
+	get:
+		return build_options.flex_limits
+	set(v):
+		build_options.flex_limits = v
 
 ## 13.1.7: зоны проблем flex (радиус меньше предела, уклон больше предела, близко к пределу) цветной полосой
 ## над рельсами, клавиша Z. Сигнал: C_FlexShape перерисовывает полосу

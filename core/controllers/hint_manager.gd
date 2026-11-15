@@ -34,7 +34,7 @@ const HINTS := {
 	"select_switch": [["Тащить ЛКМ", "переместить"], ["@gesture_add_select", "добавить к выбору"], ["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона"], ["@tunnel_toggle", "тоннель (трак)"], ["@embankment_toggle", "насыпь (трак)"], ["@flex_zones_toggle", "зоны flex"], ["@switch_throw", "переложить стрелку (дистанционную)"], ["ЛКМ по рычагу", "переложить стрелку (ручную)"]],
 	"operate/select_sel": [["Ручка на панели", "ЛКМ вращать, ПКМ обнулить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона"], ["Тащить ЛКМ", "переместить"], ["@delete", "удалить"]],
 	"operate/select_switch": [["Ручка на панели", "ЛКМ вращать, ПКМ обнулить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона"], ["Тащить ЛКМ", "переместить"], ["@delete", "удалить"], ["@switch_throw", "переложить стрелку (дистанционную)"], ["ЛКМ по рычагу", "переложить стрелку (ручную)"]],
-	"build": [["ЛКМ", "построить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот 45° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@duplicate_last", "дубль последнего"], ["@tunnel_toggle", "тоннель"], ["@flex_limits_toggle", "лимиты flex"], ["@flex_zones_toggle", "зоны flex"]],
+	"build": [["ЛКМ", "построить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@duplicate_last", "дубль последнего"], ["@tunnel_toggle", "тоннель"], ["@flex_limits_toggle", "лимиты flex"], ["@flex_zones_toggle", "зоны flex"]],
 	"build_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / @shape_confirm", "замкнуть"], ["@shape_undo", "убрать вершину"], ["ПКМ", "сбросить"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@depth_up/@depth_down", "толщина (Shift ×5)"]],
 	"build_strip": [["ЛКМ", "точка оси"], ["ЛКМ по последней точке / @shape_confirm", "закончить"], ["@width_down и @width_up", "ширина (Shift ×5)"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@depth_up/@depth_down", "толщина (Shift ×5)"]],
 	"cut_rect": [["ЛКМ", "угол, второй клик режет"], ["@shape_undo", "отменить рисунок"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
@@ -49,7 +49,7 @@ const HINTS := {
 	"water_pour": [["ЛКМ", "налить воду (область видна до клика)"], ["Shift+ЛКМ", "осушить"], ["@level_up/@level_down", "глубина воды (Shift ×5)"], ["@level_up_x5/@level_down_x5", "глубина ±5"], ["@tool_undo", "отменить налив"], ["ПКМ", "выйти"]],
 	"plaster": [["ЛКМ", "сгладить весь холм под курсором"], ["Shift+ЛКМ", "только этот лист"], ["Ctrl+ЛКМ", "снять (Shift: только лист)"], ["@width_down и @width_up", "ступень пандуса, ю на слой"], ["@tool_undo", "отменить"], ["ПКМ", "выйти"]],
 	"paint": [["ЛКМ", "красить (тянуть)"], ["Ctrl+ЛКМ", "стереть"], ["@width_down и @width_up", "радиус кисти, ю (Shift ×5)"], ["@tool_undo", "отменить мазок"], ["ПКМ", "выйти"]],
-	"drag": [["Отпустить ЛКМ", "поставить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот 45° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@reset_transform", "сброс"]],
+	"drag": [["Отпустить ЛКМ", "поставить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@reset_transform", "сброс"]],
 	"wire": [["ЛКМ по клемме", "начать провод"], ["ЛКМ по столу", "точка излома"], ["ЛКМ по второй клемме", "соединить"], ["ПКМ / @wire_cancel", "отмена, повторно выход"]],
 	"wire_started": [["ЛКМ по клемме", "соединить"], ["ЛКМ по столу", "точка излома"], ["ПКМ / @wire_cancel", "отмена провода"]],
 	"library": [["Режим в разработке", ""]],
@@ -81,6 +81,7 @@ var _token_re: RegEx
 func _ready() -> void:
 	_token_re = RegEx.create_from_string("@([a-z0-9_]+)(?:([/-])@([a-z0-9_]+))?")
 	Actions.binding_changed.connect(_on_binding_changed)
+	Global.build_options.changed.connect(func(_k: StringName) -> void: _on_binding_changed(&""))   # шаг поворота в тексте (U12)
 	enabled = bool(Settings.get_value("ui", "hints_enabled", true))
 	_build_ui()
 	_refresh()
@@ -199,7 +200,7 @@ func _format(items: Array, highlight := true) -> String:
 		# [ и ] в BBCode экранируются: «[/]» без этого читалось бы как закрывающий тег
 		# прямая замена «]» на [rb] портила бы «]» у только что вставленного [lb] (на экране выходило «[ib]/]»): идём через служебные знаки
 		var k: String = _keys(it[0]).replace("[", "\u0001").replace("]", "\u0002").replace("\u0001", "[lb]").replace("\u0002", "[rb]")
-		var t: String = it[1]
+		var t: String = it[1].replace("{rot}", String.num(Global.build_options.rot_step_deg, 0))
 		if highlight:
 			parts.append(("[b][color=%s]%s[/color][/b] %s" % [KEY_COLOR, k, t]).strip_edges())
 		else:

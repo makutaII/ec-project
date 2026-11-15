@@ -3,7 +3,7 @@ class_name TopBar extends PanelContainer
 # U9 (ATTN_17 §17.4): новый файл, заменяет TopPanel и ModeLabel
 ########################
 ## Верхняя полоса HUD. Слева: системное меню и название макета. По центру: статистика макета (StatsBar).
-## Справа: переключатели (временно, до SideDock в U12) и ModePanel с пятью кнопками режимов.
+## Справа: ModePanel с пятью кнопками режимов.
 ## Статистику считает LayoutStats, чипы описаны данными (StatSpec). Что не влезло, уходит в список «…».
 ########################
 
@@ -12,10 +12,6 @@ const CHIP_SCENE := preload("res://ui/widgets/stat_chip.tscn")
 @onready var save_manager: SaveManager = $"../../../SaveManager"
 ## Кнопка системного меню: пункты и действия задаёт SystemMenu (U10)
 @onready var menu_button: MenuButton = %SystemMenu
-## Чекбокс слоя питания (временно тут, потом SideDock)
-@onready var power_schema_check: CheckBox = %PowerSchemaCheck
-## Чекбокс теней от траков (временно тут, потом SideDock)
-@onready var track_shadows_check: CheckBox = %TrackShadowsCheck
 
 @onready var _stats_host: Control = %StatsHost
 @onready var _stats_bar: HBoxContainer = %StatsBar
@@ -42,11 +38,6 @@ static func stat_specs() -> Array[StatSpec]:
 
 
 func _ready() -> void:
-	# Слой питания могут переключить не из чекбокса (Observe при входе/выходе): держим вид в синхроне
-	PGM.power_layer_toggled.connect(_on_power_layer_toggled)
-	power_schema_check.set_pressed_no_signal(PGM.is_power_layer_active)
-	track_shadows_check.set_pressed_no_signal(GFX.is_track_shadows())
-	GFX.track_shadows_changed.connect(_on_track_shadows_changed)
 	# Название макета: показывает SaveManager.layout_name, двойной щелчок переименовывает
 	save_manager.layout_name_changed.connect(_on_layout_name_changed)
 	_on_layout_name_changed(save_manager.layout_name)
@@ -54,7 +45,6 @@ func _ready() -> void:
 	_layout_edit.text_submitted.connect(func(_t: String) -> void: _end_rename(true))
 	_layout_edit.focus_exited.connect(func() -> void: _end_rename(true))
 	_layout_edit.gui_input.connect(_on_layout_edit_gui_input)
-	_build_style_selector()
 
 	# Метка Lab: прежний «[LAB]» из ModeLabel
 	GFX.lab_changed.connect(_on_lab_changed)
@@ -159,99 +149,3 @@ func _fit_stats() -> void:
 	for line in overflow:
 		more_popup.add_item(line)
 		more_popup.set_item_disabled(more_popup.item_count - 1, true)
-
-
-## Временный выбор стиля траков сессии (ATTN_17 §17.13, U3c). Место в ToolDock решается в U7a.
-## Список строится из набора стилей проекта (TSM), собирается кодом, чтобы не трогать сцену
-var _style_option: OptionButton
-var _style_apply_button: Button
-var _style_apply_dialog: ConfirmationDialog
-
-
-func _build_style_selector() -> void:
-	_style_option = OptionButton.new()
-	_style_option.focus_mode = Control.FOCUS_NONE   # стрелки и пробел остаются инструментам
-	_style_option.tooltip_text = "Стиль траков: новые траки создаются в нём, стоящие не меняются"
-	_fill_style_items()
-	_style_option.item_selected.connect(_on_style_selected)
-	TSM.current_changed.connect(_sync_style_selector)
-	TSM.set_changed.connect(_fill_style_items)   # Track Studio добавил стиль в набор
-	var box := power_schema_check.get_parent()
-	box.add_child(_style_option)
-	box.move_child(_style_option, power_schema_check.get_index())
-	# Этап 3: применить стиль сессии ко всем тракам на столе (с подтверждением)
-	_style_apply_button = Button.new()
-	_style_apply_button.text = "Ко всем"
-	_style_apply_button.focus_mode = Control.FOCUS_NONE
-	_style_apply_button.tooltip_text = "Пересобрать все траки на столе в выбранном стиле. Макет сохраняется в автосейв."
-	_style_apply_button.pressed.connect(_on_style_apply_pressed)
-	box.add_child(_style_apply_button)
-	box.move_child(_style_apply_button, _style_option.get_index() + 1)
-	_style_apply_dialog = ConfirmationDialog.new()
-	_style_apply_dialog.title = "Стиль всех траков"
-	_style_apply_dialog.ok_button_text = "Применить"
-	_style_apply_dialog.cancel_button_text = "Отмена"
-	_style_apply_dialog.confirmed.connect(_on_style_apply_confirmed)
-	add_child(_style_apply_dialog)
-
-
-## Строки списка из набора стилей проекта; пересобирается, когда набор изменился
-func _fill_style_items() -> void:
-	_style_option.clear()
-	for st in TSM.style_set.styles:
-		if st == null:
-			continue
-		var i := _style_option.item_count
-		_style_option.add_item(String(st.id))
-		_style_option.set_item_metadata(i, st.id)
-		var tip := "высота рельса %.2f" % st.head_height()
-		if st.use_scene:
-			tip += ", сцены Blender"
-		_style_option.set_item_tooltip(i, tip)
-	_sync_style_selector(TSM.current_id)
-
-
-func _on_style_apply_pressed() -> void:
-	_style_apply_dialog.dialog_text = "Все траки на столе будут пересобраны в стиле «%s».\nМакет перед этим сохраняется в автосейв: до следующего сохранения им можно откатиться (загрузить autosave).\nПродолжить?" % TSM.current_id
-	_style_apply_dialog.popup_centered()
-
-
-func _on_style_apply_confirmed() -> void:
-	_style_apply_button.disabled = true
-	await save_manager.apply_session_style_to_all()
-	_style_apply_button.disabled = false
-
-
-func _on_style_selected(index: int) -> void:
-	TSM.set_current(_style_option.get_item_metadata(index))
-
-
-## Список показывает активный стиль, в том числе после загрузки сейва
-func _sync_style_selector(id: StringName) -> void:
-	for i in _style_option.item_count:
-		if _style_option.get_item_metadata(i) == id:
-			_style_option.select(i)
-			return
-
-
-## Включение Cлоя power (11) на камере. Режим повер 2лвл
-func _on_power_schema_check_toggled(toggled_on: bool) -> void:
-	#$/root/GameRoot/Gimbal/Elevation/Camera.set_cull_mask_value(3, toggled_on)	
-
-	# Дергаем менеджер питания
-	PGM.toggle_power_layer(toggled_on)
-
-
-## ⚡Сигнал из PGM: слой питания переключён. Двигаем чекбокс без повторного сигнала
-func _on_power_layer_toggled(is_active: bool) -> void:
-	power_schema_check.set_pressed_no_signal(is_active)
-
-
-## Тени от траков вкл/выкл. Выбор сохраняется в settings.cfg
-func _on_track_shadows_check_toggled(toggled_on: bool) -> void:
-	GFX.set_track_shadows(toggled_on)
-
-
-## ⚡Сигнал из GFX: настройка или tier поменялись извне. Двигаем чекбокс без повторного сигнала
-func _on_track_shadows_changed(on: bool) -> void:
-	track_shadows_check.set_pressed_no_signal(on)

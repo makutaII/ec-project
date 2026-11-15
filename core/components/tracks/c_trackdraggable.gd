@@ -131,7 +131,7 @@ func _anchor_offset() -> float:
 ## Вертикальный магнит: если мой сокет рядом (по горизонтали) со свободным чужим сокетом на другой высоте,
 ## поднимаем/опускаем трак на разницу, чтобы сокеты перекрылись и сработал снап
 func _apply_vertical_magnet(pos: Vector3) -> Vector3:
-	if is_snapped_locked:
+	if is_snapped_locked or not Global.build_options.socket_snap:
 		return pos
 	var mine := entity.get_comp(C_Socket) as C_Socket
 	if not mine:
@@ -172,6 +172,8 @@ func _apply_vertical_magnet(pos: Vector3) -> Vector3:
 func start_snap(target_global_transform: Transform3D) -> void:
 	if entity.has_comp(C_GroupFollower):
 		return   # XX claude-switch: член группы следует за лидером, сам к сокетам не привязывается
+	if not Global.build_options.socket_snap:
+		return   # U12: привязка к сокетам выключена в SideDock
 	snapped_entity_transform = target_global_transform
 	is_snapped_locked = true # Блокируем обычное влияние мыши
 	# Актуализируем углы сразу при снапе. Тогда после в драге снапа угол не возвращается
