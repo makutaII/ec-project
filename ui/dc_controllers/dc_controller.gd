@@ -108,7 +108,7 @@ func _attach_source() -> void:
 	# Новая или загруженная партия: ручка встает по источнику (ATTN_10 P5, D2)
 	PGM.state_reset.connect(reset_handle)
 	PGM.state_loaded.connect(sync_from_source)
-	_indicators = DCIndicators.new()
+	_indicators = DCIndicators.create()
 	add_child(_indicators)
 	_indicators.setup(source, size.x)
 	# Окошко индикаторов стоит над пультом (его высота растет вверх)

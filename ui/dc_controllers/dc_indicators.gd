@@ -1,65 +1,38 @@
-class_name DCIndicators extends VBoxContainer
+class_name DCIndicators extends PanelContainer
 
 ########################
 ## Индикаторы пульта (ATTN_10 D3): лампы «Сеть», «Перегрузка», «КЗ», полоса тока, «Сброс», кнопка «Сеть»
 ########################
-## Строится кодом и вешается под панель (сцены панелей не правятся). Читает PowerSource панели,
+## Сцена `dc_indicators.tscn` (дизайн `ui/templates/dc_indicators_template.tscn`, U15). Вешается над панелью. Читает PowerSource панели,
 ## обновляется по сигналам PGM (шаг решателя 10 Гц, события защиты, загрузка). Состояние не только цветом:
-## у каждой лампы есть слово, у включенной знак ●, у выключенной ○.
+## у каждой лампы есть слово, у включенной знак ●, у выключенной ○. Цвета ламп и полосы тока из темы
+## (LampOn, LampWarn, LampBad, LampOff, ProgressBarWarn, ProgressBarBad), шрифты тоже (LabelSmall).
 
-const COL_OK := Color(0.0, 0.824, 0.0, 1.0)
-const COL_WARN := Color(1.0, 0.75, 0.1, 1.0)
-const COL_BAD := Color(1.0, 0.25, 0.2, 1.0)
-const COL_OFF := Color(0.6, 0.6, 0.6, 1.0)
+const SCENE := preload("res://ui/dc_controllers/dc_indicators.tscn")
 
 var source: PowerSource
 
-var _model: Label
-var _lamp_mains: Label
-var _lamp_over: Label
-var _lamp_short: Label
-var _bar: ProgressBar
-var _bar_label: Label
-var _mains_btn: CheckButton
-var _reset_btn: Button
+@onready var _model: Label = %ModelLabel
+@onready var _lamp_mains: Label = %LampMains
+@onready var _lamp_over: Label = %LampOver
+@onready var _lamp_short: Label = %LampShort
+@onready var _bar: ProgressBar = %CurrentBar
+@onready var _bar_label: Label = %BarLabel
+@onready var _mains_btn: CheckButton = %MainsButton
+@onready var _reset_btn: Button = %ResetButton
 
 
+static func create() -> DCIndicators:
+	return SCENE.instantiate() as DCIndicators
+
+
+## Вызывать после add_child (узлы сцены берутся по %)
 func setup(src: PowerSource, panel_width: float) -> void:
 	source = src
-	name = "DCIndicators"
 	custom_minimum_size = Vector2(panel_width, 0)
-	add_theme_constant_override("separation", 2)
 	mouse_filter = Control.MOUSE_FILTER_PASS
-
-	_model = Label.new()
-	_model.add_theme_font_size_override("font_size", 11)
-	add_child(_model)
-
-	var lamps := HBoxContainer.new()
-	lamps.add_theme_constant_override("separation", 10)
-	add_child(lamps)
-	_lamp_mains = _make_lamp(lamps)
-	_lamp_over = _make_lamp(lamps)
-	_lamp_short = _make_lamp(lamps)
-
-	_bar = ProgressBar.new()
-	_bar.show_percentage = false
-	_bar.custom_minimum_size = Vector2(0, 8)
-	add_child(_bar)
-	_bar_label = Label.new()
-	_bar_label.add_theme_font_size_override("font_size", 11)
-	add_child(_bar_label)
-
-	var btns := HBoxContainer.new()
-	add_child(btns)
-	_mains_btn = CheckButton.new()
-	_mains_btn.text = "Сеть"
 	_mains_btn.toggled.connect(_on_mains_toggled)
-	btns.add_child(_mains_btn)
-	_reset_btn = Button.new()
-	_reset_btn.text = "Сброс"
 	_reset_btn.pressed.connect(_on_reset_pressed)
-	btns.add_child(_reset_btn)
 
 	PGM.solver_stepped.connect(refresh)
 	PGM.output_event.connect(_on_output_event)
@@ -75,13 +48,6 @@ func _on_output_event(_label: int, _kind: String, _reason: String) -> void:
 
 func _on_power_updated(_label: int, _voltage: float) -> void:
 	refresh()
-
-
-func _make_lamp(parent: Control) -> Label:
-	var l := Label.new()
-	l.add_theme_font_size_override("font_size", 12)
-	parent.add_child(l)
-	return l
 
 
 ## Выводы, по которым показываем ток: выбранный на пульте, при «все» это самый нагруженный
@@ -107,9 +73,9 @@ func refresh() -> void:
 
 	var needs := source.needs_supply()
 	var net_ok: bool = (not needs) or PGM.mains.on
-	_set_lamp(_lamp_mains, "Сеть", net_ok, COL_OK)
+	_set_lamp(_lamp_mains, "Сеть", net_ok, &"LampOn")
 	if not net_ok:
-		_lamp_mains.modulate = COL_BAD   # сеть выключена: красный, знак ○ и слово остаются
+		_lamp_mains.theme_type_variation = &"LampBad"   # сеть выключена: красный, знак ○ и слово остаются
 
 	var over := false
 	var short := false
@@ -123,8 +89,10 @@ func refresh() -> void:
 				short = true
 		elif o.state == PowerOutput.State.OVERLOAD:
 			over = true
-	_set_lamp(_lamp_over, "Перегрузка", over, COL_WARN if not any_tripped else COL_BAD)
-	_set_lamp(_lamp_short, "КЗ", short, COL_BAD)
+	_set_lamp(_lamp_over, "Перегрузка", over, &"LampWarn" if not any_tripped else &"LampBad")
+	_set_lamp(_lamp_short, "КЗ", short, &"LampBad")
+	# Полоса тока: обычная, при перегрузке жёлтая, при срабатывании защиты красная (из темы)
+	_bar.theme_type_variation = &"ProgressBarBad" if any_tripped else (&"ProgressBarWarn" if over else &"")
 
 	var out := shown_output()
 	if out != null:
@@ -148,9 +116,10 @@ func refresh() -> void:
 	_reset_btn.disabled = not any_tripped
 
 
-func _set_lamp(l: Label, text: String, on: bool, col: Color) -> void:
+## Лампа: слово, знак ● или ○ и тип темы (цвет), выключенная всегда LampOff
+func _set_lamp(l: Label, text: String, on: bool, lit_type: StringName) -> void:
 	l.text = ("● " if on else "○ ") + text
-	l.modulate = col if on else COL_OFF
+	l.theme_type_variation = lit_type if on else &"LampOff"
 
 
 func _on_mains_toggled(on: bool) -> void:

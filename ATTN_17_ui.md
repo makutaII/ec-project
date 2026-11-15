@@ -1318,9 +1318,9 @@ Godot импортирует CSV сам при открытии проекта �
 **Файлы:** `ui/toolbar/toolbar_controller.gd`, `core/controllers/tool_controller.gd`, `ui/hud/dc_panel_host.gd`, `core/controllers/power_grid_manager.gd`, `ui/hud/top_bar.tscn`.
 
 - [ ] Повтор последнего объекта уже сделан (ATTN_13 §13.3 (Дубль)): `BuildTool.can_duplicate/duplicate_last`, `ToolController.duplicate_last_object`, сигналы `BuildController.duplicate_requested` и `on_last_changed`, клавиша `V`, кнопка «Дубль (V)» создаётся кодом под заголовком панели объектов. В U15 только переносим: кнопка рядом с панелью категорий и объектов в ToolDock, иконка последнего объекта, отключена, пока нечего повторять; клавиша `V` становится действием `duplicate_last` в реестре (U6).
-- [ ] Переключатель «Power schema» живёт в SideDock (U7a, A5), переносится в U12; если к U15 он ещё в TopBar, перенести здесь. В `ActionsStrip` остаётся «Дубль (V)», место `ActionsStrip`: правая часть хедера ToolDock (§17.4, вариант B).
+- [x] (сделано в U12) Переключатель «Power schema» живёт в SideDock (U7a, A5), переносится в U12; если к U15 он ещё в TopBar, перенести здесь. Проверка 2 ниже устарела: в SideDock слой питания доступен во всех режимах, не только в Operate **[решить: оставить так или показывать только в Operate]**. В `ActionsStrip` остаётся «Дубль (V)», место `ActionsStrip`: правая часть хедера ToolDock (§17.4, вариант B).
 - [ ] `DCPanelHost`: создаёт и освобождает DC-панель, регистрирует её в `PGM` через `register_dc_controller`, прямая ссылка `PGM.dc_controller: Panel` убирается. Положение через `FloatingPanel` слот.
-- [ ] `DCIndicators` на сцене: `ui/dc_controllers/dc_indicators.tscn` по дизайну `ui/templates/dc_indicators_template.tscn` (узлы с теми же именами), `dc_indicators.gd` берёт узлы из сцены; цвета ламп и полосы тока из темы (`Lamp*`, `ProgressBarWarn`, `ProgressBarBad`), шрифты из темы (сейчас 11 и 12); окно стоит над DC-панелью и растёт вверх.
+- [x] `DCIndicators` на сцене: `ui/dc_controllers/dc_indicators.tscn` по дизайну `ui/templates/dc_indicators_template.tscn` (узлы с теми же именами), `dc_indicators.gd` берёт узлы из сцены; цвета ламп и полосы тока из темы (`Lamp*`, `ProgressBarWarn`, `ProgressBarBad`), шрифты из темы (сейчас 11 и 12); окно стоит над DC-панелью и растёт вверх. Сделано 16.11.2026: `DCIndicators` теперь `PanelContainer`, создаётся `DCIndicators.create()` (`dc_controller.gd`), узлы по `%` (`ModelLabel`, `LampMains`, `LampOver`, `LampShort`, `CurrentBar`, `BarLabel`, `MainsButton`, `ResetButton`), лампы переключают тип темы (`LampOn`, `LampWarn`, `LampBad`, `LampOff`), полоса тока при перегрузке `ProgressBarWarn`, при срабатывании защиты `ProgressBarBad`, надписи `LabelSmall`. Логика (PGM, PowerSource) не менялась.
 - [ ] 3D-контроллеры: подкатегория провайдера Operate (пока пустая).
 - [ ] Observe сохраняет и возвращает слой питания через API PGM, как сейчас.
 
@@ -1330,7 +1330,9 @@ Godot импортирует CSV сам при открытии проекта �
 2. В Operate переключатель питает схему, в Build его нет.
 3. Вход в Observe и выход возвращают слой питания.
 4. Смена DC-дизайна, регулятор мощности двигает поезд.
-5. Окно индикаторов над пультом: лампы «Сеть», «Перегрузка», «КЗ» меняются при перегрузке и КЗ, знаки ● и ○ на месте, «Сброс» работает как до шага.
+5. Окно индикаторов над пультом: лампы «Сеть», «Перегрузка», «КЗ» меняются при перегрузке и КЗ, знаки ● и ○ на месте, «Сброс» работает как до шага. Цвета ламп из темы: в светлой теме они берутся из `theme_hud_light.tres`.
+
+**Состояние U15 на 16.11.2026:** сделан только пункт про `DCIndicators` и пункт про Power schema. Не сделаны: кнопка «Дубль (V)» в ToolDock и иконка последнего объекта (нового ToolDock в игре ещё нет, нижняя панель прежняя, действие `duplicate_last` в реестре уже есть), `DCPanelHost` (в `PGM` нет `dc_controller` и `register_dc_controller`: пункт написан под прежний код, панель сейчас создаётся сценой `DCControlPanel` в `ui.tscn`), подкатегория 3D-контроллеров в Operate. Эти три пункта надо переписать под реальное состояние кода.
 
 #### U16. Подсказки в HUD
 

@@ -62,6 +62,8 @@ func setup_floating(id: StringName, handle: Control, body: Control, button_host:
 	_collapse_btn.pressed.connect(toggle_collapsed)
 	button_host.add_child(_collapse_btn)
 
+	if grip_host is BoxContainer:
+		(grip_host as BoxContainer).alignment = BoxContainer.ALIGNMENT_END   # ручка в правом углу
 	_grip = _FloatGrip.new()
 	_grip.custom_minimum_size = Vector2(16, 14)
 	_grip.size_flags_horizontal = Control.SIZE_SHRINK_END

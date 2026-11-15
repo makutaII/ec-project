@@ -6,6 +6,13 @@ extends CanvasLayer
 @onready var hud: Control = %HUD
 
 
+## SideDock ставит сохранённую тему в своём _ready, а он выполняется раньше, чем у этого корня готов hud
+## (дети готовы раньше родителя). Тема запоминается в _ui_theme и применяется здесь
+func _ready() -> void:
+	if _ui_theme != null:
+		set_ui_theme(_ui_theme)
+
+
 func set_hud_visible(on: bool) -> void:
 	hud.visible = on
 
