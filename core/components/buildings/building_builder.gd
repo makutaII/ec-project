@@ -98,14 +98,13 @@ static func build(layout: BuildingLayout) -> Dictionary:
 	for i in BuildingStyles.SURF_COUNT:
 		soups.append(Soup.new())
 
-	var S := BuildingStyles.Surf
-	_prism(layout, soups[S.WALL], layout.poly, 0.0, layout.wall_h)
-	_prism(layout, soups[S.PLINTH], layout.offset_poly(PLINTH_OUT), -BuildingLayout.SKIRT, BuildingLayout.PLINTH_H)
+	_prism(layout, soups[BuildingStyles.Surf.WALL], layout.poly, 0.0, layout.wall_h)
+	_prism(layout, soups[BuildingStyles.Surf.PLINTH], layout.offset_poly(PLINTH_OUT), -BuildingLayout.SKIRT, BuildingLayout.PLINTH_H)
 	if layout.spec.roof == BuildingSpec.Roof.GABLE:
 		for p in layout.pieces:
-			_gable(soups[S.ROOF], layout.wall_h, p, layout.spec.overhang)
+			_gable(soups[BuildingStyles.Surf.ROOF], layout.wall_h, p, layout.spec.overhang)
 	else:
-		_prism(layout, soups[S.ROOF], layout.offset_poly(0.12), layout.wall_h, layout.wall_h + BuildingLayout.FLAT_ROOF_H)
+		_prism(layout, soups[BuildingStyles.Surf.ROOF], layout.offset_poly(0.12), layout.wall_h, layout.wall_h + BuildingLayout.FLAT_ROOF_H)
 	for o in layout.openings:
 		match o.kind:
 			BuildingLayout.Kind.DOOR:
@@ -148,7 +147,8 @@ static func mesh_hash(mesh: ArrayMesh) -> int:
 	var h := 17
 	for i in mesh.get_surface_count():
 		var arr := mesh.surface_get_arrays(i)
-		h = [h, (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).hash(), (arr[Mesh.ARRAY_INDEX] as PackedInt32Array).hash()].hash()
+		# у Packed-массивов в GDScript нет метода hash(): берём глобальный hash(Variant)
+		h = hash([h, hash(arr[Mesh.ARRAY_VERTEX]), hash(arr[Mesh.ARRAY_INDEX])])
 	return h
 
 
