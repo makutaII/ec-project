@@ -10,6 +10,11 @@ func _ready() -> void:
 	_option.item_selected.connect(func(_i: int) -> void: _changed())
 
 
+## Минимальная ширина списка (в узких панелях меньше 200)
+func set_min_width(w: float) -> void:
+	_option.custom_minimum_size.x = w
+
+
 ## ids и titles одной длины; id любого типа (обычно StringName)
 func set_options(ids: Array, titles: Array) -> void:
 	_option.clear()

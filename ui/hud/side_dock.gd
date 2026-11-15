@@ -49,6 +49,7 @@ func _ready() -> void:
 	var grid_step: SpinRow = ROW_SPIN.instantiate()
 	_items.add_child(grid_step)
 	grid_step.configure(0.1, 10.0, 0.1)
+	grid_step.set_slider_min_width(60.0)
 	grid_step.setup("Шаг сетки", 1.0, CAPTION_W, false)
 	grid_step.set_value(1.0)
 	grid_step.set_available(false, "Скоро")
@@ -99,6 +100,7 @@ func _add_option(title: String, ids: Array, titles: Array, default: Variant) -> 
 	_items.add_child(row)
 	row.set_options(ids, titles)
 	row.setup(title, default, CAPTION_W, false)
+	row.set_min_width(120.0)   # узкая панель: список не шире 120
 	return row
 
 
@@ -113,8 +115,9 @@ func _refresh() -> void:
 
 
 func _apply_theme(id: StringName) -> void:
-	var path := THEME_LIGHT if id == &"light" else THEME_DARK
-	get_tree().root.theme = load(path) as Theme
+	var path := THEME_LIGHT
+	# Тема на корни слоёв UI (Control под CanvasLayer тему окна не наследует)
+	owner.set_ui_theme(null if id != &"light" else load(path) as Theme)
 	Settings.set_value("ui", "theme", String(id))
 
 

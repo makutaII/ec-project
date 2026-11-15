@@ -13,6 +13,11 @@ func _ready() -> void:
 		_changed())
 
 
+## Минимальная ширина ползунка (в узких панелях меньше 160)
+func set_slider_min_width(w: float) -> void:
+	_slider.custom_minimum_size.x = w
+
+
 func configure(min_value: float, max_value: float, step: float) -> void:
 	_slider.min_value = min_value
 	_slider.max_value = max_value

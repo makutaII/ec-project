@@ -32,8 +32,18 @@ var _tween: Tween
 
 func _ready() -> void:
 	_tab.pressed.connect(toggle)
-	position.x = -_body.custom_minimum_size.x
+	_body.resized.connect(_on_body_resized)
+	_on_body_resized()
 	_tab.text = ">"
+
+
+## Тело могло стать шире минимума (длинные строки): язычок всегда у его правого края,
+## закрытая панель уходит ровно на ширину тела
+func _on_body_resized() -> void:
+	var w := maxf(_body.size.x, _body.custom_minimum_size.x)   # до первой раскладки size = 0
+	_tab.position.x = w
+	if not is_open and (_tween == null or not _tween.is_running()):
+		position.x = -w
 
 
 func open() -> void:
@@ -51,7 +61,7 @@ func close() -> void:
 		return
 	is_open = false
 	_remaining = -1.0
-	_slide_to(-_body.custom_minimum_size.x)
+	_slide_to(-maxf(_body.size.x, _body.custom_minimum_size.x))
 	_tab.text = ">"
 	closed.emit()
 
