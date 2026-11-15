@@ -204,13 +204,34 @@ static func _round2(v: Vector2) -> Vector2:
 
 ## Листы, которые вырез реально заденет (в диапазоне высот под полигоном есть твёрдое тело). Для превью инструмента
 static func affected(world_poly: PackedVector2Array, y_lo: float, y_hi: float) -> Array[C_TerrainLayer]:
+	return _overlapped(world_poly, y_lo, y_hi, false)
+
+
+## K3d. Листы с гипсовым бинтом, которые вырез задел бы: они не режутся, инструмент говорит об этом
+static func blocked(world_poly: PackedVector2Array, y_lo: float, y_hi: float) -> Array[C_TerrainLayer]:
+	return _overlapped(world_poly, y_lo, y_hi, true)
+
+
+## K3d. Сколько разных листов с бинтом задел бы скос (те же диапазоны высот, что у apply_bevel)
+static func blocked_bevel(polys: Array[PackedVector2Array], y_top: float) -> int:
+	var seen := {}
+	var T: float = Global.settings.layer_height
+	for k in polys.size():
+		var yt := y_top - float(k) * T
+		for l in blocked(polys[k], yt - T, yt):
+			seen[l] = true
+	return seen.size()
+
+
+## Листы под вырезом: с бинтом (plastered) или без
+static func _overlapped(world_poly: PackedVector2Array, y_lo: float, y_hi: float, plastered: bool) -> Array[C_TerrainLayer]:
 	var res: Array[C_TerrainLayer] = []
 	if world_poly.size() < 3 or y_hi <= y_lo or not is_instance_valid(TGM):
 		return res
 	var T: float = Global.settings.layer_height
 	for e in TGM.get_layers():
 		var l := e.get_comp(C_TerrainLayer) as C_TerrainLayer
-		if l == null:
+		if l == null or (l.smooth > 0) != plastered:
 			continue
 		var lr := level_range(l.base_y(), l.levels, y_lo, y_hi, T)
 		if lr.y <= lr.x:

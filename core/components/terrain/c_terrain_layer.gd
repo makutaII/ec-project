@@ -33,6 +33,8 @@ var levels := 1
 
 ## XX claude-terra 13.5. Гипсовый бинт: ширина пандуса на слой в ю (0 = нет оболочки). Оболочку строит TGM.skin (PlasterSkin)
 const PLASTER_MAX_RUN := 4
+## XX claude-terra 13.13 K3d. Причина отказа, когда деформируют лист с бинтом (краска и оболочка привязаны к миру и к его форме)
+const PLASTER_LOCK := "Лист с гипсовым бинтом не изменить: снимите бинт"
 var smooth := 0
 
 ## Вырезы (локальные полигоны + диапазон слоев). Менять через add_cut / remove_last_cut / clear_cuts
@@ -168,6 +170,8 @@ func try_set_levels(n: int) -> String:
 	n = clampi(n, 1, MAX_LEVELS)
 	if n == levels:
 		return ""
+	if smooth > 0:
+		return PLASTER_LOCK   # XX claude-terra 13.13 K3d: лист с бинтом не деформируется
 	if n > levels and entity and entity.is_inside_tree() and not has_comp(C_Ghost):
 		var T: float = Global.settings.layer_height
 		var new_top := base_y() + float(n) * T
@@ -790,7 +794,11 @@ func _apply_stage(mesh: ArrayMesh) -> void:
 			wall = TGM.splat.wall_material(st, stage)
 		mesh.surface_set_material(_surf_side, wall)
 	if _surf_top >= 0 and _surf_top < mesh.get_surface_count():
-		mesh.surface_set_material(_surf_top, st.get_top(stage))
+		var top: Material = st.get_top(stage)
+		# K3d: верх листа с бинтом тем же шейдером, что оболочка: краска доходит до кромки, где оболочка у обрыва проседает ниже верха
+		if smooth > 0 and TGM.splat != null:
+			top = TGM.splat.surface_material(st, stage)
+		mesh.surface_set_material(_surf_top, top)
 	if _surf_cut >= 0 and _surf_cut < mesh.get_surface_count():   # 13.3 S4
 		mesh.surface_set_material(_surf_cut, st.get_cut(stage))
 
@@ -803,7 +811,9 @@ func set_smooth(run: int) -> void:
 		return
 	smooth = run
 	if mesh_node:
-		_apply_stage(mesh_node.mesh as ArrayMesh)   # K3c: материал стенки зависит от бинта
+		_apply_stage(mesh_node.mesh as ArrayMesh)   # K3c: материал стенки и верха зависит от бинта
+	if entity:
+		entity.send_event("on_plaster_changed", {})   # K3d: ручки контура прячутся под бинтом
 	TGM.plaster_dirty()
 
 
