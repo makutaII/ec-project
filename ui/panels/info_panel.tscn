@@ -147,15 +147,6 @@ text = "15"
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="WagonCameraButton" type="Button" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/VBoxContainer"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-size_flags_horizontal = 8
-size_flags_vertical = 0
-toggle_mode = true
-text = "Wagon camera"
-
 [node name="HSeparator" type="HSeparator" parent="VBoxContainer/TabContainer/MainTab" unique_id=985813642]
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2

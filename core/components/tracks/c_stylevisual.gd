@@ -119,3 +119,25 @@ func _build_collision(curve: Curve3D, L: float) -> void:
 ## Стиль для подгонки полос слоя питания под UV рельса (тайл, поворот)
 func _power_style() -> TrackStyle:
 	return style
+
+
+## U13 (D13): секция вкладки Visual в InfoPanel: стиль трака из набора проекта (ATTN_17 §17.13).
+## Стиль-сцена budget у формы без сцены строится запасным стилем, об этом сказано в строке.
+## Стиль, зафиксированный в самом объекте, id в набор не пишет
+func get_info_sections() -> Array[InfoSection]:
+	return [InfoSection.make("Стиль трака", [
+		InfoSection.label("Стиль", _style_title),
+		InfoSection.label("Высота рельса", func() -> String: return "%.2f" % style.head_height() if style != null else "-"),
+		InfoSection.label("Сцена Blender", func() -> String: return "да" if style != null and style.use_scene else "нет"),
+	])]
+
+
+func _style_title() -> String:
+	if entity != null and entity.style_id != &"":
+		var st := TSM.get_style(entity.style_id)
+		if style != null and st != null and st.use_scene:
+			return "%s (нет сцены, как %s)" % [entity.style_id, style.id]
+		return String(entity.style_id)
+	if style != null:
+		return "%s (в объекте)" % style.id
+	return "-"

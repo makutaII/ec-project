@@ -1,4 +1,4 @@
-class_name InfoPanel extends PanelContainer
+class_name InfoPanel extends FloatingPanel
 
 ###########################
 ## InfoPanel. Панель сведений о выбранном объекте
@@ -26,6 +26,12 @@ var _acc := 0.0
 
 func _ready() -> void:
 	add_to_group(&"info_panel")   # по группе её находит спидометр
+	# U13: плавающая панель (внизу справа по умолчанию, тянется за заголовок, сворачивается, запоминает место)
+	var vbox := $VBoxContainer
+	var grip_row := HBoxContainer.new()
+	vbox.add_child(grip_row)
+	setup_floating(&"info_panel", $VBoxContainer/HeaderHBoxContainer/PanelContainer, tab_container,
+		$VBoxContainer/HeaderHBoxContainer, grip_row)
 	hide() # Прячем панель на старте
 	# ⚡Сигнал из ToolController: какой объект показывать
 	var _tc := get_node_or_null("../../../ToolController")   # HUD → UI → GameRoot (после U8)
@@ -38,6 +44,7 @@ func _ready() -> void:
 	_add_tab(_main, tab_container.get_node("MainTab"))
 	_add_tab(_power, tab_container.get_node("PowerTab"))
 	_add_tab(InfoTransformTab.new(), tab_container.get_node("TransformTab"))
+	_add_tab(InfoVisualTab.new(), tab_container.get_node("VisualTab"))   # U13: секции компонентов (D13)
 	_add_tab(InfoMechTab.new())
 	_add_tab(InfoTerrainTab.new())
 	_add_tab(InfoTableTab.new())   # XX claude-table T4: опоры и высота стола
@@ -74,8 +81,8 @@ func _process(delta: float) -> void:
 ## Вызывается ToolController (selection_changed), когда выбор сменился
 func set_target(entity: Entity) -> void:
 	# Камера вагона включена: этот клик ее только выключает
-	if _main.wagon_camera_active():
-		_main.release_wagon_camera()
+	if _wagon_camera_active():
+		_release_wagon_camera()
 		return
 
 	# 1. Отписываемся от старого объекта
@@ -105,6 +112,23 @@ func set_target(entity: Entity) -> void:
 	# 4. Привязываем вкладки и выставляем видимость по can_show
 	for tab in _tabs:
 		tab.bind(current_target)
+	_update_tab_visibility()
+
+
+## Камера вагона включена (U13: состояние в C_CameraTarget, переключатель на вкладке Visual)
+func _wagon_camera_active() -> bool:
+	if not is_instance_valid(current_target):
+		return false
+	var ct := current_target.get_comp(C_CameraTarget) as C_CameraTarget
+	return ct != null and ct.camera_instance != null
+
+
+func _release_wagon_camera() -> void:
+	current_target.send_event("on_wagon_camera_selected", {"selected": false})
+
+
+## Для вкладок: пересчитать, какие вкладки показывать (набор компонентов цели мог измениться)
+func refresh_tab_visibility() -> void:
 	_update_tab_visibility()
 
 

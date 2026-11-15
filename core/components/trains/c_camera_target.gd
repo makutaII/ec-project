@@ -40,6 +40,16 @@ func on_wagon_camera_selected(_data: Dictionary) -> void:
 		camera_instance = null
 
 
+# U13 (D13): секция вкладки Visual в InfoPanel: переключатель камеры вагона. Источник истины это
+# camera_instance, поэтому переключатель верен и когда камеру включил Observe (режим Follow)
+func get_info_sections() -> Array[InfoSection]:
+	return [InfoSection.make("Камера", [
+		InfoSection.toggle("Камера вагона",
+			func() -> bool: return camera_instance != null,
+			func(on: bool) -> void: entity.send_event("on_wagon_camera_selected", {"selected": on})),
+	])]
+
+
 # Вызывается при снятии выделения (например, send_event("on_wagon_deselected"))
 func on_wagon_deselected(_data: Dictionary) -> void:
 	pass
