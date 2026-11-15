@@ -133,6 +133,7 @@ func save_game(slot_name: String ='savegame') -> bool:
 	if _rb and _rb.is_in_group(&"room_root"):
 		_saved_game.room_id = _rb.get_room_id()
 		_saved_game.room_variants = _rb.config.variants.duplicate()
+		_saved_game.room_controls = _rb.get_control_state()
 
 	# XX claude-table T0: подмакетник (ATTN_23)
 	_saved_game.layout = LYM.get_state()
@@ -242,6 +243,8 @@ func load_game(slot_name: String  ='savegame', dir: String = SAVE_DIR, style_ove
 		# XX claude-table T0: варианты комнаты из сейва. Старый сейв (layout пуст) их не хранит: остаются текущие
 		if not _saved_game.layout.is_empty():
 			_rb.set_variants(_saved_game.room_variants)
+		# Свет и механизмы комнаты (RM6). Если вместо комнаты сейва взята другая (--room), её управления не трогаем
+		_rb.set_control_state(_saved_game.room_controls if _rb.get_room_id() == _saved_game.room_id else {})
 	# XX claude-table T0: подмакетник; пустой layout = стол как в v1
 	LYM.set_state(_saved_game.layout)
 	# 1️⃣ загружаем камеру вызывая ее метод

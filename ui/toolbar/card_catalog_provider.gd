@@ -58,6 +58,13 @@ const CARDS := {
 	],
 }
 
+## Префикс id карточек света комнаты в категории light: «room:<id управления>» (ATTN_25 §25.4, RM6)
+const ROOM_CARD_PREFIX := "room:"
+
+## Источник карточек света комнаты: Callable без аргументов -> Array[Dictionary] (см. room_cards). Задаёт ObserveController.
+## Пусто или пустой ответ: в Light только карточки из CARDS. Спрашивается при каждом показе категории, поэтому смена комнаты подхватывается
+var room_cards_source: Callable = Callable()
+
 var _groups := {}         # имя группы -> ButtonGroup (пересоздаются при каждом показе категории)
 var _group_state := {}    # группа -> id выбранной карточки
 var _toggle_state := {}   # id -> bool
@@ -130,8 +137,29 @@ func set_toggle_state(id: StringName, on: bool) -> void:
 			c.set_pressed_no_signal(on)
 
 
+## Карточки света комнаты из реестра: управления со scope = observe, по переключателю на каждое (TOGGLE, SLIDER и MECH).
+## Статическая, чтобы проверять без сцены (tests/room_light_test.tscn)
+static func room_cards(controls: RoomControlRegistry) -> Array:
+	var out: Array = []
+	if controls == null:
+		return out
+	for d in controls.for_scope(RoomControl.Scope.OBSERVE):
+		var tip := "Механизм комнаты: открыть и закрыть" if d.kind == RoomControl.Kind.MECH else "Свет комнаты"
+		out.append({"id": StringName(ROOM_CARD_PREFIX + String(d.id)), "title": d.display_title(), "toggle": true,
+				"on": d.is_on(), "tip": tip})
+	return out
+
+
+## id управления комнаты из id карточки; пусто, если карточка не комнатная
+static func room_control_id(card_id: StringName) -> StringName:
+	var s := String(card_id)
+	return StringName(s.trim_prefix(ROOM_CARD_PREFIX)) if s.begins_with(ROOM_CARD_PREFIX) else &""
+
+
 ## Нажата ли карточка при показе: из сохраненного состояния, иначе по "default"
 func _is_on(data: Dictionary) -> bool:
+	if data.has("on"):
+		return bool(data["on"])   # карточка комнаты: состояние живёт в реестре комнаты, а не здесь
 	var g: StringName = data.get("group", &"")
 	if g != &"":
 		if _group_state.has(g):
@@ -147,6 +175,12 @@ func _cards_for(category: StringName) -> Array:
 	var base: Array = CARDS.get(category, [])
 	if category == &"look" and not Global.debug_mode:
 		return base.filter(func(d: Dictionary) -> bool: return d.id != &"lab")
+	if category == &"light" and room_cards_source.is_valid():
+		var extra: Array = room_cards_source.call()
+		if not extra.is_empty():
+			var all: Array = base.duplicate()
+			all.append_array(extra)
+			return all
 	return base
 
 

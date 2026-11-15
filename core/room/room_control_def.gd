@@ -67,6 +67,21 @@ func set_value(v: float, instant := true) -> void:
 		rm.set_state(value, instant)
 
 
+## Включено ли управление для карточки-переключателя (Observe). MECH: по цели (открывается и закрывается целиком)
+func is_on() -> bool:
+	if kind == RoomControl.Kind.MECH and not mechanisms.is_empty():
+		return mechanisms[0].mech.target > 0.5
+	return value > 0.0
+
+
+## Включить или выключить как переключатель. TOGGLE: 1 и 0; SLIDER: начальное значение (если оно 0, то 1) и 0; MECH: ход 1 и 0 по времени
+func set_on(on: bool, instant := false) -> void:
+	var v := 0.0
+	if on:
+		v = default_value if kind == RoomControl.Kind.SLIDER and default_value > 0.0 else 1.0
+	set_value(v, instant or kind != RoomControl.Kind.MECH)
+
+
 func is_moving() -> bool:
 	for rm in mechanisms:
 		if rm.is_moving():

@@ -23,6 +23,9 @@ class_name SavedGame extends Resource
 @export var room_id: StringName = &"kid_room_10"
 ## Варианты комнаты (RoomConfig.variants: стена, покрывало, шторы, постеры). В сейвах до подмакетника поля нет
 @export var room_variants: Dictionary = {}
+## Состояние управляемых объектов комнаты со scope = observe: id управления -> значение 0..1 (RoomBuilder.get_control_state, ATTN_25 RM6).
+## В старых сейвах поля нет: начальные значения. Относится к room_id этого же сейва
+@export var room_controls: Dictionary = {}
 ## Подмакетник (LYM.get_state, ATTN_23). Пусто = сейв до подмакетника: стол как в v1, варианты комнаты не трогаем
 @export var layout: Dictionary = {}
 ## Активный стиль траков макета (TSM.current_id). Пусто = стиль по умолчанию из набора

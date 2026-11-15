@@ -16,6 +16,8 @@ signal room_layout_applied
 signal room_visible_changed(on: bool)
 ## Комнату заменили (switch_room): границы камеры и небо надо перечитать
 signal room_changed(id: StringName)
+## ⚡Состояние управляемых объектов комнаты задано извне (загрузка сейва): карточки Observe → Light обновляются
+signal room_controls_changed
 
 @export var config: RoomConfig
 ## Стены и потолок не отбрасывают тень: иначе низкое солнце затемнит стол. Окно и рама в S4
@@ -35,6 +37,7 @@ var _room_lights: Node3D   # потолочные лампы RoomConfig.lamps: �
 var _mats := {}
 var _walls: Array[MeshInstance3D] = []   # стены, рама, шторы и подоконник: тень только в Observe
 var _decor: RoomDecor
+var _controls := RoomControlRegistry.new()   # управляемые объекты активной комнаты (ATTN_25 §25.6), у процедурной пусто
 var _root: RoomRoot   # корень сцены комнаты (RoomConfig.scene), null у процедурной комнаты
 var _wall_col := Color(0.80, 0.79, 0.76)
 var _room_visible := true
@@ -279,6 +282,7 @@ func _build_room() -> void:
 	_ceiling_mesh = null
 	_decor = null
 	_root = null
+	_controls = RoomControlRegistry.new()
 	visuals = Node3D.new()
 	visuals.name = "Room"
 	add_child(visuals)
@@ -310,6 +314,9 @@ func _build_from_scene() -> void:
 		return
 	_root = r
 	r.setup(_vis_layer(), _shell_layer())
+	_controls = RoomControlRegistry.collect(r, String(config.id))   # до take_lights: метки ламп лежат в ветке Lights
+	for w in _controls.warnings:
+		push_warning("RoomBuilder: комната %s: %s" % [config.id, w])
 	_room_lights = r.take_lights()
 	if _room_lights:
 		add_child(_room_lights)
@@ -317,6 +324,56 @@ func _build_from_scene() -> void:
 	_walls.append_array(r.get_wall_meshes())
 	ceiling = r.get_ceiling()
 	_ceiling_mesh = r.get_ceiling_mesh()
+
+
+## Управляемые объекты активной комнаты (пустой реестр у процедурной). Читает Observe → Light
+func get_controls() -> RoomControlRegistry:
+	return _controls
+
+
+## Значение управления (0..1), для сейва и скриптов. false: такого управления нет
+func set_control_value(id: StringName, value: float, instant := true) -> bool:
+	var d := _controls.by_id(id)
+	if d == null:
+		return false
+	d.set_value(value, instant)
+	return true
+
+
+## Переключатель из карточки Observe (TOGGLE, SLIDER, MECH). false: такого управления нет
+func set_control_on(id: StringName, on: bool) -> bool:
+	var d := _controls.by_id(id)
+	if d == null:
+		return false
+	d.set_on(on)
+	return true
+
+
+## Состояние для сейва: id -> значение для управлений со scope = observe (остальные меняет только студия)
+func get_control_state() -> Dictionary:
+	var out := {}
+	for d in _controls.for_scope(RoomControl.Scope.OBSERVE):
+		out[d.id] = d.value
+	return out
+
+
+## Из сейва: сначала управления Observe в начальные значения, затем значения из state. Неизвестные id молча пропускаются
+## (комнату могли изменить). Пустой state (старый сейв) это начальные значения
+func set_control_state(state: Dictionary) -> void:
+	var by_id := {}   # ключи сейва могут прийти как String или StringName
+	for k in state:
+		by_id[StringName(str(k))] = state[k]
+	for d in _controls.for_scope(RoomControl.Scope.OBSERVE):
+		d.reset()
+		if by_id.has(d.id):
+			d.set_value(float(by_id[d.id]), true)
+	room_controls_changed.emit()
+
+
+## Механизмы комнаты ходят по времени (MechanismConfig.duration)
+func _process(delta: float) -> void:
+	if _controls.is_moving():
+		_controls.tick(delta)
 
 
 ## Id текущей комнаты (в сейв)
