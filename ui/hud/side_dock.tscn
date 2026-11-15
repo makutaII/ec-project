@@ -1,8 +1,8 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://jnegqea1hrg8"]
 
-[ext_resource type="Script" path="res://ui/hud/side_dock.gd" id="1_dock"]
+[ext_resource type="Script" uid="uid://di432of1glgqo" path="res://ui/hud/side_dock.gd" id="1_dock"]
 
-[node name="SideDock" type="Control"]
+[node name="SideDock" type="Control" unique_id=1025356402]
 layout_mode = 3
 anchors_preset = 0
 offset_top = 52.0
@@ -11,44 +11,44 @@ offset_bottom = 560.0
 mouse_filter = 2
 script = ExtResource("1_dock")
 
-[node name="Body" type="PanelContainer" parent="."]
+[node name="Body" type="PanelContainer" parent="." unique_id=1892190046]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(320, 0)
 layout_mode = 0
 offset_right = 320.0
 offset_bottom = 508.0
 
-[node name="Box" type="VBoxContainer" parent="Body"]
+[node name="Box" type="VBoxContainer" parent="Body" unique_id=1486516153]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="Header" type="PanelContainer" parent="Body/Box"]
+[node name="Header" type="PanelContainer" parent="Body/Box" unique_id=1100639038]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 theme_type_variation = &"PanelContainerHeader"
 
-[node name="HeaderRow" type="HBoxContainer" parent="Body/Box/Header"]
+[node name="HeaderRow" type="HBoxContainer" parent="Body/Box/Header" unique_id=1027842994]
 layout_mode = 2
 
-[node name="Title" type="Label" parent="Body/Box/Header/HeaderRow"]
+[node name="Title" type="Label" parent="Body/Box/Header/HeaderRow" unique_id=1676624344]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"LabelOnAccent"
 text = "Параметры"
 vertical_alignment = 1
 
-[node name="PinButton" type="Button" parent="Body/Box/Header/HeaderRow"]
+[node name="PinButton" type="Button" parent="Body/Box/Header/HeaderRow" unique_id=1164573347]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 24)
 layout_mode = 2
 size_flags_vertical = 4
+tooltip_text = "Закрепить: панель не закрывается сама"
 focus_mode = 0
 theme_type_variation = &"ButtonSmall"
 toggle_mode = true
-tooltip_text = "Закрепить: панель не закрывается сама"
 text = "Закрепить"
 
-[node name="Margin" type="MarginContainer" parent="Body/Box"]
+[node name="Margin" type="MarginContainer" parent="Body/Box" unique_id=323371985]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/margin_left = 8
@@ -56,12 +56,12 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="Items" type="VBoxContainer" parent="Body/Box/Margin"]
+[node name="Items" type="VBoxContainer" parent="Body/Box/Margin" unique_id=1009738572]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Tab" type="Button" parent="."]
+[node name="Tab" type="Button" parent="." unique_id=411995490]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(24, 80)
 layout_mode = 0

@@ -8,10 +8,10 @@
 [ext_resource type="PackedScene" uid="uid://boj0kanwn0n0e" path="res://ui/panels/info_panel.tscn" id="10_ay4pc"]
 [ext_resource type="PackedScene" path="res://ui/hud/top_bar.tscn" id="13_topbar"]
 [ext_resource type="PackedScene" path="res://ui/windows/confirm_dialog.tscn" id="14_confirm"]
-[ext_resource type="PackedScene" path="res://ui/hud/side_dock.tscn" id="18_sidedock"]
 [ext_resource type="PackedScene" path="res://ui/windows/save_load_dialog.tscn" id="15_saveload"]
-[ext_resource type="PackedScene" path="res://ui/windows/settings_window.tscn" id="17_settings"]
 [ext_resource type="Script" uid="uid://c6287df8pqrh" path="res://ui/hud/system_menu.gd" id="16_sysmenu"]
+[ext_resource type="PackedScene" path="res://ui/windows/settings_window.tscn" id="17_settings"]
+[ext_resource type="PackedScene" path="res://ui/hud/side_dock.tscn" id="18_sidedock"]
 [ext_resource type="Script" uid="uid://b1a08tultjehh" path="res://ui/ui.gd" id="99_uigd"]
 
 [node name="UI" type="CanvasLayer" unique_id=1965858759]
@@ -177,15 +177,11 @@ text = "Library"
 vertical_alignment = 1
 
 [node name="InfoPanel" parent="HUD" unique_id=1788166654 instance=ExtResource("10_ay4pc")]
-layout_mode = 0
-anchors_preset = 0
-anchor_left = 0.0
-anchor_right = 0.0
-offset_left = 0.0
+layout_mode = 1
+offset_left = -287.0
 offset_top = 44.0
-offset_right = 574.0
+offset_right = 287.0
 offset_bottom = 293.0
-grow_horizontal = 1
 
 [node name="DCControlPanel" parent="HUD" unique_id=1088175003 instance=ExtResource("1_bi8hs")]
 unique_name_in_owner = true
@@ -201,6 +197,7 @@ grow_vertical = 1
 
 [node name="SideDock" parent="HUD" unique_id=1311200830 instance=ExtResource("18_sidedock")]
 unique_name_in_owner = true
+layout_mode = 0
 
 [node name="Windows" type="CanvasLayer" parent="." unique_id=1311200802]
 layer = 20
