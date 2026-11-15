@@ -22,7 +22,8 @@ var _ui_theme: Theme
 
 func set_ui_theme(theme: Theme) -> void:
 	_ui_theme = theme
-	hud.theme = theme
+	if hud:	hud.theme = theme	
+	
 	for layer_name in [&"Windows", &"Toasts"]:
 		var layer := get_node_or_null(NodePath(String(layer_name)))
 		if layer == null:
