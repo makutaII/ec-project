@@ -67,7 +67,16 @@ func on_terrain_rebuilt(_d: Dictionary) -> void:
 
 
 func _is_active() -> bool:
+	if _layer != null and _layer.smooth > 0:
+		return false   # K3d: лист с гипсовым бинтом не деформируется, ручек нет
 	return has_comp(C_Selected) and not has_comp(C_Ghost) and not has_comp(C_Drag)
+
+
+## K3d. Бинт наложен или снят: ручки пропадают или возвращаются
+func on_plaster_changed(_d: Dictionary) -> void:
+	if _layer != null and _layer.smooth > 0:
+		_cancel()
+	_sync()
 
 
 ## Привести число ручек и их положение в соответствие с контуром, включить или выключить слой

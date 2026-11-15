@@ -268,7 +268,7 @@ func _try_commit(poly: PackedVector2Array, empty_why: String = "Нулевой �
 	if why != "":
 		_say(why)
 		return
-	_finish(FoamCutter.apply(poly, _y_low(), _plane_y()))
+	_finish(FoamCutter.apply(poly, _y_low(), _plane_y()), FoamCutter.blocked(poly, _y_low(), _plane_y()).size())
 
 
 ## Скос по двум точкам гребня и стороне курсора: высота = глубина (слоёв), ступень = _run
@@ -281,13 +281,14 @@ func _commit_bevel() -> void:
 	if why != "":
 		_say(why)
 		return
-	_finish(FoamCutter.apply_bevel(polys, _plane_y()))
+	_finish(FoamCutter.apply_bevel(polys, _plane_y()), FoamCutter.blocked_bevel(polys, _plane_y()))
 
 
 ## Записи FoamCutter.apply или apply_bevel в историю. Пустые: резать было нечего
-func _finish(recs: Array[Dictionary]) -> void:
+## K3d. skipped: сколько листов с гипсовым бинтом вырез задел бы, они не режутся
+func _finish(recs: Array[Dictionary], skipped: int = 0) -> void:
 	if recs.is_empty():
-		_say("Здесь нет пенопласта на этих слоях")
+		_say("Лист с гипсовым бинтом не режется: снимите бинт" if skipped > 0 else "Здесь нет пенопласта на этих слоях")
 		return
 	_history.append(recs)
 	while _history.size() > MAX_HISTORY:
@@ -295,7 +296,8 @@ func _finish(recs: Array[Dictionary]) -> void:
 	var layers := {}
 	for r in recs:
 		layers[r["layer"]] = true
-	_say("Вырезано в листах: %d (Ctrl+Z отмена)" % layers.size())
+	var tail := "; с бинтом пропущено: %d" % skipped if skipped > 0 else ""
+	_say("Вырезано в листах: %d (Ctrl+Z отмена)%s" % [layers.size(), tail])
 	_reset_draw()
 
 
