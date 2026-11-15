@@ -1,0 +1,237 @@
+{
+  "id": "sample_34000",
+  "source": "34000_56480.mp3",
+  "note": "Лист меток по ATTN_26 §26.6.1. Регионы с речью по радио (3.4-16.5 с) не включены. Лента из открытых источников, в релиз не идёт (§26.9). Типы звуков кроме двигателя это гипотезы.",
+  "reference": "eng_n1",
+  "line_band_hz": [
+    800,
+    2500
+  ],
+  "defaults": {
+    "fade_in_ms": 5,
+    "fade_out_ms": 40,
+    "xfade_ms": 400,
+    "snap_ms": 150
+  },
+  "regions": [
+    {
+      "id": "click_a",
+      "kind": "oneshot",
+      "start": 17.73,
+      "end": 17.95,
+      "tags": [
+        "click"
+      ]
+    },
+    {
+      "id": "alert_tone",
+      "kind": "oneshot",
+      "start": 18.25,
+      "end": 26.7,
+      "tags": [
+        "alert"
+      ],
+      "note": "гипотеза: ровный электронный тон, f0 около 345 Гц; на 20.2-20.5 вставка 399 Гц",
+      "band_hz": [
+        250,
+        1200
+      ]
+    },
+    {
+      "id": "air_release",
+      "kind": "oneshot",
+      "start": 27.2,
+      "end": 29.1,
+      "tags": [
+        "air"
+      ],
+      "note": "гипотеза: выпуск воздуха"
+    },
+    {
+      "id": "click_b",
+      "kind": "oneshot",
+      "start": 29.8,
+      "end": 30.1,
+      "tags": [
+        "click"
+      ]
+    },
+    {
+      "id": "eng_start",
+      "kind": "oneshot",
+      "start": 30.1,
+      "end": 34.8,
+      "tags": [
+        "engine",
+        "start"
+      ],
+      "note": "запуск и ровный фон, всплеск 30.1-31.5"
+    },
+    {
+      "id": "horn_1",
+      "kind": "oneshot",
+      "start": 34.9,
+      "end": 36.15,
+      "tags": [
+        "horn"
+      ],
+      "note": "f0 около 660 Гц",
+      "band_hz": [
+        250,
+        1500
+      ]
+    },
+    {
+      "id": "horn_2",
+      "kind": "oneshot",
+      "start": 36.9,
+      "end": 38.1,
+      "tags": [
+        "horn"
+      ],
+      "note": "f0 около 362 Гц",
+      "band_hz": [
+        250,
+        1500
+      ]
+    },
+    {
+      "id": "eng_idle",
+      "kind": "loop",
+      "start": 38.4,
+      "end": 41.5,
+      "tags": [
+        "engine"
+      ],
+      "note": "холостой ход, 3.1 с: для петли мало"
+    },
+    {
+      "id": "eng_n1",
+      "kind": "loop",
+      "start": 42.1,
+      "end": 46.4,
+      "tags": [
+        "engine"
+      ],
+      "note": "ступень 1, линия 1256 Гц"
+    },
+    {
+      "id": "eng_n2",
+      "kind": "loop",
+      "start": 48.4,
+      "end": 53.2,
+      "tags": [
+        "engine"
+      ],
+      "note": "ступень 2, линия 1453 Гц"
+    },
+    {
+      "id": "eng_n3",
+      "kind": "loop",
+      "start": 55.1,
+      "end": 60.3,
+      "tags": [
+        "engine"
+      ],
+      "note": "ступень 3, линия 1688 Гц"
+    },
+    {
+      "id": "eng_n4",
+      "kind": "loop",
+      "start": 62.4,
+      "end": 67.8,
+      "tags": [
+        "engine"
+      ],
+      "note": "ступень 4, линия 1844 Гц"
+    },
+    {
+      "id": "eng_n5",
+      "kind": "loop",
+      "start": 69.6,
+      "end": 74.9,
+      "tags": [
+        "engine"
+      ],
+      "note": "ступень 5, линия 1969 Гц (в полосе по умолчанию сильнее пара 739/1478 Гц)",
+      "band_hz": [
+        1700,
+        2300
+      ]
+    },
+    {
+      "id": "eng_rundown",
+      "kind": "ramp",
+      "start": 75.0,
+      "end": 93.0,
+      "tags": [
+        "engine"
+      ],
+      "note": "плавный спад, полка около 1685 Гц на 80.6-82.3"
+    },
+    {
+      "id": "squeal_hi",
+      "kind": "oneshot",
+      "start": 93.0,
+      "end": 96.4,
+      "tags": [
+        "squeal"
+      ],
+      "note": "гипотеза: высокий тон 4.67 кГц; начало перекрыто спадом"
+    },
+    {
+      "id": "eng_slow",
+      "kind": "loop",
+      "start": 98.0,
+      "end": 102.0,
+      "tags": [
+        "engine"
+      ],
+      "note": "ровный фон без ступеней, 4 с"
+    },
+    {
+      "id": "eng_stop",
+      "kind": "oneshot",
+      "start": 102.0,
+      "end": 105.5,
+      "tags": [
+        "engine",
+        "stop"
+      ],
+      "note": "всплеск 102-103.5, затем затухание",
+      "fade_out_ms": 200
+    },
+    {
+      "id": "beep_hi",
+      "kind": "oneshot",
+      "start": 106.3,
+      "end": 107.5,
+      "tags": [
+        "beep"
+      ],
+      "note": "гипотеза: писк 3.54 кГц"
+    },
+    {
+      "id": "relay_clicks",
+      "kind": "oneshot",
+      "start": 107.8,
+      "end": 110.0,
+      "tags": [
+        "click",
+        "relay"
+      ],
+      "note": "гипотеза: 3-4 щелчка реле или контактора"
+    },
+    {
+      "id": "tail",
+      "kind": "oneshot",
+      "start": 110.2,
+      "end": 113.7,
+      "tags": [
+        "tail"
+      ],
+      "note": "затухающий хвост",
+      "fade_out_ms": 300
+    }
+  ]
+}
