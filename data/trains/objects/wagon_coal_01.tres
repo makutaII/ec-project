@@ -51,17 +51,18 @@ metadata/_custom_type_script = "uid://daeylhso0elsx"
 
 [sub_resource type="Resource" id="Resource_ag4h2"]
 script = ExtResource("6_8nbd5")
+id = &"door_l"
 actuator = 6
 part_role = &"door_l"
-anim_name = &"mech_door_left"
+anim_name = &"mech_door_l"
 metadata/_custom_type_script = "uid://gv2lrhu17dtf"
 
 [sub_resource type="Resource" id="Resource_od62w"]
 script = ExtResource("6_8nbd5")
-id = &"door_right"
+id = &"door_r"
 actuator = 6
 part_role = &"door_r"
-anim_name = &"mech_door_slide"
+anim_name = &"mech_door_r"
 metadata/_custom_type_script = "uid://gv2lrhu17dtf"
 
 [sub_resource type="Resource" id="Resource_yrtcf"]

@@ -63,10 +63,10 @@ theme_override_constants/separation = 6
 
 [node name="Tab" type="Button" parent="." unique_id=411995490]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(24, 80)
+custom_minimum_size = Vector2(20, 50)
 layout_mode = 0
 offset_left = 320.0
-offset_right = 344.0
-offset_bottom = 80.0
+offset_right = 348.0
+offset_bottom = 50.0
 focus_mode = 0
 text = ">"

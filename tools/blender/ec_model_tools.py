@@ -1069,7 +1069,7 @@ class EC_OT_mech_key(bpy.types.Operator):
         if not re.match(r"^[a-z][a-z0-9_]*$", s.mech_id):
             self.report({"ERROR"}, "Id механизма: a-z, 0-9, _")
             return {"CANCELLED"}
-        frame = 1 if self.rest else 1 + s.mech_frames
+        frame = 0 if self.rest else 1 + s.mech_frames
         if mech_key(context.scene, obj, s.mech_id, frame, self.rest) is None:
             self.report({"ERROR"}, "Ключ не создан")
             return {"CANCELLED"}

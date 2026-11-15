@@ -11,7 +11,7 @@
 [ext_resource type="PackedScene" path="res://ui/windows/save_load_dialog.tscn" id="15_saveload"]
 [ext_resource type="Script" uid="uid://c6287df8pqrh" path="res://ui/hud/system_menu.gd" id="16_sysmenu"]
 [ext_resource type="PackedScene" path="res://ui/windows/settings_window.tscn" id="17_settings"]
-[ext_resource type="PackedScene" path="res://ui/hud/side_dock.tscn" id="18_sidedock"]
+[ext_resource type="PackedScene" uid="uid://jnegqea1hrg8" path="res://ui/hud/side_dock.tscn" id="18_sidedock"]
 [ext_resource type="Script" uid="uid://b1a08tultjehh" path="res://ui/ui.gd" id="99_uigd"]
 
 [node name="UI" type="CanvasLayer" unique_id=1965858759]
@@ -198,6 +198,8 @@ grow_vertical = 1
 [node name="SideDock" parent="HUD" unique_id=1311200830 instance=ExtResource("18_sidedock")]
 unique_name_in_owner = true
 layout_mode = 0
+offset_top = 45.0
+offset_bottom = 553.0
 
 [node name="Windows" type="CanvasLayer" parent="." unique_id=1311200802]
 layer = 20
