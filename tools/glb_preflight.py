@@ -12,12 +12,16 @@
 и «заготовки» чисел для конфигов (MechanismConfig, LightConfig, коллизия кузова).
 Код возврата 1, если есть хотя бы одна ERROR.
 
-Правила, по которым идёт проверка, описаны в 0_ATTN_24_model_pipeline.md (§24.3 и §24.4).
+    python tools/glb_preflight.py data/models/room_test_01/room_test_01.glb --kind room   # комната (ATTN_25 §25.7), числа карточки RoomConfig
+
+Правила, по которым идёт проверка, описаны в 0_ATTN_24_model_pipeline.md (§24.3 и §24.4); для комнат ATTN_25 §25.7.5 (код правил один на Blender и на этот файл:
+tools/blender/ec_room_tools.py, функция check_room).
 Координаты в отчёте уже в осях Godot (экспортёр glTF переводит Blender (x, y, z) в (x, z, -y)):
 нос это -Z, вверх +Y, вправо по ходу +X.
 """
 import argparse
 import base64
+import importlib.util
 import json
 import math
 import os
@@ -261,10 +265,239 @@ def node_name(g, i):
     return g["nodes"][i].get("name", "node_%d" % i)
 
 
+# ---------------------------------------------------------------- комната (--kind room)
+
+def _mat_identity():
+    return [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+
+
+def _mat_mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def _node_matrix(n):
+    """Локальная матрица узла glTF (TRS или matrix), строки: m[i][j]"""
+    if "matrix" in n:
+        v = n["matrix"]   # столбцы
+        return [[v[c * 4 + r] for c in range(4)] for r in range(4)]
+    t = n.get("translation") or (0.0, 0.0, 0.0)
+    x, y, z, w = n.get("rotation") or (0.0, 0.0, 0.0, 1.0)
+    s = n.get("scale") or (1.0, 1.0, 1.0)
+    r = [[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+         [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+         [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]]
+    return [[r[0][0] * s[0], r[0][1] * s[1], r[0][2] * s[2], t[0]],
+            [r[1][0] * s[0], r[1][1] * s[1], r[1][2] * s[2], t[1]],
+            [r[2][0] * s[0], r[2][1] * s[1], r[2][2] * s[2], t[2]],
+            [0.0, 0.0, 0.0, 1.0]]
+
+
+def _g2b(v):
+    """Оси glTF (Godot) -> оси Blender: (x, y, z) -> (x, -z, y)"""
+    return (v[0], -v[2], v[1])
+
+
+def _image_size(g, binb, img):
+    """Ширина и высота вшитой картинки (PNG или JPEG) по заголовку; None, если не удалось прочесть"""
+    data = None
+    if "bufferView" in img:
+        bv = g["bufferViews"][img["bufferView"]]
+        off = bv.get("byteOffset", 0)
+        data = binb[off:off + bv["byteLength"]]
+    elif str(img.get("uri", "")).startswith("data:"):
+        data = base64.b64decode(img["uri"].split(",", 1)[1])
+    if not data:
+        return None
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        return struct.unpack(">II", data[16:24])
+    if data[:2] == b"\xff\xd8":
+        pos = 2
+        while pos + 9 < len(data):
+            if data[pos] != 0xFF:
+                pos += 1
+                continue
+            marker = data[pos + 1]
+            if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+                pos += 2
+                continue
+            ln = struct.unpack(">H", data[pos + 2:pos + 4])[0]
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                h, w = struct.unpack(">HH", data[pos + 5:pos + 9])
+                return (w, h)
+            pos += 2 + ln
+    return None
+
+
+def load_room_rules():
+    """Правила комнаты лежат в tools/blender/ec_room_tools.py (один набор на Blender и на этот файл). Модуль, None если файла нет"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "blender", "ec_room_tools.py")
+    if not os.path.exists(path):
+        return None
+    spec = importlib.util.spec_from_file_location("ec_room_tools", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def room_snapshot(g, binb, fps=24.0):
+    """Снимок сцены для check_room из готового .glb. Оси и метры как в Blender (+Y север), см. ec_room_tools.check_room"""
+    nodes = g.get("nodes", [])
+    parent = {}
+    for i, n in enumerate(nodes):
+        for c in n.get("children", []):
+            parent[c] = i
+    counts = {}
+    for n in nodes:
+        counts[n.get("name", "")] = counts.get(n.get("name", ""), 0) + 1
+    ids = [(n.get("name", "node_%d" % i) if counts.get(n.get("name", ""), 0) == 1 else "%s#%d" % (n.get("name", "node_%d" % i), i)) for i, n in enumerate(nodes)]
+    world = {}
+
+    def wmat(i):
+        if i not in world:
+            m = _node_matrix(nodes[i])
+            world[i] = _mat_mul(wmat(parent[i]), m) if i in parent else m
+        return world[i]
+
+    out = []
+    materials = {}
+    for m in g.get("materials", []):
+        materials[m.get("name", "?")] = {"transparent": m.get("alphaMode", "OPAQUE") != "OPAQUE"}
+    for i, n in enumerate(nodes):
+        ex = n.get("extras") if isinstance(n.get("extras"), dict) else {}
+        kind = "CAMERA" if "camera" in n else ("LIGHT" if "KHR_lights_punctual" in (n.get("extensions") or {}) else ("MESH" if "mesh" in n else "EMPTY"))
+        w = wmat(i)
+        rot = n.get("rotation")
+        ang = 0.0
+        if rot:
+            ang = quat_to_axis_angle(rot)[1]
+        scale = tuple(n.get("scale") or (1.0, 1.0, 1.0))
+        d = {"id": ids[i], "name": n.get("name", "node_%d" % i), "parent": ids[parent[i]] if i in parent else None, "kind": kind, "props": dict(ex),
+             "data_role": False, "pos": _g2b((w[0][3], w[1][3], w[2][3])), "scale": scale, "rot_deg": ang, "aim": None, "bbox": None, "tris": 0, "mats": []}
+        ay = (w[0][1], w[1][1], w[2][1])   # локальная +Y glTF = стрелка пустышки (+Z Blender)
+        ln = math.sqrt(sum(c * c for c in ay)) or 1.0
+        d["aim"] = _g2b(tuple(c / ln for c in ay))
+        if "mesh" in n:
+            lo, hi = [1e9] * 3, [-1e9] * 3
+            mats = []
+            for pr in g["meshes"][n["mesh"]]["primitives"]:
+                at = pr["attributes"]
+                cnt = g["accessors"][pr["indices"]]["count"] if "indices" in pr else g["accessors"][at["POSITION"]]["count"]
+                d["tris"] += cnt // 3
+                pos = g["accessors"][at["POSITION"]]
+                if "min" in pos:
+                    for k in range(3):
+                        lo[k] = min(lo[k], pos["min"][k])
+                        hi[k] = max(hi[k], pos["max"][k])
+                if "material" in pr:
+                    nm = g["materials"][pr["material"]].get("name", "?")
+                    if nm not in mats:
+                        mats.append(nm)
+            d["mats"] = mats
+            if lo[0] < 1e8:
+                pts = []
+                for cx in (lo[0], hi[0]):
+                    for cy in (lo[1], hi[1]):
+                        for cz in (lo[2], hi[2]):
+                            pts.append(_g2b((w[0][0] * cx + w[0][1] * cy + w[0][2] * cz + w[0][3],
+                                             w[1][0] * cx + w[1][1] * cy + w[1][2] * cz + w[1][3],
+                                             w[2][0] * cx + w[2][1] * cy + w[2][2] * cz + w[2][3])))
+                d["bbox"] = (tuple(min(p[k] for p in pts) for k in range(3)), tuple(max(p[k] for p in pts) for k in range(3)))
+        out.append(d)
+    images = []
+    for k, im in enumerate(g.get("images", [])):
+        sz = _image_size(g, binb, im)
+        if sz:
+            images.append({"name": im.get("name", "image_%d" % k), "w": sz[0], "h": sz[1]})
+    actions = []
+    for a in g.get("animations", []):
+        info = {"name": a.get("name", "?"), "targets": [], "kinds": [], "scale_moved": False, "nonlinear": False, "frames": None, "stub": None}
+        for ch in a.get("channels", []):
+            tgt = ch["target"]
+            if "node" not in tgt:
+                continue
+            smp = a["samplers"][ch["sampler"]]
+            times = [t[0] for t in read_accessor(g, binb, smp["input"])]
+            vals = read_accessor(g, binb, smp["output"])
+            if not times or not vals:
+                continue
+            tid = ids[tgt["node"]]
+            if tid not in info["targets"]:
+                info["targets"].append(tid)
+            if smp.get("interpolation", "LINEAR") != "LINEAR":
+                info["nonlinear"] = True
+            path = tgt["path"]
+            if path == "translation":
+                dv = tuple(vals[-1][k] - vals[0][k] for k in range(3))
+                ln = math.sqrt(sum(c * c for c in dv))
+                if ln > 1e-5:
+                    info["kinds"].append("move")
+                    info["stub"] = {"kind": "move", "axis": tuple(c / ln for c in dv), "travel": ln * 100.0, "duration": times[-1] - times[0]}
+            elif path == "rotation":
+                ax, ang = quat_to_axis_angle(quat_mul(vals[-1], quat_inv(vals[0])))
+                if ang > 0.01:
+                    info["kinds"].append("rot")
+                    info["stub"] = {"kind": "rot", "axis": ax, "travel": ang, "duration": times[-1] - times[0]}
+            elif path == "scale":
+                if max(abs(vals[-1][k] - vals[0][k]) for k in range(3)) > 1e-5:
+                    info["scale_moved"] = True
+        info["kinds"] = sorted(set(info["kinds"]))
+        if len(info["kinds"]) != 1:
+            info["stub"] = None
+        actions.append(info)
+    return {"nodes": out, "materials": materials, "images": images, "actions": actions, "strays": [],
+            "extras_present": any(isinstance(n.get("extras"), dict) and n["extras"] for n in nodes)}
+
+
+def run_room(path):
+    """glb_preflight --kind room: правила комнаты на готовом файле, печать отчёта. Код возврата 1 при ERROR"""
+    rules = load_room_rules()
+    if rules is None:
+        print("[ERROR] Не найден tools/blender/ec_room_tools.py: правила комнаты лежат в нём.")
+        return 1
+    g, binb = load_gltf(path)
+    snap = room_snapshot(g, binb)
+    items = [(lv, tx) for lv, tx, _ in rules.check_room(snap)]
+    # проверки, которые видны только в файле
+    used = g.get("extensionsUsed") or []
+    if g.get("cameras"):
+        items.append(("ERROR", "В файле есть камеры (%d): при экспорте Include, Cameras выключить." % len(g["cameras"])))
+    if "KHR_lights_punctual" in used:
+        items.append(("ERROR", "В файле есть источники света (KHR_lights_punctual): при экспорте Include, Punctual Lights выключить, свет задаётся якорями role = light."))
+    if "KHR_draco_mesh_compression" in used:
+        items.append(("ERROR", "Сжатие Draco: Godot такой файл не читает, выключите Compression при экспорте."))
+    if g.get("skins"):
+        items.append(("WARN", "Есть скины (%d): механизмы комнаты двигают узлы, а не кости." % len(g["skins"])))
+    scenes = g.get("scenes", [])
+    roots = scenes[g.get("scene", 0)].get("nodes", []) if scenes else []
+    if len(roots) != 1:
+        items.append(("ERROR", "В сцене %d корневых узлов, нужен ровно один (Room, role = room)." % len(roots)))
+    nodes = g.get("nodes", [])
+    tris = sum(n["tris"] for n in snap["nodes"])
+    print("Комната: %s" % path)
+    print("Узлов: %d, мешей: %d, материалов: %d, текстур: %d, треугольников (с прокси): %d, анимаций: %d" %
+          (len(nodes), len([n for n in nodes if "mesh" in n]), len(g.get("materials", [])), len(g.get("images", [])), tris, len(g.get("animations", []))))
+    roles = {}
+    for n in snap["nodes"]:
+        r = n["props"].get("role")
+        if isinstance(r, str):
+            roles.setdefault(r, []).append(n["name"])
+    if roles:
+        print("Роли: " + ", ".join("%s (%s)" % (r, ", ".join(v)) for r, v in sorted(roles.items())))
+    print()
+    order = {"ERROR": 0, "WARN": 1, "INFO": 2}
+    for lvl, msg in sorted(items, key=lambda x: order[x[0]]):
+        print("[%s] %s" % (lvl, msg))
+    print()
+    e = sum(1 for lv, _ in items if lv == "ERROR")
+    print("Итог: ERROR %d, WARN %d, INFO %d" % (e, sum(1 for lv, _ in items if lv == "WARN"), sum(1 for lv, _ in items if lv == "INFO")))
+    return 1 if e else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="Предполётная проверка glb/gltf для Godot (ATTN_24)")
     ap.add_argument("model", help="путь к .glb или .gltf")
-    ap.add_argument("--kind", choices=["wagon", "loco", "building"], default="wagon", help="тип модели (бюджет треугольников)")
+    ap.add_argument("--kind", choices=["wagon", "loco", "building", "room"], default="wagon", help="тип модели (бюджет треугольников); room: комната, правила ATTN_25 §25.7.5")
     ap.add_argument("--config", help="EntitySetting .tres: проверить, что роли из part_role и anchor_role есть в модели")
     ap.add_argument("--offset-y", type=float, default=None, help="WagonConfig.offset_mesh_y: высота начала кузова над головкой рельса. "
                                                                   "Не задан: берётся стандартная высота буферов (--buffer-h), как у новой модели")
@@ -272,6 +505,8 @@ def main():
     ap.add_argument("--tol", type=float, default=BUFFER_TOL, help="допуск высоты буферов, единицы игры (по умолчанию %.3f)" % BUFFER_TOL)
     ap.add_argument("--brush", action="store_true", help="модель нужна для кисти Library: UV2 обязательна (иначе только предупреждение)")
     args = ap.parse_args()
+    if args.kind == "room":
+        return run_room(args.model)
 
     rep = Report()
     offset_given = args.offset_y is not None
