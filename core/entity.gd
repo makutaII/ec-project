@@ -57,7 +57,7 @@ func _assign_node_name() -> void:
 	var idc := get_comp(C_Identity) as C_Identity
 	if idc and idc.setting:
 		var key := String(idc.setting.get_key())
-		base = key.get_slice(".", key.get_slice_count(".") - 1).to_upper()
+		base = key.get_slice(".", key.get_slice_count(".") - 1)
 	base = base.validate_node_name()
 	if base == "":
 		base = "ENTITY"
