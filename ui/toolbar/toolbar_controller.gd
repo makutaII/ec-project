@@ -8,7 +8,8 @@ class_name ToolbarController extends Node
 ## Строит кнопки «категория → тег → объект» из CatalogProvider режима. Что делать с нажатым объектом,
 ## знает приемник режима (Callable), его регистрирует адаптер режима через register_mode().
 ##
-## Узлы панели (в ui.tscn): DockCategories (ряд категорий внизу), DockObjects (теги, сетка объектов).
+## Вид (U15a, ui/hud/tool_dock.tscn, ToolDockView): слева панель категорий (кнопки 40×40 в 2 колонки), справа ToolDock:
+## хедер (режим, категория, тег, теги, число объектов, «Дубль»), тело (объекты с переносом строк).
 ## Режимы подключаются к ModeController контрактом show_mode_ui / hide_mode_ui (см. ModeController).
 ##
 ## Связь с игрой через сигналы: object_selected и duplicate_requested уходят в ToolController,
@@ -21,12 +22,13 @@ signal object_selected(setting: EntitySetting)
 ## ⚡Сигнал: нажата кнопка «Дубль» (выбранный объект, а если ничего не выбрано, последний поставленный)
 signal duplicate_requested
 
-@onready var _categories: Control = %DockCategories
-@onready var _category_bar: Container = %DockCategoryBar
-@onready var _dock: Control = %DockObjects
-@onready var _title: Label = %DockTitle
-@onready var _grid: GridContainer = %DockGrid
-@onready var _tag_panel: Container = %DockTags
+@onready var _view: ToolDockView = %DockRow
+@onready var _categories: Control = _view.categories_panel()
+@onready var _category_bar: Container = _view.category_grid()
+@onready var _dock: Control = _view.dock_column()
+@onready var _title: Label = _view.category_label()
+@onready var _grid: Container = _view.objects_flow()
+@onready var _tag_panel: Container = _view.tags_box()
 
 var _cat_btn_scene := preload("res://ui/buttons/category_button.tscn")
 var _tag_btn_scene := preload("res://ui/buttons/tag_button.tscn")
@@ -59,15 +61,16 @@ func _ready() -> void:
 	_dup_btn.tooltip_text = "Копия выбранного объекта, а если ничего не выбрано, еще один такой же, как последний построенный (клавиша V)"
 	_dup_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_dup_btn.pressed.connect(func() -> void: duplicate_requested.emit())
-	var box: Node = _title.get_parent()
-	box.add_child(_dup_btn)
-	box.move_child(_dup_btn, _title.get_index() + 1)
+	_dup_btn.theme_type_variation = &"ButtonSmall"
+	_dup_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_view.actions_strip().add_child(_dup_btn)   # ActionsStrip: правая часть хедера
 
-	# Ряд фильтров над сеткой объектов
+	# Ряд фильтров над объектами (первым в теле ToolDock)
 	_filter_bar = FilterBar.new()
 	_filter_bar.filters_changed.connect(_on_filters_changed)
-	box.add_child(_filter_bar)
-	box.move_child(_filter_bar, _grid.get_index())
+	var body := _view.objects_box()
+	body.add_child(_filter_bar)
+	body.move_child(_filter_bar, 0)
 
 	# ToolController к этому моменту может быть не готов, поэтому связываем в конце кадра
 	_connect_game.call_deferred()
@@ -106,8 +109,11 @@ func show_mode_ui(mode: StringName) -> void:
 	current_cat = &'idle'
 	current_tag = &'idle'
 	_dup_btn.visible = mode == &"build"   # дубль имеет смысл только в Build
+	_view.mode_label().text = _mode_title(mode)
 	_rebuild_category_bar()
-	UIAnim.slide_up(_categories, anim_time)
+	_view.show()
+	_categories.show()
+	_dock.hide()
 
 
 ## Спрятать панель режима
@@ -116,6 +122,7 @@ func hide_mode_ui() -> void:
 	current_tag = &'idle'
 	_categories.hide()
 	_dock.hide()
+	_view.hide()
 
 
 ## Только для отладки: открыть категорию по номеру кнопки (Global.active_ui_category)
@@ -140,8 +147,33 @@ func _rebuild_category_bar() -> void:
 	for info in provider.get_categories():
 		var btn: CategoryButton = _cat_btn_scene.instantiate()
 		btn.config(info)
+		_style_category_button(btn)
 		_category_bar.add_child(btn)
 		btn.category_selected.connect(_on_category_selected)
+
+
+## Название режима в хедере ToolDock
+static func _mode_title(mode: StringName) -> String:
+	match mode:
+		&"build": return "Build"
+		&"operate": return "Operate"
+		&"observe": return "Observe"
+		&"sections": return "Секции"
+	return String(mode)
+
+
+## Кнопка категории 40×40: иконка 24, название в подсказке. Без иконки остаётся короткий текст
+func _style_category_button(btn: CategoryButton) -> void:
+	btn.custom_minimum_size = Vector2(40, 40)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	btn.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	if btn.icon != null:
+		btn.tooltip_text = btn.text
+		btn.text = ""
+		btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		btn.add_theme_constant_override(&"icon_max_width", 24)
+	else:
+		btn.clip_text = true
 
 
 ## ⚡Сигнал из кнопок категорий
@@ -156,10 +188,12 @@ func _on_category_selected(new_cat: StringName) -> void:
 func _show_category(cat: StringName) -> void:
 	if cat == &'idle':
 		_dock.hide()
+		_view.category_label().text = ""
 		return
 	var provider: CatalogProvider = _providers.get(_mode)
 	_clear(_grid)   # У категории без тегов не должно остаться кнопок прежней
 	_clear(_tag_panel)
+	_view.tag_label().text = ""
 	if provider != null:
 		var tags := provider.get_tags(cat)
 		if tags.is_empty():
@@ -167,19 +201,35 @@ func _show_category(cat: StringName) -> void:
 		for i in tags.size():
 			var btn: TagButton = _tag_btn_scene.instantiate()
 			btn.config(tags[i])
+			btn.custom_minimum_size = Vector2(40, 0)
+			btn.size_flags_vertical = Control.SIZE_FILL   # тег на всю высоту хедера, линия между тегами
+			if i > 0:
+				var sep := VSeparator.new()
+				sep.add_theme_constant_override(&"separation", 1)
+				_tag_panel.add_child(sep)
 			_tag_panel.add_child(btn)
 			btn.tag_selected.connect(_on_tag_selected)
 			if i == 0:
 				btn.select_as_default()   # первый тег нажат по умолчанию, он же наполнит сетку
 	_title.text = str(cat)
-	UIAnim.slide_up(_dock, anim_time)
+	_dock.show()
 
 
 ## ⚡Сигнал из кнопок тегов
 func _on_tag_selected(new_tag: StringName) -> void:
 	current_tag = new_tag
+	_view.tag_label().text = _tag_name(new_tag)
 	if current_cat != &'idle':
 		_fill_grid(current_cat, new_tag)
+
+
+## Название тега в хедере
+func _tag_name(tag: StringName) -> String:
+	for b in _tag_panel.get_children():
+		if b is TagButton and (b as TagButton).tag == tag:
+			var n := (b as TagButton).text
+			return n if n != "" else (b as TagButton).tooltip_text
+	return ""
 
 
 func _fill_grid(cat: StringName, tag: StringName) -> void:
@@ -194,6 +244,8 @@ func _fill_grid(cat: StringName, tag: StringName) -> void:
 	for btn in buttons:
 		_grid.add_child(btn)
 	_filter_bar.set_empty(buttons.is_empty() and not values.is_empty())
+	_view.count_label().text = "Объектов: %d" % buttons.size() if not buttons.is_empty() else ""
+	_view.empty_label().visible = buttons.is_empty() and values.is_empty()
 
 
 func _filter_key() -> String:

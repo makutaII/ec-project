@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://c6287df8pqrh" path="res://ui/hud/system_menu.gd" id="16_sysmenu"]
 [ext_resource type="PackedScene" path="res://ui/windows/settings_window.tscn" id="17_settings"]
 [ext_resource type="PackedScene" uid="uid://jnegqea1hrg8" path="res://ui/hud/side_dock.tscn" id="18_sidedock"]
+[ext_resource type="PackedScene" path="res://ui/hud/tool_dock.tscn" id="19_tooldock"]
 [ext_resource type="Script" uid="uid://b1a08tultjehh" path="res://ui/ui.gd" id="99_uigd"]
 
 [node name="UI" type="CanvasLayer" unique_id=1965858759]
@@ -57,108 +58,6 @@ anchor_bottom = 1.0
 grow_vertical = 0
 theme_type_variation = &"ToolPanelContainer"
 
-[node name="DockObjects" type="MarginContainer" parent="HUD/MainControl" unique_id=138862998]
-unique_name_in_owner = true
-editor_description = "главный контейнер, хранит кнопки объектов в своем ObjContainer, задает отступы от краев и ездит при вызове"
-layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_top = -282.0
-offset_right = 292.0
-grow_vertical = 0
-offset_transform_enabled = true
-mouse_filter = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_bottom = 55
-
-[node name="AnimatedWrapper" type="Control" parent="HUD/MainControl/DockObjects" unique_id=318673553]
-layout_mode = 2
-offset_transform_enabled = true
-mouse_filter = 2
-
-[node name="HBoxContainer" type="HBoxContainer" parent="HUD/MainControl/DockObjects/AnimatedWrapper" unique_id=1276423400]
-editor_description = "Контейнер со всеми кнопками траков и фильтров. Филтры переключают контейнеры с кнопками траков"
-layout_mode = 0
-offset_right = 326.0
-offset_bottom = 428.0
-mouse_filter = 2
-
-[node name="ScrollContainer" type="ScrollContainer" parent="HUD/MainControl/DockObjects/AnimatedWrapper/HBoxContainer" unique_id=1193114638]
-custom_minimum_size = Vector2(500, 0)
-custom_maximum_size = Vector2(-1, 235)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 19
-
-[node name="PanelContainer" type="PanelContainer" parent="HUD/MainControl/DockObjects/AnimatedWrapper/HBoxContainer/ScrollContainer" unique_id=872628203]
-editor_description = "для фона"
-custom_minimum_size = Vector2(0, 235)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 2
-
-[node name="VBoxContainer" type="VBoxContainer" parent="HUD/MainControl/DockObjects/AnimatedWrapper/HBoxContainer/ScrollContainer/PanelContainer" unique_id=1013616715]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="DockTitle" type="Label" parent="HUD/MainControl/DockObjects/AnimatedWrapper/HBoxContainer/ScrollContainer/PanelContainer/VBoxContainer" unique_id=1465564848]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 0
-theme_type_variation = &"HeaderSmall"
-text = "Track"
-
-[node name="DockGrid" type="GridContainer" parent="HUD/MainControl/DockObjects/AnimatedWrapper/HBoxContainer/ScrollContainer/PanelContainer/VBoxContainer" unique_id=1221843301]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-columns = 4
-
-[node name="DockTags" type="GridContainer" parent="HUD/MainControl/DockObjects/AnimatedWrapper/HBoxContainer" unique_id=2092356052]
-unique_name_in_owner = true
-editor_description = "Тут лежат кнопки фильтры,
-сигналы в build_panels.gd "
-layout_mode = 2
-size_flags_vertical = 0
-mouse_filter = 2
-columns = 2
-
-[node name="DockCategories" type="MarginContainer" parent="HUD/MainControl" unique_id=1406194884]
-unique_name_in_owner = true
-editor_description = "панель режима build с его кнопками. Которые выбирают тип - что строить. траки, поезда, дома, декор, терраформ"
-layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_top = -44.0
-offset_right = 161.0
-grow_vertical = 0
-offset_transform_enabled = true
-mouse_filter = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 4
-theme_override_constants/margin_right = 4
-theme_override_constants/margin_bottom = 10
-
-[node name="AnimatedWrapper" type="Control" parent="HUD/MainControl/DockCategories" unique_id=1838173788]
-layout_mode = 2
-offset_transform_enabled = true
-mouse_filter = 2
-
-[node name="DockCategoryBar" type="HBoxContainer" parent="HUD/MainControl/DockCategories/AnimatedWrapper" unique_id=481295536]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_top = -36.0
-offset_right = 192.0
-grow_vertical = 0
-mouse_filter = 2
-theme_override_constants/separation = 3
-
 [node name="LibraryPanel" type="PanelContainer" parent="HUD/MainControl" unique_id=638438499]
 unique_name_in_owner = true
 visible = false
@@ -194,6 +93,10 @@ offset_top = -610.0
 offset_right = 116.0
 offset_bottom = -291.0
 grow_vertical = 1
+
+[node name="DockRow" parent="HUD" unique_id=1311200840 instance=ExtResource("19_tooldock")]
+unique_name_in_owner = true
+visible = false
 
 [node name="SideDock" parent="HUD" unique_id=1311200830 instance=ExtResource("18_sidedock")]
 unique_name_in_owner = true

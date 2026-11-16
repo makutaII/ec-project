@@ -1,0 +1,147 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://ui/hud/tool_dock.gd" id="1_dock"]
+
+[node name="DockRow" type="HBoxContainer"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -142.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 0
+script = ExtResource("1_dock")
+
+[node name="CategoriesPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+
+[node name="CategoriesBox" type="MarginContainer" parent="CategoriesPanel"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 8
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="CategoryGrid" type="GridContainer" parent="CategoriesPanel/CategoriesBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+columns = 2
+
+[node name="DockColumn" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="ResizeGrip" type="ColorRect" parent="DockColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+mouse_default_cursor_shape = 9
+color = Color(1, 1, 1, 0.25)
+
+[node name="DockPanel" type="PanelContainer" parent="DockColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 138)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DockBox" type="VBoxContainer" parent="DockColumn/DockPanel"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HeadBar" type="PanelContainer" parent="DockColumn/DockPanel/DockBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_type_variation = &"DockHeadBar"
+
+[node name="HeadRow" type="HBoxContainer" parent="DockColumn/DockPanel/DockBox/HeadBar"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ModeLabel" type="Label" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+unique_name_in_owner = true
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="Sep1" type="VSeparator" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+layout_mode = 2
+
+[node name="CategoryLabel" type="Label" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+unique_name_in_owner = true
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="Sep2" type="VSeparator" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+layout_mode = 2
+
+[node name="TagLabel" type="Label" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+unique_name_in_owner = true
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="Sep3" type="VSeparator" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+
+[node name="HeaderTags" type="HBoxContainer" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="HeadSpacer" type="Control" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CountLabel" type="Label" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"LabelDim"
+vertical_alignment = 1
+
+[node name="ActionsStrip" type="HBoxContainer" parent="DockColumn/DockPanel/DockBox/HeadBar/HeadRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ObjectsArea" type="MarginContainer" parent="DockColumn/DockPanel/DockBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 4
+
+[node name="ObjectsBox" type="VBoxContainer" parent="DockColumn/DockPanel/DockBox/ObjectsArea"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ObjectsScroll" type="ScrollContainer" parent="DockColumn/DockPanel/DockBox/ObjectsArea/ObjectsBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ObjectsFlow" type="HFlowContainer" parent="DockColumn/DockPanel/DockBox/ObjectsArea/ObjectsBox/ObjectsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+
+[node name="EmptyObjects" type="Label" parent="DockColumn/DockPanel/DockBox/ObjectsArea/ObjectsBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"LabelSmall"
+text = "В этой категории пока ничего нет"
+horizontal_alignment = 1
+vertical_alignment = 1
