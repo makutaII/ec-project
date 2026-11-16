@@ -1,0 +1,57 @@
+{
+  "id": "diesel_loco_m44_mav_iii_52380",
+  "source": "Diesel_Loco_M44_MAV_III_52380.mp3",
+  "note": "ЗАГОТОВКА: id, kind и границы проверить на слух и по спектрограмме, имена заменить",
+  "reference": "",
+  "defaults": {},
+  "regions": [
+    {
+      "id": "block_01",
+      "kind": "oneshot",
+      "start": 0.0,
+      "end": 77.781,
+      "tags": [],
+      "note": "блок между паузами, проверить на слух"
+    },
+    {
+      "id": "loop_01",
+      "kind": "loop",
+      "start": 25.25,
+      "end": 40.0,
+      "tags": [
+        "engine"
+      ],
+      "note": "кандидат: линия 1253 Гц, -11.3 dBFS; проверить на слух"
+    },
+    {
+      "id": "loop_02",
+      "kind": "loop",
+      "start": 40.75,
+      "end": 58.75,
+      "tags": [
+        "engine"
+      ],
+      "note": "кандидат: линия 1433 Гц, -9.0 dBFS; проверить на слух"
+    },
+    {
+      "id": "loop_03",
+      "kind": "loop",
+      "start": 62.0,
+      "end": 65.25,
+      "tags": [
+        "engine"
+      ],
+      "note": "кандидат: линия 927 Гц, -12.3 dBFS; проверить на слух"
+    },
+    {
+      "id": "loop_04",
+      "kind": "loop",
+      "start": 65.75,
+      "end": 71.0,
+      "tags": [
+        "engine"
+      ],
+      "note": "кандидат: линия 927 Гц, -14.1 dBFS; проверить на слух"
+    }
+  ]
+}

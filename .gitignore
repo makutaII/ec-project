@@ -10,6 +10,10 @@
 *.blend1
 *.blend@
 
+*.wav
+*.mp3
+*.ogg
+
 # Python (tools/)
 __pycache__/
 *.pyc
