@@ -81,10 +81,14 @@ func _ready() -> void:
 	var _model_index = 'B' if rotation_with_direction else 'A'
 	$ModelLabel.text += str(handle_max_angle) + _model_index
 	
-	# начальное значение кнопки видимости 
-	%ShowControllerButton.button_pressed = true 
-	# реакция на кнопку dc контроллера (в редакторе он виден по умолчанию)
-	_on_show_controller_button_pressed() 
+	# Открыта или скрыта панель: помним между запусками и сменами дизайна панели (U15)
+	%ShowControllerButton.button_pressed = bool(Settings.get_value("ui", "dc_panel_open", true))
+	_apply_visibility()
+	# Положение над ToolDock следует за его высотой и размером окна
+	get_viewport().size_changed.connect(_apply_visibility)
+	var dock := get_tree().get_first_node_in_group(&"tool_dock_view") as Control
+	if dock != null:
+		dock.resized.connect(_apply_visibility)
 	
 	# по умолчанию слайдер полярности есть, иначе настраиваем положение ручки
 	if rotation_with_direction :
@@ -356,17 +360,27 @@ func _on_direction_slider_value_changed(value: float) -> void:
 
 ##Кнопка вкл\выкл видимости контроллера
 func _on_show_controller_button_pressed() -> void:
+	Settings.set_value("ui", "dc_panel_open", %ShowControllerButton.button_pressed)
+	_apply_visibility()
+
+
+## Положение панели: стоит на высоте ToolDock (нижний ряд HUD), открытая или спрятанная за левый край.
+## Окно индикаторов прячется вместе с панелью (иначе из-за края торчит его правый хвост)
+func _apply_visibility() -> void:
 	var contr_size = $".".size
-	var y_offset = 300 # смещение по вертикали на высоту DockObjects
-	#var y_offset = $'../MainControl/BuildObjectsContainer'.size.y + 5 # смещение по вертикали на высоту DockObjects
-
-
-	if %ShowControllerButton.button_pressed:
+	var y_offset := 12.0
+	var dock := get_tree().get_first_node_in_group(&"tool_dock_view") as Control
+	if dock != null and dock.visible:
+		y_offset += dock.size.y
+	var open: bool = %ShowControllerButton.button_pressed
+	if open:
 		$".".position = Vector2(5, get_viewport().get_visible_rect().size.y - contr_size.y - y_offset)
 		%ShowControllerButton.text = '<'
 	else :
 		$".".position = Vector2( -contr_size.x , get_viewport().get_visible_rect().size.y - contr_size.y - y_offset)
 		%ShowControllerButton.text = '>'
+	if _indicators != null:
+		_indicators.visible = open
 
 
 

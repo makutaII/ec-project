@@ -6,7 +6,7 @@
 layout_mode = 3
 anchors_preset = 0
 offset_top = 52.0
-offset_right = 344.0
+offset_right = 340.0
 offset_bottom = 560.0
 mouse_filter = 2
 script = ExtResource("1_dock")
@@ -63,10 +63,11 @@ theme_override_constants/separation = 6
 
 [node name="Tab" type="Button" parent="." unique_id=411995490]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(20, 50)
+custom_minimum_size = Vector2(20, 70)
 layout_mode = 0
 offset_left = 320.0
-offset_right = 348.0
-offset_bottom = 50.0
+offset_right = 340.0
+offset_bottom = 70.0
 focus_mode = 0
+theme_type_variation = &"SideTab"
 text = ">"

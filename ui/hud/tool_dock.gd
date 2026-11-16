@@ -19,6 +19,7 @@ var _start_mouse := 0.0
 
 
 func _ready() -> void:
+	add_to_group(&"tool_dock_view")   # по группе его находит DC-панель (стоит над ним)
 	var grip := %ResizeGrip as Control
 	grip.gui_input.connect(_on_grip_input)
 	var saved := float(Settings.get_value(SECTION, KEY_H, 0.0))

@@ -12,6 +12,9 @@ class_name FloatingPanel extends PanelContainer
 const SECTION := "windows"
 ## Верхняя граница: высота TopBar
 const TOP_LIMIT := 40.0
+## Сколько панели остаётся на экране, когда её утащили за край: ширина и высота видимого куска заголовка
+const KEEP_X := 80.0
+const KEEP_Y := 28.0
 ## Отступ от краёв экрана при размещении по умолчанию
 const EDGE := 12.0
 ## Снизу по умолчанию оставляем место под ToolDock (138 + ручка 4) и подсказку внизу экрана
@@ -144,12 +147,12 @@ func _viewport_size() -> Vector2:
 	return get_viewport_rect().size
 
 
-## Внутри экрана и не выше TopBar
+## Можно уезжать за край окна, пока виден кусочек заголовка (KEEP_X на KEEP_Y), и не выше TopBar
 func _clamped(p: Vector2) -> Vector2:
 	var vp := _viewport_size()
 	return Vector2(
-		clampf(p.x, 0.0, maxf(0.0, vp.x - size.x)),
-		clampf(p.y, TOP_LIMIT, maxf(TOP_LIMIT, vp.y - size.y)))
+		clampf(p.x, KEEP_X - size.x, vp.x - KEEP_X),
+		clampf(p.y, TOP_LIMIT, maxf(TOP_LIMIT, vp.y - KEEP_Y)))
 
 
 func _clamp_position() -> void:

@@ -44,6 +44,8 @@ var _dup_btn: Button
 var _dup_has_last := false     # есть последний поставленный объект
 var _dup_sel_name := ""        # название выбранного настоящего объекта, пусто: ничего не выбрано
 var _dup_last_name := ""       # название последнего поставленного объекта
+var _dup_sel_icon: Texture2D   # иконка выбранного объекта (U15: на кнопке «Дубль»)
+var _dup_last_icon: Texture2D  # иконка последнего поставленного
 var _filter_bar: FilterBar
 var _filters := {}   # "режим/категория" -> {id фильтра: значение}, на время сессии
 
@@ -55,7 +57,9 @@ func _ready() -> void:
 	register_mode(&"sections", EntityCatalogProvider.new(&"sections"), _emit_build_selected)
 
 	_dup_btn = Button.new()
-	_dup_btn.text = "Дубль  (V)"
+	_dup_btn.text = "V"   # U15: на кнопке иконка того объекта, который будет повторён, и клавиша
+	_dup_btn.custom_minimum_size = Vector2(52, 24)
+	_dup_btn.add_theme_constant_override(&"icon_max_width", 18)
 	_dup_btn.focus_mode = Control.FOCUS_NONE   # чтобы Пробел и Enter не нажимали кнопку, а клавиши работали в игре
 	_dup_btn.disabled = true
 	_dup_btn.tooltip_text = "Копия выбранного объекта, а если ничего не выбрано, еще один такой же, как последний построенный (клавиша V)"
@@ -284,21 +288,26 @@ func object_deselected() -> void:
 func on_last_changed(setting: EntitySetting) -> void:
 	_dup_has_last = setting != null
 	_dup_last_name = setting.name if setting != null else ""
+	_dup_last_icon = setting.icon if setting != null else null
 	_refresh_dup_btn()
 
 
 ## ⚡Сигнал ToolController.selection_changed: выбран объект или выбор снят. Выбранный (не призрак) дублируется по кнопке и V
 func _on_selection_for_duplicate(entity: Entity) -> void:
 	_dup_sel_name = ""
+	_dup_sel_icon = null
 	if entity != null and is_instance_valid(entity) and not entity.has_comp(C_Ghost):
 		var idc := entity.get_comp(C_Identity) as C_Identity
 		if idc != null and idc.setting != null:
 			_dup_sel_name = idc.get_name_e()
+			_dup_sel_icon = idc.setting.icon
 	_refresh_dup_btn()
 
 
 func _refresh_dup_btn() -> void:
 	_dup_btn.disabled = not _dup_has_last and _dup_sel_name == ""
+	# Иконка того, что повторится: выбранный объект, иначе последний поставленный
+	_dup_btn.icon = _dup_sel_icon if _dup_sel_name != "" else (_dup_last_icon if _dup_has_last else null)
 	if _dup_sel_name != "":
 		_dup_btn.tooltip_text = "Копия выбранного: %s (клавиша V)" % _dup_sel_name
 	elif _dup_has_last:
