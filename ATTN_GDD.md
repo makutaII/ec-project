@@ -176,3 +176,4 @@ Build UI, Operate UI, InfoPanel, Power Layer, диагностические п�
 - [ATTN_23_layout_table.md](docs/ATTN_23_layout_table.md) — Подмакетник (Layout Table): кастомизация, модули, задник, подстольный слой
 - [ATTN_25_rooms.md](ATTN_25_rooms.md) — Комнаты: активная комната, Room Studio, Observe без комнаты, пайплайн Blender для комнат, план RM0–RM9.
 - [ATTN_26_sound.md](ATTN_26_sound.md) — Звук: объекты, интерфейс, музыка, звук локо через DCC.
+- [ATTN_27_coaster.md](ATTN_27_coaster.md) — Coaster: микроигра «горки» (траки-лотки, вагоны по инерции, цепной подъёмник, бустеры, заезд на время).
