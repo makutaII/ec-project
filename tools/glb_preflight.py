@@ -340,8 +340,9 @@ def load_room_rules():
     return mod
 
 
-def room_snapshot(g, binb, fps=24.0):
-    """Снимок сцены для check_room из готового .glb. Оси и метры как в Blender (+Y север), см. ec_room_tools.check_room"""
+def room_snapshot(g, binb, unit=0.01):
+    """Снимок сцены для check_room из готового .glb. Оси как в Blender (+Y север), длины в метрах: файл комнаты в сантиметрах игры
+    (1 единица = 1 см), unit = метров в единице файла (ec_room_tools.UNIT). См. ec_room_tools.check_room"""
     nodes = g.get("nodes", [])
     parent = {}
     for i, n in enumerate(nodes):
@@ -373,7 +374,7 @@ def room_snapshot(g, binb, fps=24.0):
             ang = quat_to_axis_angle(rot)[1]
         scale = tuple(n.get("scale") or (1.0, 1.0, 1.0))
         d = {"id": ids[i], "name": n.get("name", "node_%d" % i), "parent": ids[parent[i]] if i in parent else None, "kind": kind, "props": dict(ex),
-             "data_role": False, "pos": _g2b((w[0][3], w[1][3], w[2][3])), "scale": scale, "rot_deg": ang, "aim": None, "bbox": None, "tris": 0, "mats": []}
+             "data_role": False, "pos": tuple(c * unit for c in _g2b((w[0][3], w[1][3], w[2][3]))), "scale": scale, "rot_deg": ang, "aim": None, "bbox": None, "tris": 0, "mats": []}
         ay = (w[0][1], w[1][1], w[2][1])   # локальная +Y glTF = стрелка пустышки (+Z Blender)
         ln = math.sqrt(sum(c * c for c in ay)) or 1.0
         d["aim"] = _g2b(tuple(c / ln for c in ay))
@@ -402,7 +403,7 @@ def room_snapshot(g, binb, fps=24.0):
                             pts.append(_g2b((w[0][0] * cx + w[0][1] * cy + w[0][2] * cz + w[0][3],
                                              w[1][0] * cx + w[1][1] * cy + w[1][2] * cz + w[1][3],
                                              w[2][0] * cx + w[2][1] * cy + w[2][2] * cz + w[2][3])))
-                d["bbox"] = (tuple(min(p[k] for p in pts) for k in range(3)), tuple(max(p[k] for p in pts) for k in range(3)))
+                d["bbox"] = (tuple(unit * min(p[k] for p in pts) for k in range(3)), tuple(unit * max(p[k] for p in pts) for k in range(3)))
         out.append(d)
     images = []
     for k, im in enumerate(g.get("images", [])):
@@ -430,9 +431,9 @@ def room_snapshot(g, binb, fps=24.0):
             if path == "translation":
                 dv = tuple(vals[-1][k] - vals[0][k] for k in range(3))
                 ln = math.sqrt(sum(c * c for c in dv))
-                if ln > 1e-5:
+                if ln > 1e-3:   # файл в см: тысячная доля см
                     info["kinds"].append("move")
-                    info["stub"] = {"kind": "move", "axis": tuple(c / ln for c in dv), "travel": ln * 100.0, "duration": times[-1] - times[0]}
+                    info["stub"] = {"kind": "move", "axis": tuple(c / ln for c in dv), "travel": ln, "duration": times[-1] - times[0]}
             elif path == "rotation":
                 ax, ang = quat_to_axis_angle(quat_mul(vals[-1], quat_inv(vals[0])))
                 if ang > 0.01:
@@ -456,7 +457,7 @@ def run_room(path):
         print("[ERROR] Не найден tools/blender/ec_room_tools.py: правила комнаты лежат в нём.")
         return 1
     g, binb = load_gltf(path)
-    snap = room_snapshot(g, binb)
+    snap = room_snapshot(g, binb, rules.UNIT)
     items = [(lv, tx) for lv, tx, _ in rules.check_room(snap)]
     # проверки, которые видны только в файле
     used = g.get("extensionsUsed") or []

@@ -55,6 +55,12 @@ for name, (_, level, phrase) in sorted(fx.BROKEN.items()):
     if level == "ERROR":
         check("%s: код возврата 1" % name, rc == 1)
 
+# длины в файле в сантиметрах (x100): коробка room_volume на 480 единиц шириной
+g, _ = pf.load_gltf(os.path.join(HERE, "..", "data", "models", "room_test_01", "room_test_01.glb"))
+vol = next(n for n in g["nodes"] if n["name"] == "room_volume")
+mx = g["accessors"][g["meshes"][vol["mesh"]]["primitives"][0]["attributes"]["POSITION"]]["max"]
+check("room_test_01.glb в сантиметрах: room_volume 480 единиц по X", abs(mx[0] * 2 - 480.0) < 0.01, str(mx))
+
 ref = os.path.join(HERE, "..", "data", "models", "room_test_01", "room_test_01.glb")
 if os.path.exists(ref):
     check("room_test_01.glb совпадает с генератором", open(ref, "rb").read() == fx.to_glb(fx.reference_scene()), "пересоберите: python tools/room_fixture.py data/models/room_test_01/room_test_01.glb")

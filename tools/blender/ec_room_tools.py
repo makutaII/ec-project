@@ -19,6 +19,7 @@
 `check_room(snap)` проверяет. Тот же `check_room` использует tools/glb_preflight.py, собирая снимок из готового .glb: комната проверяется
 одним набором правил и до экспорта, и после. Без Blender файл импортируется (bpy пуст), работает только проверка. Скрипт ставится одним файлом.
 Снимок в осях Blender, метры: +X восток, +Y север, +Z вверх; ноль по высоте на столешнице.
+Единицы файла и сцены Blender: 1 единица = 1 см игры (комната 480 x 380 x 250 единиц, Unit Scale 0.01); в снимок всё переводится в метры (UNIT).
 """
 bl_info = {
     "name": "EC room tools",
@@ -78,6 +79,7 @@ VOLUME_WARN = ((3.0, 8.0), (2.2, 3.5), (3.0, 8.0))   # размер room_volume:
 TABLE_X, TABLE_Z, PASSAGE = 2.0, 1.0, 0.3            # подмакетник 200 x 100 см и проход вокруг него
 VOLUME_MIN_H = 1.0
 MECH_PREFIX = "mech_"
+UNIT = 0.01   # метров в одной единице Blender и .glb: 1 единица = 1 см игры (ATTN_25 §25.7.1)
 
 
 def to_godot(v, k=1.0):
@@ -158,7 +160,7 @@ def check_room(snap):
     for s in snap.get("strays", []):
         add("WARN", "Объект '%s' лежит рядом с корнем комнаты и не войдёт в экспорт. Если он нужен, сделайте его потомком корня; если это эталон, оставьте в коллекции EC_ref." % s)
     if any(abs(c) > 1e-3 for c in root["pos"]):
-        add("WARN", "Корень комнаты смещён от начала координат (%.3f, %.3f, %.3f): ноль комнаты должен быть в центре комнаты на уровне столешницы." % tuple(root["pos"]), rid)
+        add("WARN", "Корень комнаты смещён от начала координат (%.1f, %.1f, %.1f см): ноль комнаты должен быть в центре комнаты на уровне столешницы." % tuple(c * 100.0 for c in root["pos"]), rid)
 
     inside = [by_id[c] for c in desc(rid)]
     export = [root] + inside
@@ -309,8 +311,8 @@ def check_room(snap):
         if zs:
             floor_top = max(zs)
             if abs(floor_top - FLOOR_TOP) > FLOOR_TOL:
-                add("WARN", "Верх пола на %.3f м от нуля, ожидается %.2f ±%.2f (стол 0.5 м, ноль на столешнице). Если стол другой высоты, так и задумано." %
-                    (floor_top, FLOOR_TOP, FLOOR_TOL), floors[0]["id"])
+                add("WARN", "Верх пола на %.1f см от нуля, ожидается %.0f ±%.0f (стол 50 см, ноль на столешнице). Если стол другой высоты, так и задумано." %
+                    (floor_top * 100.0, FLOOR_TOP * 100.0, FLOOR_TOL * 100.0), floors[0]["id"])
     vol = (roles.get("room_volume") or [None])[0]
     cam = (roles.get("camera_bounds") or [None])[0]
     if vol is not None and vol.get("bbox"):
@@ -318,19 +320,19 @@ def check_room(snap):
         w, d, h = hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]
         for val, (a, b), label in zip((w, h, d), VOLUME_WARN, ("ширина X", "высота", "глубина Z")):
             if val < a - 1e-6 or val > b + 1e-6:
-                add("WARN", "room_volume: %s %.2f м вне %.1f..%.1f." % (label, val, a, b), vol["id"])
+                add("WARN", "room_volume: %s %.0f см вне %.0f..%.0f." % (label, val * 100.0, a * 100.0, b * 100.0), vol["id"])
         if w < TABLE_X + 2 * PASSAGE - 1e-6 or d < TABLE_Z + 2 * PASSAGE - 1e-6 or h < VOLUME_MIN_H:
-            add("ERROR", "room_volume %.2f x %.2f x %.2f м: стол %.1f x %.1f м с проходом %.1f м не помещается." % (w, h, d, TABLE_X, TABLE_Z, PASSAGE), vol["id"])
+            add("ERROR", "room_volume %.0f x %.0f x %.0f см (ширина x высота x глубина): стол %.0f x %.0f с проходом %.0f см с каждой стороны не помещается." % (w * 100.0, h * 100.0, d * 100.0, TABLE_X * 100.0, TABLE_Z * 100.0, PASSAGE * 100.0), vol["id"])
         if abs(lo[2] - floor_top) > FLOOR_TOL:
-            add("WARN", "room_volume начинается на %.3f м, а верх пола на %.3f: объём считается от пола." % (lo[2], floor_top), vol["id"])
+            add("WARN", "room_volume начинается на %.1f см, а верх пола на %.1f: объём считается от пола." % (lo[2] * 100.0, floor_top * 100.0), vol["id"])
         if abs((hi[0] + lo[0]) / 2.0) > 0.1 or abs((hi[1] + lo[1]) / 2.0) > 0.1:
-            add("WARN", "Центр room_volume не в центре стола (X %.2f, Y %.2f м): ноль комнаты должен быть в центре комнаты." % ((hi[0] + lo[0]) / 2.0, (hi[1] + lo[1]) / 2.0), vol["id"])
+            add("WARN", "Центр room_volume не в центре стола (X %.1f, Y %.1f см): ноль комнаты должен быть в центре комнаты." % ((hi[0] + lo[0]) * 50.0, (hi[1] + lo[1]) * 50.0), vol["id"])
         if cam is not None and cam.get("bbox"):
             cl, ch = cam["bbox"]
             if any(cl[k] < lo[k] - 1e-3 or ch[k] > hi[k] + 1e-3 for k in range(3)):
                 add("WARN", "camera_bounds выходит за room_volume: камера может уйти сквозь стену.", cam["id"])
             if cl[2] < -1e-3:
-                add("WARN", "camera_bounds ниже столешницы (Z %.3f м)." % cl[2], cam["id"])
+                add("WARN", "camera_bounds ниже столешницы (Z %.1f см)." % (cl[2] * 100.0), cam["id"])
 
     # ---- управление (ctl_*) ----
     controls = {}   # ключ (группа или id) -> [узлы]
@@ -711,7 +713,7 @@ def _action_info(act, obj, fps):
             d = [ch["location"][i].evaluate(fr[1]) - ch["location"][i].evaluate(fr[0]) if i in ch["location"] else 0.0 for i in range(3)]
             ln = math.sqrt(sum(c * c for c in d))
             if ln > 1e-6:
-                info["stub"] = {"kind": "move", "axis": to_godot([c / ln for c in d]), "travel": ln * 100.0, "duration": duration}
+                info["stub"] = {"kind": "move", "axis": to_godot([c / ln for c in d]), "travel": ln, "duration": duration}   # единицы Blender = см
         elif kinds == {"rot"}:
             from mathutils import Euler, Quaternion
             def at(frame):
@@ -749,11 +751,11 @@ def snapshot(scene):
         d = {"id": o.name, "name": o.name, "parent": o.parent.name if (o.parent and o.parent.name in names) else None, "kind": kind,
              "props": {k: _py(o[k]) for k in o.keys() if not k.startswith("_")},
              "data_role": bool(o.type == "MESH" and o.data is not None and o.data.get("role") is not None),
-             "pos": tuple(mw.translation), "scale": tuple(o.matrix_basis.to_scale()), "rot_deg": math.degrees(o.matrix_basis.to_quaternion().angle),
+             "pos": tuple(c * UNIT for c in mw.translation), "scale": tuple(o.matrix_basis.to_scale()), "rot_deg": math.degrees(o.matrix_basis.to_quaternion().angle),
              "aim": tuple((mw.to_3x3() @ Vector((0.0, 0.0, 1.0))).normalized()), "bbox": None, "tris": 0, "mats": []}
         if o.type == "MESH":
             lo, hi = world_bbox(o)
-            d["bbox"] = (tuple(lo), tuple(hi))
+            d["bbox"] = (tuple(c * UNIT for c in lo), tuple(c * UNIT for c in hi))
             d["tris"] = tri_count(o)
             for sl in o.material_slots:
                 mat = sl.material
@@ -782,8 +784,8 @@ def check(scene):
     """Проверка сцены Blender: единицы + check_room по снимку. [(level, text, node_id|None)]"""
     items = []
     us = scene.unit_settings
-    if abs(us.scale_length - 1.0) > 1e-6:
-        items.append(("ERROR", "Unit Scale = %.4f, нужен 1.0 (метры): иначе размеры комнаты уйдут при импорте в Godot." % us.scale_length, None))
+    if abs(us.scale_length - UNIT) > 1e-9:
+        items.append(("ERROR", "Unit Scale = %.4f, нужен %.2f: 1 единица Blender = 1 см игры (комната 480 x 380 x 250 единиц), экспорт пишет числа как есть." % (us.scale_length, UNIT), None))
     if us.system != "METRIC":
         items.append(("WARN", "Единицы %s, нужны Metric." % us.system, None))
     items += check_room(snapshot(scene))
@@ -1069,7 +1071,7 @@ def make_box(scene, name, center, size, role=None):
 
 
 def make_refs(scene):
-    """Эталон: стол 2.0 x 1.0 м (верх на нуле) и пол на -0.50 м, размером с комнату по умолчанию. Коллекция EC_ref, в экспорт не идёт"""
+    """Эталон: стол 200 x 100 (верх на нуле) и пол на -50, размером с комнату по умолчанию (единицы Blender = см). Коллекция EC_ref, в экспорт не идёт"""
     coll = bpy.data.collections.get(REF_COLLECTION)
     if coll is None:
         coll = bpy.data.collections.new(REF_COLLECTION)
@@ -1078,7 +1080,7 @@ def make_refs(scene):
         o = bpy.data.objects.get(nm)
         if o is not None:
             bpy.data.objects.remove(o, do_unlink=True)
-    for nm, size, center in (("EC_ref_table", (2.0, 1.0, 0.05), (0.0, 0.0, -0.025)), ("EC_ref_floor", (4.8, 3.8, 0.02), (0.0, 0.0, -0.51))):
+    for nm, size, center in (("EC_ref_table", (200.0, 100.0, 5.0), (0.0, 0.0, -2.5)), ("EC_ref_floor", (480.0, 380.0, 2.0), (0.0, 0.0, -51.0))):
         hx, hy, hz = (c / 2.0 for c in size)
         verts = [(-hx, -hy, -hz), (hx, -hy, -hz), (hx, hy, -hz), (-hx, hy, -hz), (-hx, -hy, hz), (hx, -hy, hz), (hx, hy, hz), (-hx, hy, hz)]
         faces = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
@@ -1135,8 +1137,8 @@ if bpy is not None:
         role_preset: EnumProperty(name="Шаблон", items=ROLE_PRESETS, default="decor_t1")
         role: StringProperty(name="Роль", description="Custom Property role для выделенных объектов", default="")
         proxy_role: EnumProperty(name="Прокси", items=PROXY_PRESETS, default="collider")
-        box_size: FloatVectorProperty(name="Размер, м", description="Размер прокси-коробки, когда ничего не выделено (центр в 3D-курсоре)", size=3,
-                                      default=(1.0, 1.0, 1.0), min=0.01, subtype="XYZ", unit="LENGTH")
+        box_size: FloatVectorProperty(name="Размер, см", description="Размер прокси-коробки в единицах Blender (= см), когда ничего не выделено (центр в 3D-курсоре)", size=3,
+                                      default=(100.0, 100.0, 100.0), min=1.0)
         ctl_kind: EnumProperty(name="Вид", items=[("toggle", "toggle: вкл/выкл", ""), ("slider", "slider: 0..1 (свет)", ""), ("mech", "mech: механизм", "")], default="toggle")
         ctl_id: StringProperty(name="ctl_id", description="Уникальный id управления, snake_case. У механизма равен <id> действия mech_<id>", default="")
         ctl_title: StringProperty(name="Подпись", description="ctl_title, русский допустим", default="")
@@ -1372,7 +1374,7 @@ if bpy is not None:
     class ECR_OT_proxy(bpy.types.Operator):
         bl_idname = "ecroom.proxy"
         bl_label = "Прокси-коробка"
-        bl_description = "Коробка (Wire, без материала) вокруг выделенных объектов; без выделения: по размеру из панели в 3D-курсоре. Роль из списка «Прокси»"
+        bl_description = "Коробка (Wire, без материала) вокруг выделенных объектов; без выделения: по размеру (см) из панели в 3D-курсоре. Роль из списка «Прокси»"
 
         def execute(self, context):
             s = settings(context.scene)
@@ -1383,7 +1385,7 @@ if bpy is not None:
                 lo = [min(l[i] for l in los) for i in range(3)]
                 hi = [max(h[i] for h in his) for i in range(3)]
                 center = tuple((lo[i] + hi[i]) / 2.0 for i in range(3))
-                size = tuple(max(hi[i] - lo[i], 0.01) for i in range(3))
+                size = tuple(max(hi[i] - lo[i], 1.0) for i in range(3))
             else:
                 center = tuple(scene.cursor.location)
                 size = tuple(s.box_size)
@@ -1392,7 +1394,7 @@ if bpy is not None:
                 x.select_set(False)
             o.select_set(True)
             context.view_layer.objects.active = o
-            self.report({"INFO"}, "Прокси '%s': %.2f x %.2f x %.2f м" % (o.name, *size))
+            self.report({"INFO"}, "Прокси '%s': %.0f x %.0f x %.0f см" % (o.name, *size))
             return {"FINISHED"}
 
     class ECR_OT_prepare(bpy.types.Operator):
@@ -1411,7 +1413,7 @@ if bpy is not None:
     class ECR_OT_refs(bpy.types.Operator):
         bl_idname = "ecroom.refs"
         bl_label = "Эталон: стол и пол"
-        bl_description = "Стол 2.0 x 1.0 м (верх на нуле) и пол на -0.50 м (коллекция EC_ref, в экспорт не идёт): сверка размеров мебели и нуля комнаты"
+        bl_description = "Стол 200 x 100 см (верх на нуле) и пол на -50 (коллекция EC_ref, в экспорт не идёт): сверка размеров мебели и нуля комнаты"
 
         def execute(self, context):
             make_refs(context.scene)

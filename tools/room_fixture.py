@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """room_fixture: эталонная комната и «испорченные» варианты для проверки пайплайна комнат (ATTN_25 §25.7, RM7).
 
-Без Blender и без Godot, только Python 3.8+. Пишет .glb прямо из описания сцены (метры, оси Godot: север это -Z, вверх +Y):
-так выглядит файл, который даёт экспорт Blender по CHEATSHEET_ROOM.md. Нужен для двух вещей:
+Без Blender и без Godot, только Python 3.8+. Описание сцены в метрах, оси Godot (север это -Z, вверх +Y); в .glb длины пишутся в сантиметрах
+(x100, 1 единица = 1 см игры, GLB_SCALE): так выглядит файл, который даёт экспорт Blender по CHEATSHEET_ROOM.md (Unit Scale 0.01). Нужен для двух вещей:
   1. data/models/room_test_01/room_test_01.glb: эталон «по одному объекту каждой роли», его читает glb_preflight.py --kind room
      и (RM8) Godot. Пересобрать:  python tools/room_fixture.py data/models/room_test_01/room_test_01.glb
      Когда автор соберёт room_test_01 в Blender, экспорт из Blender заменяет этот файл.
@@ -16,6 +16,7 @@ import math
 import struct
 import sys
 
+GLB_SCALE = 100.0   # метров -> единиц файла (1 единица = 1 см игры)
 GROUPS = (("Floor", "floor"), ("Shell", "shell"), ("Ceiling", "ceiling"), ("DecorT1", "decor_t1"), ("DecorT2", "decor_t2"), ("DecorT3", "decor_t3"), ("FakeAO", "fake_ao"))
 
 
@@ -228,6 +229,10 @@ def _tris_many(sc):
     _find(sc, "wardrobe")["tris_extra"] = 125000
 
 
+def _in_meters(sc):
+    sc["glb_scale"] = 1.0
+
+
 def _camera_node(sc):
     sc["cameras"] = True
 
@@ -290,6 +295,7 @@ BROKEN = {
     "texture_big": (_texture_big, "ERROR", "Текстура 'atlas_big'"),
     "textures_5": (_textures_5, "ERROR", "Текстур по 2048"),
     "tris_many": (_tris_many, "ERROR", "Треугольников"),
+    "in_meters": (_in_meters, "ERROR", "не помещается"),
     "camera_node": (_camera_node, "ERROR", "камеры"),
     "punctual": (_punctual, "ERROR", "Punctual Lights"),
     "light_params": (_light_params, "ERROR", "light_energy"),
@@ -334,7 +340,8 @@ def _png_header(w, h):
 
 
 def to_glb(sc):
-    """Описание сцены -> байты .glb"""
+    """Описание сцены -> байты .glb (длины x GLB_SCALE; sc["glb_scale"] = 1.0 имитирует комнату, нарисованную в метрах)"""
+    GLB_SCALE = sc.get("glb_scale", globals()["GLB_SCALE"])
     binb = bytearray()
     views, accs = [], []
 
@@ -370,7 +377,7 @@ def to_glb(sc):
     for i, nd in enumerate(sc["nodes"]):
         g = {"name": nd["name"]}
         if nd["pos"] != (0.0, 0.0, 0.0):
-            g["translation"] = [float(c) for c in nd["pos"]]
+            g["translation"] = [float(c) * GLB_SCALE for c in nd["pos"]]
         if nd.get("rot"):
             g["rotation"] = [float(c) for c in nd["rot"]]
         if nd.get("scale"):
@@ -378,7 +385,7 @@ def to_glb(sc):
         if nd["extras"]:
             g["extras"] = dict(nd["extras"])
         if nd.get("box"):
-            pos, nor, uv, idx = _box_geometry(nd["box"])
+            pos, nor, uv, idx = _box_geometry(tuple(c * GLB_SCALE for c in nd["box"]))
             pb = b"".join(struct.pack("<3f", *p) for p in pos)
             nb = b"".join(struct.pack("<3f", *p) for p in nor)
             ub = b"".join(struct.pack("<2f", *p) for p in uv)
@@ -416,7 +423,8 @@ def to_glb(sc):
         for ch in a["channels"]:
             tview = add_view(b"".join(struct.pack("<f", t) for t in ch["times"]))
             n_comp = 4 if ch["path"] == "rotation" else 3
-            vview = add_view(b"".join(struct.pack("<%df" % n_comp, *v) for v in ch["values"]))
+            k = GLB_SCALE if ch["path"] == "translation" else 1.0
+            vview = add_view(b"".join(struct.pack("<%df" % n_comp, *(c * k for c in v)) for v in ch["values"]))
             tacc = add_acc(tview, 5126, len(ch["times"]), "SCALAR", [min(ch["times"])], [max(ch["times"])])
             vacc = add_acc(vview, 5126, len(ch["values"]), "VEC4" if n_comp == 4 else "VEC3")
             samplers.append({"input": tacc, "output": vacc, "interpolation": "LINEAR"})
