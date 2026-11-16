@@ -24,8 +24,12 @@ const SHAPE_POLYGON := &"polygon"
 const SHAPE_STRIP := &"strip"
 const SHAPE_LINE := &"line"
 const SHAPE_BEVEL := &"bevel"
-const SHAPES := [SHAPE_RECT, SHAPE_POLYGON, SHAPE_STRIP, SHAPE_LINE, SHAPE_BEVEL]
-const SHAPE_NAMES := {&"rect": "прямоугольник", &"polygon": "полигон", &"strip": "ущелье", &"line": "линия-рез", &"bevel": "скос"}
+## K6. Скос по ребру: наводишь на ребро листа и кликаешь, гребень и сторону инструмент считает сам
+const SHAPE_BEVEL_EDGE := &"bevel_edge"
+const SHAPES := [SHAPE_RECT, SHAPE_POLYGON, SHAPE_STRIP, SHAPE_LINE, SHAPE_BEVEL, SHAPE_BEVEL_EDGE]
+const SHAPE_NAMES := {&"rect": "прямоугольник", &"polygon": "полигон", &"strip": "ущелье", &"line": "линия-рез", &"bevel": "скос", &"bevel_edge": "скос по ребру"}
+## Ребро выбирается, если курсор ближе этого (ю) или полутора шагов сетки
+const EDGE_PICK_MIN := 1.5
 ## Шаг ступени скоса (ширина одной ступени), ю
 const RUN_DEFAULT := 1.0
 const RUN_MAX := 10.0
@@ -62,6 +66,8 @@ var _depth := 1
 var _width := WIDTH_DEFAULT             # ширина полосы-ущелья, ю
 var _run := RUN_DEFAULT                 # ширина ступени скоса, ю
 var _bevel_polys: Array[PackedVector2Array] = []   # полигоны слоёв скоса для превью и резки
+var _edge := {}                         # K6: выбранное ребро {a, b, inward, dist, layer}, пусто: курсор не у ребра
+var _hit := Vector2.ZERO                # K6: точка под курсором без округления до сетки
 var _through := false                   # насквозь, до стола
 var _dirty := true
 var _reason := ""                       # почему сейчас нельзя резать ("" - можно или ещё нечего резать)
@@ -105,6 +111,7 @@ func _set_hint_contexts(on: bool) -> void:
 	Hints.set_context(&"cut_strip", on and shape == SHAPE_STRIP)
 	Hints.set_context(&"cut_line", on and shape == SHAPE_LINE)
 	Hints.set_context(&"cut_bevel", on and shape == SHAPE_BEVEL)
+	Hints.set_context(&"cut_bevel_edge", on and shape == SHAPE_BEVEL_EDGE)
 
 
 ## --- Ввод ---
@@ -147,7 +154,7 @@ func handle_input(event: InputEvent) -> void:
 	# [ и ] (по физической клавише): ширина полосы или шаг ступени скоса, Shift ×5
 	var w := Actions.axis_step(event, &"width_up", &"width_down", 5)
 	if w != 0:
-		if shape == SHAPE_STRIP or shape == SHAPE_BEVEL:
+		if shape == SHAPE_STRIP or shape == SHAPE_BEVEL or shape == SHAPE_BEVEL_EDGE:
 			var wstep: float = Global.settings.terrain_grid_step * w
 			if shape == SHAPE_STRIP:
 				_width = clampf(_width + wstep, FoamCutter.STRIP_WIDTH_MIN, FoamCutter.STRIP_WIDTH_MAX)
@@ -172,6 +179,9 @@ func handle_input(event: InputEvent) -> void:
 
 func _on_click() -> void:
 	if not _has_cursor:
+		return
+	if shape == SHAPE_BEVEL_EDGE:
+		_commit_edge()
 		return
 	if not _drawing:
 		_drawing = true
@@ -271,6 +281,14 @@ func _try_commit(poly: PackedVector2Array, empty_why: String = "Нулевой �
 	_finish(FoamCutter.apply(poly, _y_low(), _plane_y()), FoamCutter.blocked(poly, _y_low(), _plane_y()).size())
 
 
+## K6. Скос по выбранному ребру: режется только лист этого ребра
+func _commit_edge() -> void:
+	if _edge.is_empty() or _bevel_polys.is_empty() or _reason != "":
+		_say(_reason if _reason != "" else "Наведите на ребро листа")
+		return
+	_finish(FoamCutter.apply_bevel(_bevel_polys, _plane_y(), _edge["layer"] as C_TerrainLayer), 0)
+
+
 ## Скос по двум точкам гребня и стороне курсора: высота = глубина (слоёв), ступень = _run
 func _commit_bevel() -> void:
 	var polys := FoamCutter.bevel_steps(_verts[0], _verts[1], _cursor, _run, _depth)
@@ -348,6 +366,9 @@ func process_tick(delta: float) -> void:
 			_base_y = by
 			_dirty = true
 		p = Vector2(hit.position.x, hit.position.z)
+		if shape == SHAPE_BEVEL_EDGE and _hit.distance_to(p) > 0.05:
+			_hit = p   # ребро выбирается по точному положению курсора, не по узлу сетки
+			_dirty = true
 
 	var step: float = Global.settings.terrain_grid_step
 	var c := Vector2(snappedf(p.x, step), snappedf(p.y, step))
@@ -366,6 +387,9 @@ func _refresh() -> void:
 	_hits = 0
 	_closing = false
 	_bevel_polys = []
+	if shape == SHAPE_BEVEL_EDGE:
+		_refresh_edge()
+		return
 	var poly := PackedVector2Array()
 	var step: float = Global.settings.terrain_grid_step
 	if _drawing and _has_cursor:
@@ -418,6 +442,51 @@ func _refresh() -> void:
 			_hits = FoamCutter.affected(poly, _y_low(), _plane_y()).size()
 		if _hits == 0:
 			_reason = "Здесь нет пенопласта на этих слоях"
+	_redraw(poly)
+	_update_note()
+
+
+## K6. Выбрать ребро под курсором и посчитать ступени скоса. Листы берутся с верхом на высоте поверхности под курсором
+func _refresh_edge() -> void:
+	_edge = {}
+	var T: float = Global.settings.layer_height
+	var step: float = Global.settings.terrain_grid_step
+	var best := maxf(step * 1.5, EDGE_PICK_MIN)
+	for e in TGM.get_layers():
+		var l := e.get_comp(C_TerrainLayer) as C_TerrainLayer
+		if l == null or absf(l.top_y() - _base_y) > T * 0.5:
+			continue
+		var cand := FoamCutter.nearest_edge(l.world_polygon(), _hit)
+		if cand.is_empty() or float(cand["dist"]) > best:
+			continue
+		best = float(cand["dist"])
+		cand["layer"] = l
+		_edge = cand
+	var poly := PackedVector2Array()
+	if _edge.is_empty():
+		_reason = "Наведите на ребро листа"
+	elif (_edge["layer"] as C_TerrainLayer).smooth > 0:
+		_reason = "Лист с гипсовым бинтом не режется: снимите бинт"
+	else:
+		_bevel_polys = FoamCutter.bevel_edge(_edge["a"], _edge["b"], _edge["inward"], _run, _depth, step)
+		if _bevel_polys.is_empty():
+			_reason = "Ребро слишком короткое"
+		else:
+			poly = _bevel_polys[0]
+			for pk in _bevel_polys:
+				_reason = FoamCutter.check(pk)
+				if _reason != "":
+					break
+			if _reason == "":
+				var any := false
+				for k in _bevel_polys.size():
+					var yt := _plane_y() - float(k) * T
+					if not FoamCutter.affected(_bevel_polys[k], yt - T, yt, _edge["layer"] as C_TerrainLayer).is_empty():
+						any = true
+						break
+				_hits = 1 if any else 0
+				if not any:
+					_reason = "Здесь нет пенопласта на этих слоях"
 	_redraw(poly)
 	_update_note()
 
@@ -488,8 +557,13 @@ func _redraw(poly: PackedVector2Array) -> void:
 	var arm := 0.6
 	_line(Vector3(_cursor.x - arm, top, _cursor.y), Vector3(_cursor.x + arm, top, _cursor.y), COL_CURSOR)
 	_line(Vector3(_cursor.x, top, _cursor.y - arm), Vector3(_cursor.x, top, _cursor.y + arm), COL_CURSOR)
-	if _drawing:
-		if shape == SHAPE_BEVEL and not _bevel_polys.is_empty():
+	if shape == SHAPE_BEVEL_EDGE and not _edge.is_empty():   # K6: выбранное ребро
+		var ea: Vector2 = _edge["a"]
+		var eb: Vector2 = _edge["b"]
+		var ey := _base_y + 0.03
+		_line(Vector3(ea.x, ey, ea.y), Vector3(eb.x, ey, eb.y), COL_CURSOR)
+	if _drawing or shape == SHAPE_BEVEL_EDGE:
+		if (shape == SHAPE_BEVEL or shape == SHAPE_BEVEL_EDGE) and not _bevel_polys.is_empty():
 			# каждая ступень на своём слое: контур сверху и снизу слоя, обрезанный по габариту листов
 			var T: float = Global.settings.layer_height
 			var win := _preview_window()
@@ -565,15 +639,22 @@ func _update_note() -> void:
 		lines[1] = "Гребень: ур. %d · высота %d · ступень %.0f ю (%.0f°)" % [roundi(_plane_y() / T), _depth, _run, deg]
 		if _drawing:
 			lines.append("Гребень A-B, курсор выбирает сторону среза" if _verts.size() >= 2 else "Вторая точка гребня")
+	elif shape == SHAPE_BEVEL_EDGE:
+		var edeg := rad_to_deg(atan2(T, _run))
+		lines[1] = "Ребро: верх ур. %d · высота %d · ступень %.0f ю (%.0f°)" % [roundi(_plane_y() / T), _depth, _run, edeg]
 	elif shape == SHAPE_LINE and _drawing:
 		lines.append("Точка A и B задают прямую, курсор выбирает сторону" if _verts.size() >= 2 else "Вторая точка прямой")
+	var active := _drawing or shape == SHAPE_BEVEL_EDGE
 	var col := Color.WHITE
 	if _msg != "":
 		lines.append(_msg)
 		col = Color(1.0, 0.85, 0.3)
-	elif _drawing and _reason != "":
+	elif active and _reason != "":
 		lines.append(_reason)
 		col = Color(1.0, 0.35, 0.35)
+	elif shape == SHAPE_BEVEL_EDGE and _hits > 0:
+		lines.append("Клик: срезать скос (Ctrl+Z отмена)")
+		col = COL_OK
 	elif _drawing and _hits > 0:
 		lines.append("Заденет листов: %d" % _hits)
 		col = COL_OK

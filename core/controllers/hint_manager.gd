@@ -41,6 +41,7 @@ const HINTS := {
 	"cut_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / @shape_confirm", "вырезать"], ["@shape_undo", "убрать вершину"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
 	"cut_strip": [["ЛКМ", "точка оси"], ["ЛКМ по последней точке / @shape_confirm", "вырезать"], ["@width_down и @width_up", "ширина (Shift ×5)"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
 	"cut_line": [["ЛКМ", "две точки прямой, третий клик отсекает сторону курсора"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
+	"cut_bevel_edge": [["Курсор", "на ребро листа (подсветится), ступени видны сверху вниз"], ["ЛКМ", "срезать скос по этому ребру"], ["@width_down и @width_up", "ширина ступени (Shift ×5)"], ["@depth_up/@depth_down", "высота скоса, слоёв"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["ПКМ", "выйти"], ["@tool_undo", "отменить скос"]],
 	"cut_bevel": [["ЛКМ", "две точки гребня, третий клик режет скос в сторону курсора"], ["@width_down и @width_up", "ступень (Shift ×5)"], ["@depth_up/@depth_down", "высота скоса, слоёв"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["@tool_undo", "отменить скос"]],
 	"table_place": [["ЛКМ", "поставить секцию"], ["@rotate_left/@rotate_right", "повернуть на 90°"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["@tool_undo", "убрать последнюю"], ["ПКМ", "выйти"]],
 	"sections/select_none": [["ЛКМ", "выбрать секцию"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["Кнопка секции внизу", "поставить новую"]],
@@ -161,6 +162,8 @@ func _context_key() -> String:
 				return "cut_polygon"
 			if _ctx.get(&"cut_strip", false):
 				return "cut_strip"
+			if _ctx.get(&"cut_bevel_edge", false):
+				return "cut_bevel_edge"
 			if _ctx.get(&"cut_bevel", false):
 				return "cut_bevel"
 			return "cut_line" if _ctx.get(&"cut_line", false) else "cut_rect"
@@ -187,7 +190,7 @@ func _compose() -> String:
 		return ""
 	var text := _format(items)
 	# Вторая строка про камеру: когда ею управляет игрок (не Follow, POV, Orbit и не фоторежим)
-	var own_camera := key in ["select_none", "select_group", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "cut_strip", "cut_line", "cut_bevel", "water_pour", "table_place", "plaster", "wire", "wire_started", "drag", "observe"]
+	var own_camera := key in ["select_none", "select_group", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "cut_strip", "cut_line", "cut_bevel", "cut_bevel_edge", "water_pour", "table_place", "plaster", "wire", "wire_started", "drag", "observe"]
 	if own_camera:
 		text += "\n[color=%s]%s[/color]" % [DIM_COLOR, _format(CAMERA_LINE, false)]
 	return "[center]" + text + "[/center]"

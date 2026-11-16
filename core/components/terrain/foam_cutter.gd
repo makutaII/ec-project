@@ -131,14 +131,59 @@ static func bevel_steps(a: Vector2, b: Vector2, side: Vector2, run: float, count
 	return res
 
 
+## K6 (скос по ребру). Ребро a-b контура листа, inward: единичный вектор внутрь листа, run: ширина ступени, count: высота
+## скоса в слоях. Возвращает по одному прямоугольнику на слой (индекс = k, 0 верхний), как bevel_steps: слой k режется
+## на (count - k) * run внутрь от ребра и на margin наружу, вдоль ребра ровно от a до b. Верхний слой самый широкий,
+## нижний шириной run: лестница из count ступеней по run, нижняя ступень у самого ребра. Пустой массив: ребро нулевое,
+## run <= 0, count < 1 или inward нулевой
+static func bevel_edge(a: Vector2, b: Vector2, inward: Vector2, run: float, count: int, margin: float) -> Array[PackedVector2Array]:
+	var res: Array[PackedVector2Array] = []
+	if run <= 0.0 or count < 1 or (b - a).length() < C_Contour.EPS or inward.length() < C_Contour.EPS:
+		return res
+	var n := inward.normalized()
+	for k in count:
+		var dk := float(count - k) * run
+		var quad := PackedVector2Array([a + n * dk, b + n * dk, b - n * margin, a - n * margin])
+		if C_Contour.signed_area(quad) < 0.0:
+			quad.reverse()
+		res.append(quad)
+	return res
+
+
+## Ближайшее к точке p ребро полигона: {"a", "b", "dist", "inward"} (inward: единичный вектор внутрь полигона).
+## Пустой словарь: полигон меньше треугольника
+static func nearest_edge(poly: PackedVector2Array, p: Vector2) -> Dictionary:
+	var n := poly.size()
+	if n < 3:
+		return {}
+	var best := -1
+	var best_d := INF
+	for i in n:
+		var a := poly[i]
+		var b := poly[(i + 1) % n]
+		var q := Geometry2D.get_closest_point_to_segment(p, a, b)
+		var d := p.distance_to(q)
+		if d < best_d:
+			best_d = d
+			best = i
+	var ea := poly[best]
+	var eb := poly[(best + 1) % n]
+	var dir := (eb - ea).normalized()
+	var inw := Vector2(-dir.y, dir.x)
+	var mid := (ea + eb) * 0.5
+	if not Geometry2D.is_point_in_polygon(mid + inw * 0.05, poly):
+		inw = -inw
+	return {"a": ea, "b": eb, "dist": best_d, "inward": inw}
+
+
 ## Вырезать скос: polys из bevel_steps, y_top = верх скоса (плоскость). Слой k режется в диапазоне
 ## [y_top - (k + 1) * T, y_top - k * T). Записи для revert() общие на весь скос
-static func apply_bevel(polys: Array[PackedVector2Array], y_top: float) -> Array[Dictionary]:
+static func apply_bevel(polys: Array[PackedVector2Array], y_top: float, only: C_TerrainLayer = null) -> Array[Dictionary]:
 	var res: Array[Dictionary] = []
 	var T: float = Global.settings.layer_height
 	for k in polys.size():
 		var yt := y_top - float(k) * T
-		res.append_array(apply(polys[k], yt - T, yt))
+		res.append_array(apply(polys[k], yt - T, yt, only))
 	return res
 
 
@@ -203,35 +248,35 @@ static func _round2(v: Vector2) -> Vector2:
 ## --- Применение к листам ---
 
 ## Листы, которые вырез реально заденет (в диапазоне высот под полигоном есть твёрдое тело). Для превью инструмента
-static func affected(world_poly: PackedVector2Array, y_lo: float, y_hi: float) -> Array[C_TerrainLayer]:
-	return _overlapped(world_poly, y_lo, y_hi, false)
+static func affected(world_poly: PackedVector2Array, y_lo: float, y_hi: float, only: C_TerrainLayer = null) -> Array[C_TerrainLayer]:
+	return _overlapped(world_poly, y_lo, y_hi, false, only)
 
 
 ## K3d. Листы с гипсовым бинтом, которые вырез задел бы: они не режутся, инструмент говорит об этом
-static func blocked(world_poly: PackedVector2Array, y_lo: float, y_hi: float) -> Array[C_TerrainLayer]:
-	return _overlapped(world_poly, y_lo, y_hi, true)
+static func blocked(world_poly: PackedVector2Array, y_lo: float, y_hi: float, only: C_TerrainLayer = null) -> Array[C_TerrainLayer]:
+	return _overlapped(world_poly, y_lo, y_hi, true, only)
 
 
 ## K3d. Сколько разных листов с бинтом задел бы скос (те же диапазоны высот, что у apply_bevel)
-static func blocked_bevel(polys: Array[PackedVector2Array], y_top: float) -> int:
+static func blocked_bevel(polys: Array[PackedVector2Array], y_top: float, only: C_TerrainLayer = null) -> int:
 	var seen := {}
 	var T: float = Global.settings.layer_height
 	for k in polys.size():
 		var yt := y_top - float(k) * T
-		for l in blocked(polys[k], yt - T, yt):
+		for l in blocked(polys[k], yt - T, yt, only):
 			seen[l] = true
 	return seen.size()
 
 
-## Листы под вырезом: с бинтом (plastered) или без
-static func _overlapped(world_poly: PackedVector2Array, y_lo: float, y_hi: float, plastered: bool) -> Array[C_TerrainLayer]:
+## Листы под вырезом: с бинтом (plastered) или без. only: только этот лист (скос по ребру не режет соседей)
+static func _overlapped(world_poly: PackedVector2Array, y_lo: float, y_hi: float, plastered: bool, only: C_TerrainLayer = null) -> Array[C_TerrainLayer]:
 	var res: Array[C_TerrainLayer] = []
 	if world_poly.size() < 3 or y_hi <= y_lo or not is_instance_valid(TGM):
 		return res
 	var T: float = Global.settings.layer_height
 	for e in TGM.get_layers():
 		var l := e.get_comp(C_TerrainLayer) as C_TerrainLayer
-		if l == null or (l.smooth > 0) != plastered:
+		if l == null or (l.smooth > 0) != plastered or (only != null and l != only):
 			continue
 		var lr := level_range(l.base_y(), l.levels, y_lo, y_hi, T)
 		if lr.y <= lr.x:
@@ -243,10 +288,10 @@ static func _overlapped(world_poly: PackedVector2Array, y_lo: float, y_hi: float
 
 ## Вырезать объём (мировой полигон, диапазон высот) из всех листов под ним. Возвращает записи
 ## {"layer": C_TerrainLayer, "cut": FoamCut} для revert(). Пустой массив: резать нечего
-static func apply(world_poly: PackedVector2Array, y_lo: float, y_hi: float) -> Array[Dictionary]:
+static func apply(world_poly: PackedVector2Array, y_lo: float, y_hi: float, only: C_TerrainLayer = null) -> Array[Dictionary]:
 	var res: Array[Dictionary] = []
 	var T: float = Global.settings.layer_height
-	for l in affected(world_poly, y_lo, y_hi):
+	for l in affected(world_poly, y_lo, y_hi, only):
 		var lr := level_range(l.base_y(), l.levels, y_lo, y_hi, T)
 		var win := C_Contour.bounds_of(l.world_polygon()).grow(WINDOW_GROW)
 		var inv := l.entity.global_transform.affine_inverse()
