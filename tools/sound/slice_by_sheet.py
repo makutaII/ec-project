@@ -3,21 +3,23 @@
 
 Запуск из корня репозитория. Godot не нужен. Нужны Python 3.8+, numpy и ffmpeg/ffprobe в PATH.
 
-    # 1. Новая лента: что в ней есть (тишина, ровные участки, всплески) + заготовка листа меток и спектрограмма
-    python tools/sound/slice_by_sheet.py analyze data/sounds/sample.mp3 --out data/sounds/sample.sheet.json --spectrogram sample.png
+    # Основной путь: файл -> data/sounds/<имя файла>/ (копия), затем действие
+    python tools/sound/slice_by_sheet.py run sample.mp3            # -a (по умолчанию): разбор, заготовка листа sample.sheet.json, sample.spectrogram.png
+    python tools/sound/slice_by_sheet.py run sample.mp3 -d         # проверка листа без записи
+    python tools/sound/slice_by_sheet.py run sample.mp3 -sw        # нарезка в data/sounds/sample/wav/
+    python tools/sound/slice_by_sheet.py run sample.mp3 -so        # нарезка в data/sounds/sample/ogg/
+    # Если лист уже есть, -a его не трогает: новая заготовка пишется в sample.draft.sheet.json.
 
-    # 2. Лист меток отредактирован: проверка без записи
-    python tools/sound/slice_by_sheet.py slice data/sounds/Diesel_Loco_M44_MAV_III_52380.sheet.json --dry-run
+    # Отдельные команды
+    python tools/sound/slice_by_sheet.py analyze data/sounds/sample/sample.mp3 --out sample.sheet.json --spectrogram sample.png
+    python tools/sound/slice_by_sheet.py slice data/sounds/sample/sample.sheet.json --only eng_notch_a eng_idle_b --format ogg
 
-    # 3. Нарезка: клипы (WAV или OGG), петли с кроссфейдом, manifest.json с числами для алгоритма
-    python tools/sound/slice_by_sheet.py slice data/sounds/Diesel_Loco_M44_MAV_III_52380.sheet.json
-    python tools/sound/slice_by_sheet.py slice <лист> --only eng_notch_a eng_idle_b --format ogg
+Звук в репозиторий не коммитится (ATTN_26 S0.6): в git лежат только листы меток, `.gitignore` закрывает остальное в data/sounds/<папка>/.
 
-Лист меток (`*.sheet.json`) лежит рядом с исходником и описывает «как устроена лента», звук не копирует:
+Лист меток (`<имя>.sheet.json`) лежит в папке ленты и описывает «как устроена лента», звук не копирует:
 
     {
-      "id": "loco_m44",                      # имя папки результата (рядом с листом) и префикс в manifest
-      "source": "Diesel_Loco_M44_MAV_III_52380.mp3",   # путь от папки листа
+      "source": "Diesel_Loco_M44_MAV_III_52380.mp3",   # лента: рядом с листом (или на уровень выше)
       "reference": "eng_idle_b",             # регион, относительно которого считается ratio_to_reference
       "defaults": {"fade_in_ms": 5, "fade_out_ms": 40, "xfade_ms": 400, "snap_ms": 150},
       "regions": [
@@ -336,15 +338,22 @@ def find_onsets(x, sr, step_s=0.05, rise_db=8.0, min_gap_s=0.4):
 
 
 def make_spectrogram(path, png, max_hz=6000.0, width=2400, height=720):
-    """PNG: время по горизонтали, частота 0..max_hz по вертикали (лента сводится в моно и передискретизируется)."""
+    """PNG: время по горизонтали, частота 0..max_hz по вертикали (лента сводится в моно и передискретизируется).
+    Если ffmpeg не справился с легендой (нет шрифта в сборке), пробует без неё. Возвращает None или текст ошибки."""
     need_tool("ffmpeg")
-    proc = subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-i", path, "-ac", "1", "-lavfi",
-         "aresample=%d,showspectrumpic=s=%dx%d:legend=1:scale=log:fscale=lin:color=intensity" % (int(max_hz * 2), width, height), png],
-        capture_output=True)
-    if proc.returncode != 0:
-        return proc.stderr.decode("utf-8", "replace").strip()
-    return None
+    png = os.path.abspath(png)
+    if os.path.exists(png):
+        os.remove(png)
+    errors = []
+    for legend in (1, 0):
+        graph = "aresample=%d,showspectrumpic=s=%dx%d:legend=%d:scale=log:fscale=lin:color=intensity" % (
+            int(max_hz * 2), width, height, legend)
+        proc = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-ac", "1", "-lavfi", graph, "-frames:v", "1", png],
+                              capture_output=True)
+        if proc.returncode == 0 and os.path.isfile(png) and os.path.getsize(png) > 0:
+            return None
+        errors.append("legend=%d: код %d, %s" % (legend, proc.returncode, proc.stderr.decode("utf-8", "replace").strip() or "нет текста ошибки"))
+    return "; ".join(errors)
 
 
 def cmd_analyze(args):
@@ -372,7 +381,7 @@ def cmd_analyze(args):
         print("   %s  %.1f dBFS" % (fmt_time(t0), lvl))
 
     hop_s, win_s = 0.25, 0.5
-    band = (args.band[0], args.band[1])
+    band = (args.band[0], min(args.band[1], sr / 2.0 - 50.0))
     t, lv, hz = frame_features(x, sr, hop_s, win_s, band)
     runs = find_plateaus(t, lv, hz, hop_s, win_s, min_len=args.min_plateau)
     print("\nРовные участки (линия %.0f-%.0f Гц ±2%%, уровень ±1.5 дБ, не короче %g с): %d" % (band[0], band[1], args.min_plateau, len(runs)))
@@ -383,11 +392,12 @@ def cmd_analyze(args):
         rep.warn("ровных участков нет: для петель нужен стабильный звук не короче %g с" % args.min_plateau)
 
     if args.spectrogram:
-        err = make_spectrogram(args.audio, args.spectrogram, args.spec_max_hz)
+        err = make_spectrogram(args.audio, args.spectrogram, min(args.spec_max_hz, sr / 2.0))
         if err:
-            rep.warn("спектрограмма не создана: " + err)
+            rep.warn("спектрограмма не создана (%s): %s" % (os.path.abspath(args.spectrogram), err))
         else:
-            print("\nСпектрограмма: %s (по горизонтали время, по вертикали частота, шкала частоты линейная)" % args.spectrogram)
+            print("\nСпектрограмма: %s (по горизонтали время, по вертикали частота до %.0f Гц)" % (
+                os.path.abspath(args.spectrogram), min(args.spec_max_hz, sr / 2.0)))
 
     if args.out:
         if os.path.exists(args.out) and not args.force:
@@ -436,11 +446,13 @@ def load_sheet(path, rep):
             sh = json.load(f)
     except (OSError, ValueError) as e:
         sys.exit("лист %s не прочитан: %s" % (path, e))
-    for key in ("id", "source", "regions"):
+    for key in ("source", "regions"):
         if key not in sh:
             sys.exit("в листе нет поля «%s»" % key)
-    if not ID_RE.match(str(sh["id"])):
+    if "id" in sh and not ID_RE.match(str(sh["id"])):
         rep.error("id листа «%s»: только a-z, 0-9, _ , начинается с буквы" % sh["id"])
+    if "id" not in sh:
+        sh["id"] = os.path.basename(path).split(".")[0]
     return sh
 
 
@@ -584,7 +596,12 @@ def cmd_slice(args):
     sh = load_sheet(sheet_path, rep)
     src = os.path.normpath(os.path.join(sheet_dir, sh["source"]))
     if not os.path.isfile(src):
-        sys.exit("исходник не найден: %s" % src)
+        # запасной путь: лента лежит на уровень выше (старая раскладка data/sounds/<лента>.mp3)
+        alt = os.path.normpath(os.path.join(os.path.dirname(sheet_dir), os.path.basename(sh["source"])))
+        if os.path.isfile(alt):
+            src = alt
+        else:
+            sys.exit("исходник не найден: %s (запускать через `run <файл>`: лента копируется в папку листа)" % src)
     x, sr, ch = decode(src, keep_channels=args.stereo)
     dur = len(x) / sr
     regions = check_regions(sh, dur, rep)
@@ -634,7 +651,7 @@ def cmd_slice(args):
     print("\nОбщее усиление %+.1f дБ (пик источника до: %.1f dBFS, после: %.1f dBFS)" % (gain_db, db(peak), db(peak) + gain_db))
     g_lin = 10.0 ** (gain_db / 20.0)
 
-    out_dir = args.out or os.path.join(sheet_dir, sh["id"])
+    out_dir = args.out or os.path.join(sheet_dir, "ogg" if args.format == "ogg" else "wav")
     os.makedirs(out_dir, exist_ok=True)
     ext = "ogg" if args.format == "ogg" else "wav"
     ref_hz = None
@@ -646,7 +663,7 @@ def cmd_slice(args):
             rep.warn("%s: после усиления пик %.1f dBFS выше 0: будет срезан; уменьшить gain_db региона или взять --peak-dbfs ниже" % (g["id"], db(pk)))
         elif pk > 10.0 ** (-0.5 / 20.0):
             rep.warn("%s: пик %.1f dBFS у предела" % (g["id"], db(pk)))
-        fname = "%s_%s.%s" % (sh["id"], g["id"], ext)
+        fname = "%s.%s" % (g["id"], ext)
         loop = None
         if loop_info is not None:
             loop = (0, len(y) - 1)
@@ -702,6 +719,42 @@ def cmd_slice(args):
     return 1 if rep.errors else 0
 
 
+def repo_root():
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def cmd_run(args):
+    """Файл-лента -> data/sounds/<имя файла>/ ; затем analyze (-a, по умолчанию), нарезка (-sw, -so) или проверка листа (-d)."""
+    src = os.path.abspath(args.file)
+    if not os.path.isfile(src):
+        sys.exit("файл не найден: %s" % src)
+    sounds = os.path.abspath(args.root) if args.root else os.path.join(repo_root(), "data", "sounds")
+    stem, _ = os.path.splitext(os.path.basename(src))
+    folder = os.path.join(sounds, stem)
+    os.makedirs(folder, exist_ok=True)
+    dst = os.path.join(folder, os.path.basename(src))
+    if os.path.abspath(dst) != src:
+        shutil.copy2(src, dst)
+        print("Скопировано: %s" % dst)
+    sheet = os.path.join(folder, stem + ".sheet.json")
+    if args.wav or args.ogg or args.dry_run:
+        if not os.path.isfile(sheet):
+            print("Листа меток нет: %s\nСначала запустить с -a (заготовка), отредактировать лист, затем нарезка." % sheet)
+            return 1
+        ns = argparse.Namespace(sheet=sheet, out=None, format="ogg" if args.ogg else "wav", only=None,
+                                peak_dbfs=-3.0, no_normalize=False, stereo=False, dry_run=args.dry_run)
+        return cmd_slice(ns)
+    draft = os.path.join(folder, stem + ".draft.sheet.json")
+    exists = os.path.isfile(sheet)
+    ns = argparse.Namespace(audio=dst, out=draft if exists else sheet, force=exists,
+                            spectrogram=os.path.join(folder, stem + ".spectrogram.png"), spec_max_hz=6000.0,
+                            min_plateau=2.5, silence_ms=50.0, band=LINE_BAND_HZ)
+    rc = cmd_analyze(ns)
+    if exists:
+        print("Лист уже есть и не тронут: %s\nНовая заготовка рядом: %s" % (sheet, draft))
+    return rc
+
+
 def main(argv=None):
     # на Windows вывод в файл или через пайп может идти в 8-битной кодировке: символы вне её заменяются, а не роняют скрипт
     for stream in (sys.stdout, sys.stderr):
@@ -724,7 +777,7 @@ def main(argv=None):
 
     sl = sub.add_parser("slice", help="нарезка по листу меток")
     sl.add_argument("sheet")
-    sl.add_argument("--out", help="папка результата (по умолчанию <папка листа>/<id листа>)")
+    sl.add_argument("--out", help="папка результата (по умолчанию <папка листа>/wav или /ogg)")
     sl.add_argument("--format", choices=("wav", "ogg"), default="wav")
     sl.add_argument("--only", nargs="+", metavar="ID", help="только эти регионы")
     sl.add_argument("--peak-dbfs", type=float, default=-3.0, help="куда ставить самый громкий пик (по умолчанию -3)")
@@ -732,6 +785,16 @@ def main(argv=None):
     sl.add_argument("--stereo", action="store_true", help="сохранить каналы исходника (по умолчанию моно)")
     sl.add_argument("--dry-run", action="store_true", help="только проверить лист")
     sl.set_defaults(fn=cmd_slice)
+
+    rn = sub.add_parser("run", help="файл -> data/sounds/<имя файла>/ и далее -a (analyze), -sw (WAV), -so (OGG), -d (проверка листа)")
+    rn.add_argument("file", help="лента-образец (mp3, wav, ogg, flac); копируется в папку по имени файла")
+    mode = rn.add_mutually_exclusive_group()
+    mode.add_argument("-a", "--analyze", action="store_true", help="разбор ленты, заготовка листа и спектрограмма в той же папке (по умолчанию)")
+    mode.add_argument("-sw", "--wav", action="store_true", help="нарезка по листу в WAV: <папка>/wav/")
+    mode.add_argument("-so", "--ogg", action="store_true", help="нарезка по листу в OGG: <папка>/ogg/")
+    mode.add_argument("-d", "--dry-run", action="store_true", help="проверить лист без записи")
+    rn.add_argument("--root", help="корень звуков (по умолчанию <репозиторий>/data/sounds)")
+    rn.set_defaults(fn=cmd_run)
 
     args = ap.parse_args(argv)
     return args.fn(args)

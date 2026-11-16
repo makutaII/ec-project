@@ -1,0 +1,68 @@
+{
+  "source": "mightuser-cutter-machine-sound-353707.wav",
+  "note": "Образец моторчика (Q6, ATTN_26 §26.6.4). 6000 Гц моно, 20.4 с, пик -22.7 dBFS, 1 с цифровой тишины в начале. Похоже на электроинструмент, а не на мотор модели: типы звуков по спектру, гипотезы до прослушивания. Линия обеспечена полосой 700-1400 Гц (выше 3 кГц в файле пусто).",
+  "reference": "run_loaded",
+  "line_band_hz": [
+    700,
+    1400
+  ],
+  "defaults": {
+    "fade_in_ms": 5,
+    "fade_out_ms": 40,
+    "xfade_ms": 500,
+    "snap_ms": 200
+  },
+  "regions": [
+    {
+      "id": "run_start",
+      "kind": "oneshot",
+      "start": 1.0,
+      "end": 4.0,
+      "tags": [
+        "motor"
+      ],
+      "note": "первый участок работы, около -38 dBFS RMS, линия гуляет 1050-1320 Гц"
+    },
+    {
+      "id": "pulses",
+      "kind": "oneshot",
+      "start": 4.4,
+      "end": 9.9,
+      "tags": [
+        "motor"
+      ],
+      "note": "тихий пульсирующий режим (-47...-59 dBFS RMS), щелчки; для петли не годится"
+    },
+    {
+      "id": "spinup",
+      "kind": "ramp",
+      "start": 10.0,
+      "end": 12.0,
+      "tags": [
+        "motor"
+      ],
+      "note": "набор оборотов под нагрузкой: уровень -45 -> -35 dBFS RMS"
+    },
+    {
+      "id": "run_loaded",
+      "kind": "loop",
+      "start": 12.0,
+      "end": 17.8,
+      "tags": [
+        "motor"
+      ],
+      "note": "ровный ход под нагрузкой, -35 dBFS RMS, линия гуляет 1000-1290 Гц"
+    },
+    {
+      "id": "spindown",
+      "kind": "ramp",
+      "start": 17.8,
+      "end": 20.4,
+      "tags": [
+        "motor"
+      ],
+      "fade_out_ms": 300,
+      "note": "спад: уровень -42 -> -53 dBFS RMS"
+    }
+  ]
+}
