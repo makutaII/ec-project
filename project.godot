@@ -57,6 +57,10 @@ folder_colors={
 "res://core/": "blue"
 }
 
+[filesystem]
+
+import/blender/enabled=false
+
 [gui]
 
 theme/custom="uid://t2vamkehlekl"
