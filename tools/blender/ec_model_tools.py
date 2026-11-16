@@ -394,6 +394,9 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
                         break
             if kinds == {"move", "rot"}:
                 add("WARN", "Действие '%s': и сдвиг, и поворот. Один механизм это одно движение: разделите на две детали." % act.name, o)
+            declared = o.get("mech_id")
+            if isinstance(declared, str) and declared and act.name != "mech_" + declared:
+                add("WARN", "Объект '%s': свойство mech_id = '%s', а действие называется '%s' (ожидается mech_%s)." % (o.name, declared, act.name, declared), o)
             fr = act.frame_range
             add("INFO", "Механизм '%s' (роль %s): %s, кадры %d..%d." % (act.name, role_of(o), "/".join(sorted(kinds)) or "движения между ключами нет", fr[0], fr[1]), o)
     for act in bpy.data.actions:
@@ -735,6 +738,52 @@ def set_linear(act):
             kp.interpolation = "LINEAR"
 
 
+def remove_static_channels(act, eps=1e-4):
+    """Удаляет из действия каналы, у которых все ключи равны (ключи покоя без движения): в .glb остаётся только то, что двигается.
+    Возвращает число удалённых каналов"""
+    static = []
+    for fc in iter_fcurves(act):
+        vals = [kp.co[1] for kp in fc.keyframe_points]
+        if vals and (max(vals) - min(vals)) <= eps:
+            static.append(fc)
+    removed = 0
+    for fc in static:
+        container = getattr(act, "fcurves", None)
+        try:
+            if container is not None:
+                container.remove(fc)
+            else:
+                for layer in act.layers:
+                    for strip in layer.strips:
+                        for cb in getattr(strip, "channelbags", []):
+                            if fc in list(cb.fcurves):
+                                cb.fcurves.remove(fc)
+            removed += 1
+        except (RuntimeError, ReferenceError, TypeError):
+            pass
+    return removed
+
+
+def object_mech_id(obj):
+    """Id механизма объекта: из имени его действия mech_<id>, иначе из Custom Property mech_id (её пишет «Ключ: покой»). None, если нет"""
+    if obj is None:
+        return None
+    for act in object_actions(obj):
+        if act.name.startswith("mech_"):
+            return act.name[5:]
+    v = obj.get("mech_id")
+    return v if isinstance(v, str) and v else None
+
+
+def mech_id_taken(scene, obj, mech_id):
+    """Имя объекта, у которого уже есть действие mech_<mech_id> (кроме obj), иначе None: Blender дописал бы к имени .001"""
+    name = "mech_" + mech_id
+    for o in scene.objects:
+        if o is not obj and any(a.name == name for a in object_actions(o)):
+            return o.name
+    return None
+
+
 def mech_key(scene, obj, mech_id, frame, rest):
     obj.keyframe_insert(data_path="location", frame=frame)
     obj.keyframe_insert(data_path=rotation_path(obj), frame=frame)
@@ -743,8 +792,37 @@ def mech_key(scene, obj, mech_id, frame, rest):
         return None
     if rest:
         act.name = "mech_" + mech_id
+        obj["mech_id"] = mech_id  # видно во вкладке Object, Custom Properties; уйдёт в extras узла
+    else:
+        remove_static_channels(act)  # после ключа рабочего положения лишние каналы без движения не нужны
     set_linear(act)
     return act
+
+
+# Id механизма в панели следует за активным объектом (msgbus: смена активного объекта)
+_MSGBUS_OWNER = object()
+
+
+def _on_active_changed():
+    try:
+        mid = object_mech_id(bpy.context.view_layer.objects.active)
+        if mid:
+            bpy.context.scene.ec_tools.mech_id = mid
+    except Exception:
+        pass
+
+
+def subscribe_active_object():
+    try:
+        bpy.msgbus.clear_by_owner(_MSGBUS_OWNER)
+        bpy.msgbus.subscribe_rna(key=(bpy.types.LayerObjects, "active"), owner=_MSGBUS_OWNER, args=(), notify=_on_active_changed)
+    except Exception:
+        pass
+
+
+@bpy.app.handlers.persistent
+def _load_post(_dummy=None):
+    subscribe_active_object()
 
 
 def export_params(op, **wanted):
@@ -1057,7 +1135,7 @@ class EC_OT_refs(bpy.types.Operator):
 class EC_OT_mech_key(bpy.types.Operator):
     bl_idname = "ec.mech_key"
     bl_label = "Ключ механизма"
-    bl_description = "Покой: ключ на кадре 1 и имя mech_<id>. Рабочее: ключ на кадре 1 + длина хода (сначала сдвиньте деталь в рабочее положение)"
+    bl_description = "Покой: ключ на кадре 0, действие получает имя mech_<id> и свойство mech_id. Рабочее: ключ на кадре «Кадров хода» + 1 (сначала сдвиньте деталь в рабочее положение)"
     rest: BoolProperty(default=True)
 
     def execute(self, context):
@@ -1069,6 +1147,10 @@ class EC_OT_mech_key(bpy.types.Operator):
         if not re.match(r"^[a-z][a-z0-9_]*$", s.mech_id):
             self.report({"ERROR"}, "Id механизма: a-z, 0-9, _")
             return {"CANCELLED"}
+        if self.rest and mech_id_taken(context.scene, obj, s.mech_id):
+            self.report({"ERROR"}, "Id '%s' уже занят объектом '%s' (действие mech_%s). Задайте другой Id: у каждого механизма своё действие" %
+                        (s.mech_id, mech_id_taken(context.scene, obj, s.mech_id), s.mech_id))
+            return {"CANCELLED"}
         frame = 0 if self.rest else 1 + s.mech_frames
         if mech_key(context.scene, obj, s.mech_id, frame, self.rest) is None:
             self.report({"ERROR"}, "Ключ не создан")
@@ -1076,6 +1158,21 @@ class EC_OT_mech_key(bpy.types.Operator):
         if not self.rest:
             context.scene.frame_end = max(context.scene.frame_end, frame)
         self.report({"INFO"}, "Ключ на кадре %d (%s)" % (frame, "покой" if self.rest else "рабочее положение"))
+        return {"FINISHED"}
+
+
+class EC_OT_mech_id_from_action(bpy.types.Operator):
+    bl_idname = "ec.mech_id_from_action"
+    bl_label = "Взять Id из действия"
+    bl_description = "Подставляет в поле «Id механизма» id активного объекта: из имени его действия mech_<id> или из свойства mech_id"
+
+    def execute(self, context):
+        mid = object_mech_id(context.active_object)
+        if not mid:
+            self.report({"WARNING"}, "У активного объекта нет действия mech_<id>")
+            return {"CANCELLED"}
+        settings(context.scene).mech_id = mid
+        self.report({"INFO"}, "Id механизма: %s" % mid)
         return {"FINISHED"}
 
 
@@ -1137,7 +1234,19 @@ class EC_PT_panel(bpy.types.Panel):
 
         box = lay.box()
         box.label(text="3. Механизм (анимация)")
-        box.prop(s, "mech_id")
+        ao = context.active_object
+        if ao is None:
+            box.label(text="Активный объект: нет", icon="OBJECT_DATA")
+        else:
+            cur = object_mech_id(ao)
+            box.label(text="Активный: %s (роль %s)" % (ao.name, role_of(ao) or "нет"), icon="OBJECT_DATA")
+            acts = [a.name for a in object_actions(ao)]
+            box.label(text="Действие: %s" % (", ".join(acts) if acts else "нет"), icon="ACTION")
+            if cur:
+                box.label(text="Id механизма объекта: %s" % cur, icon="CHECKMARK")
+        row = box.row(align=True)
+        row.prop(s, "mech_id")
+        row.operator("ec.mech_id_from_action", text="", icon="EYEDROPPER")
         box.prop(s, "mech_frames")
         row = box.row(align=True)
         op = row.operator("ec.mech_key", text="Ключ: покой")
@@ -1169,16 +1278,25 @@ class EC_PT_panel(bpy.types.Panel):
 
 
 CLASSES = (ECSettings, EC_OT_check, EC_OT_show_report, EC_OT_copy_report, EC_OT_open_report, EC_OT_set_role, EC_OT_clear_role, EC_OT_add_buffers,
-           EC_OT_prepare, EC_OT_make_uvs, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_export, EC_PT_panel)
+           EC_OT_prepare, EC_OT_make_uvs, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
 
 
 def register():
     for c in CLASSES:
         bpy.utils.register_class(c)
     bpy.types.Scene.ec_tools = PointerProperty(type=ECSettings)
+    if _load_post not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_load_post)
+    subscribe_active_object()
 
 
 def unregister():
+    try:
+        bpy.msgbus.clear_by_owner(_MSGBUS_OWNER)
+    except Exception:
+        pass
+    if _load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_load_post)
     del bpy.types.Scene.ec_tools
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)
