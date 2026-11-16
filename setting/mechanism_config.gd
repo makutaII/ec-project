@@ -37,3 +37,8 @@ enum Actuator { SLIDE, ROTATE, SPIN, CLIP, LIGHT, PARTICLES, ANIM }
 @export_range(0.0, 1.0) var start_state: float = 0.0
 ## false: команды игнорируются, механизм стоит где стоит
 @export var enabled: bool = true
+
+@export_category("Отладка")
+## true: в Output пишется привязка дорожек (какие узлы ведёт механизм, какие дорожки пропущены как неподвижные), команды и
+## предупреждение «ПОЗА ИЗМЕНЕНА СНАРУЖИ», если поза неподвижного механизма ANIM изменилась (с указанием, кто в этот момент двигался)
+@export var debug_log: bool = false

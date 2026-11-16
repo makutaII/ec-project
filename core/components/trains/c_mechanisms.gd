@@ -36,6 +36,7 @@ class Mech extends RefCounted:
 	var anim_tracks: Array = [] # только ANIM: [{node: Node3D, idx: int, kind: Animation.TrackType}]
 	var anim_t0 := 0.0          # только ANIM: время первого ключа = состояние 0
 	var anim_t1 := 0.0          # только ANIM: время последнего ключа = состояние 1
+	var dbg_dirty := false      # отладка: поза узлов расходится с состоянием (уже сообщено)
 
 	## Часть найдена: узел (SLIDE, ROTATE) или дорожки анимации (ANIM)
 	func found() -> bool:
@@ -80,6 +81,25 @@ class Mech extends RefCounted:
 				node.transform = Transform3D(rest.basis, rest.origin + ax * cfg.travel * k)
 			MechanismConfig.Actuator.ROTATE:
 				node.transform = Transform3D(rest.basis * Basis(ax, deg_to_rad(cfg.travel * k)), rest.origin)
+
+	## Только ANIM: расхождение между фактической позой узлов и позой по текущему состоянию (0 - совпадает; поворот в радианах)
+	func pose_error() -> float:
+		if anim == null:
+			return 0.0
+		var time := lerpf(anim_t0, anim_t1, smoothstep(0.0, 1.0, t))
+		var err := 0.0
+		for e in anim_tracks:
+			var n: Node3D = e.node
+			if not is_instance_valid(n):
+				continue
+			match e.kind:
+				Animation.TYPE_POSITION_3D:
+					err = maxf(err, n.position.distance_to(anim.position_track_interpolate(e.idx, time)))
+				Animation.TYPE_ROTATION_3D:
+					err = maxf(err, n.quaternion.angle_to(anim.rotation_track_interpolate(e.idx, time)))
+				Animation.TYPE_SCALE_3D:
+					err = maxf(err, n.scale.distance_to(anim.scale_track_interpolate(e.idx, time)))
+		return err
 
 
 class Lamp extends RefCounted:
@@ -152,6 +172,7 @@ var _lamp_order: Array[StringName] = []
 var _saved_lights: Dictionary = {}   # id(String) -> {t, manual, enabled}
 var _gizmos_on := false
 var _ghost := false
+var _debug := false                   # у какого-то механизма включён MechanismConfig.debug_log
 var _lights_built := false     # on_entity_ready создал источники (set_light_configs пересоздаёт их)
 ## Направление движения для DIRECTION: 1 носом (-Z) вперёд, -1 хвостом
 var _dir := 1
@@ -192,6 +213,9 @@ func on_entity_ready() -> void:
 		m.target = cfg.start_state
 		_mechs[cfg.id] = m
 		_order.append(cfg.id)
+		_debug = _debug or cfg.debug_log
+	for msg in find_node_conflicts(_order.map(func(i): return _mechs[i])):
+		push_warning("[C_Mechanisms] %s: %s" % [entity.name, msg])
 	_apply_saved()
 	for id in _order:
 		_mechs[id].apply()
@@ -243,6 +267,49 @@ func _clear_lamps() -> void:
 		GFX.light_budget.unregister(self)
 
 
+## true, если значения ключей дорожки позиции, поворота или масштаба различаются (дорожка что-то двигает)
+static func track_moves(anim: Animation, i: int) -> bool:
+	var keys := anim.track_get_key_count(i)
+	if keys < 2:
+		return false
+	match anim.track_get_type(i):
+		Animation.TYPE_POSITION_3D, Animation.TYPE_SCALE_3D:
+			var v0: Vector3 = anim.track_get_key_value(i, 0)
+			for j in range(1, keys):
+				if not v0.is_equal_approx(anim.track_get_key_value(i, j) as Vector3):
+					return true
+		Animation.TYPE_ROTATION_3D:
+			var q0: Quaternion = anim.track_get_key_value(i, 0)
+			for j in range(1, keys):
+				if q0.angle_to(anim.track_get_key_value(i, j) as Quaternion) > 0.0001:
+					return true
+	return false
+
+
+## Сообщения об узлах, которые ведут сразу несколько механизмов (они перезаписывали бы позы друг друга). mechs: массив Mech
+static func find_node_conflicts(mechs: Array) -> Array[String]:
+	var owners := {}  # instance_id -> {name, ids}
+	for m in mechs:
+		var nodes: Array = []
+		if m.cfg.actuator == MechanismConfig.Actuator.ANIM:
+			for e in m.anim_tracks:
+				if not nodes.has(e.node):
+					nodes.append(e.node)
+		elif m.node != null:
+			nodes.append(m.node)
+		for n in nodes:
+			var key: int = (n as Node).get_instance_id()
+			if not owners.has(key):
+				owners[key] = {"name": (n as Node).name, "ids": []}
+			(owners[key].ids as Array).append(str(m.cfg.id))
+	var res: Array[String] = []
+	for key in owners:
+		var o: Dictionary = owners[key]
+		if (o.ids as Array).size() > 1:
+			res.append("узел '%s' ведут сразу механизмы %s: они перезаписывают позы друг друга" % [o.name, ", ".join(PackedStringArray(o.ids))])
+	return res
+
+
 ## ANIM: находит в модели AnimationPlayer с нужной анимацией, берёт её Animation и дорожки позиции, поворота и масштаба узлов.
 ## Плеер модели не трогаем и свои плееры не заводим: позы по состоянию ставит Mech.apply (одна анимация на механизм,
 ## в ней может быть сколько угодно узлов). Дорожки костей и неизвестные узлы пропускаются с предупреждением
@@ -283,11 +350,20 @@ static func bind_anim(m: Mech, root: Node, owner_name: String) -> bool:
 		var path := anim.track_get_path(i)
 		if path.get_subname_count() > 0:
 			continue # кость скелета
+		if not track_moves(anim, i):
+			# постоянная дорожка (ключи покоя без движения) ничего не двигает, а запись её значения перебила бы чужой механизм
+			if m.cfg.debug_log:
+				print("[Mech %s] дорожка %d (%s) постоянная, пропущена" % [m.cfg.id, i, path])
+			continue
 		var node := base.get_node_or_null(NodePath(path.get_concatenated_names())) as Node3D
 		if node == null:
 			push_warning("[C_Mechanisms] %s: анимация '%s': узел '%s' не найден" % [owner_name, aname, path])
 			continue
 		tracks.append({"node": node, "idx": i, "kind": kind})
+		if m.cfg.debug_log:
+			var kn := "позиция" if kind == Animation.TYPE_POSITION_3D else ("поворот" if kind == Animation.TYPE_ROTATION_3D else "масштаб")
+			print("[Mech %s] дорожка %d: %s -> узел %s (%s), ключей %d, %.3f..%.3f с" % [m.cfg.id, i, path, base.get_path_to(node), kn,
+					keys, anim.track_get_key_time(i, 0), anim.track_get_key_time(i, keys - 1)])
 		t0 = minf(t0, anim.track_get_key_time(i, 0))
 		t1 = maxf(t1, anim.track_get_key_time(i, keys - 1))
 	if tracks.is_empty():
@@ -364,6 +440,7 @@ func set_state(id: StringName, state: float) -> void:
 		return
 	m.target = clampf(state, 0.0, 1.0)
 	m.manual = true
+	_dbg(m, "команда: цель %.2f (сейчас t=%.2f)" % [m.target, m.t])
 	set_process(true)
 	entity.send_event("on_mechanism_changed", {"id": m.cfg.id, "state": m.target, "moving": true})
 
@@ -372,6 +449,31 @@ func set_enabled(id: StringName, on: bool) -> void:
 	var m: Mech = _mechs.get(StringName(id))
 	if m:
 		m.enabled = on
+
+
+func _dbg(m: Mech, msg: String) -> void:
+	if m.cfg.debug_log:
+		print("[Mech %s] %s" % [m.cfg.id, msg])
+
+
+## Отладка (MechanismConfig.debug_log): сообщает, если поза неподвижного ANIM-механизма расходится с его состоянием,
+## и кто в этот момент двигался. Работает, пока хоть что-то движется (_process иначе выключен)
+func _watch_poses() -> void:
+	var moving := PackedStringArray()
+	for id in _order:
+		if (_mechs[id] as Mech).is_moving():
+			moving.append(str(id))
+	for id in _order:
+		var m: Mech = _mechs[id]
+		if m.cfg.actuator != MechanismConfig.Actuator.ANIM or not m.cfg.debug_log or m.is_moving():
+			continue
+		var err := m.pose_error()
+		if err > 0.01 and not m.dbg_dirty:
+			m.dbg_dirty = true
+			print("[Mech %s] ПОЗА ИЗМЕНЕНА СНАРУЖИ: ошибка %.3f при t=%.2f, сейчас двигаются: %s" % [id, err, m.t, ", ".join(moving) if not moving.is_empty() else "никто"])
+		elif err <= 0.01 and m.dbg_dirty:
+			m.dbg_dirty = false
+			print("[Mech %s] поза восстановлена" % id)
 
 
 ## Список для вкладки "Механизмы" в InfoPanel
@@ -393,8 +495,11 @@ func _process(delta: float) -> void:
 		if not m.is_moving():
 			continue
 		if m.step(delta):
+			_dbg(m, "дошёл до t=%.2f" % m.t)
 			entity.send_event("on_mechanism_changed", {"id": id, "state": m.t, "moving": false})
 		any = any or m.is_moving()
+	if _debug:
+		_watch_poses()
 	for id in _lamp_order:
 		var l: Lamp = _lamps[id]
 		if not l.is_changing():
@@ -808,8 +913,15 @@ func get_debug_info() -> Array[String]:
 	var res: Array[String] = []
 	for id in _order:
 		var m: Mech = _mechs[id]
-		res.append("%s: t=%.2f -> %.2f %s%s" % [id, m.t, m.target,
-				"" if m.found() else "[NO PART] ", "" if m.enabled else "[off]"])
+		var extra := ""
+		if m.cfg.actuator == MechanismConfig.Actuator.ANIM and m.anim != null:
+			var names := PackedStringArray()
+			for e in m.anim_tracks:
+				if not names.has(str((e.node as Node).name)):
+					names.append(str((e.node as Node).name))
+			extra = " ANIM узлы [%s] ошибка позы %.3f" % [", ".join(names), m.pose_error()]
+		res.append("%s: t=%.2f -> %.2f %s%s%s" % [id, m.t, m.target,
+				"" if m.found() else "[NO PART] ", "" if m.enabled else "[off]", extra])
 	for id in _lamp_order:
 		var l: Lamp = _lamps[id]
 		res.append("light %s: t=%.2f -> %.2f gain %.2f power %s rule %s%s %s%s%s" % [id, l.t, l.target, l.gain,

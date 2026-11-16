@@ -33,7 +33,19 @@ func _ready() -> void:
 	anim_b.track_set_path(tb, NodePath("PartB"))
 	anim_b.rotation_track_insert_key(tb, 0.25, Quaternion.IDENTITY)
 	anim_b.rotation_track_insert_key(tb, 1.25, Quaternion(Vector3.UP, PI / 2.0))
+	# mech_c: постоянная дорожка позиции и поворот на 90° у PartA (как у экспорта из Blender: ключи покоя в соседнем канале)
+	var anim_c := Animation.new()
+	anim_c.length = 1.0
+	var tc1 := anim_c.add_track(Animation.TYPE_POSITION_3D)
+	anim_c.track_set_path(tc1, NodePath("PartA"))
+	anim_c.position_track_insert_key(tc1, 0.0, Vector3(1, 2, 3))
+	anim_c.position_track_insert_key(tc1, 1.0, Vector3(1, 2, 3))
+	var tc2 := anim_c.add_track(Animation.TYPE_ROTATION_3D)
+	anim_c.track_set_path(tc2, NodePath("PartA"))
+	anim_c.rotation_track_insert_key(tc2, 0.0, Quaternion.IDENTITY)
+	anim_c.rotation_track_insert_key(tc2, 1.0, Quaternion(Vector3.UP, PI / 2.0))
 	var lib := AnimationLibrary.new()
+	lib.add_animation(&"mech_c", anim_c)
 	lib.add_animation(&"mech_a", anim_a)
 	lib.add_animation(&"mech_b", anim_b)
 	var src := AnimationPlayer.new()
@@ -76,6 +88,18 @@ func _ready() -> void:
 	ma.apply()
 	mb.apply()
 	_check("ANIM: механизмы независимы (A в покое, B открыт)", part_a.position.is_equal_approx(Vector3.ZERO) and part_b.basis.x.is_equal_approx(Vector3(0, 0, -1)))
+
+	var mc := _mech(&"c")
+	comp._setup_anim(mc, vis)
+	_check("ANIM: постоянная дорожка пропущена, остаётся только поворот",
+		mc.found() and mc.anim_tracks.size() == 1 and mc.anim_tracks[0].kind == Animation.TYPE_ROTATION_3D)
+	_check("ANIM: два механизма на одном узле дают предупреждение, независимые нет",
+		C_Mechanisms.find_node_conflicts([ma, mc]).size() == 1 and C_Mechanisms.find_node_conflicts([ma, mb]).is_empty())
+	ma.t = 1.0
+	ma.apply()
+	var pose_ok := ma.pose_error() < 0.001
+	part_a.position = Vector3(5, 0, 0)
+	_check("ANIM: pose_error замечает изменение позы снаружи", pose_ok and ma.pose_error() > 0.01)
 
 	var missing := _mech(&"nope")
 	comp._setup_anim(missing, vis)
