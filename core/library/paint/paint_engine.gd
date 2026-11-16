@@ -11,19 +11,27 @@ class_name PaintEngine extends Node
 ## Прототип C2.0 подтвердил: накопление, набор краски, цена прохода 32 штампов (0.6 мс GPU на 512, 1.8 мс на 1024),
 ## снимок для отмены (чтение 18-22 мс, 4-18 КБ после сжатия).
 ## Узел должен стоять в дереве до setup(): нужны SubViewport и кадры. Карта позиций строится в рабочем потоке.
+## Один слой на модель: общий атлас UV2 всех мешей группы (PaintBake.group). Позиции и нормали карты, штампы и радиус кисти
+## лежат в пространстве опорного меша (target, самый крупный); остальные меши группы пересчитываются в него по позе покоя.
 
 signal changed          ## слой изменился (штамп, отмена, повтор, очистка)
 
 const MAX_STAMPS := 32
 const HISTORY_LIMIT := 30
 const DEFAULT_RES := 1024
+const BLOCK_EPS := 0.0001          ## закрывающий меш должен быть ближе красимого хотя бы на столько (мир)
 const STAMP_SHADER := preload("res://core/library/paint/stamp.gdshader")
 const ERASE_SHADER := preload("res://core/library/paint/stamp_erase.gdshader")
 const COPY_SHADER := preload("res://core/library/paint/copy.gdshader")
 
 var res := DEFAULT_RES
+## Опорный меш: его локальные координаты это пространство штампов и карты позиций
 var target: MeshInstance3D
-## Наибольший габарит меша (локальные единицы): радиус кисти задаётся долей от него
+## Красимые меши группы (опорный первым); у всех общий слой
+var meshes: Array[MeshInstance3D] = []
+## Меши с UV2, не вошедшие в группу из-за перекрытия атласа: не красятся, но закрывают собой краску
+var skipped: Array[MeshInstance3D] = []
+## Наибольший габарит группы мешей (единицы опорного меша): радиус кисти задаётся долей от него
 var size_ref := 1.0
 var is_built := false
 var bake_info: Dictionary = {}
@@ -31,13 +39,14 @@ var texture: Texture2D:
 	get:
 		return _vp.get_texture() if _vp != null else null
 
-var _tri: TriangleMesh
 var _vp: SubViewport
 var _rect: ColorRect
 var _stamp_mat: ShaderMaterial
 var _erase_mat: ShaderMaterial
 var _copy_mat: ShaderMaterial
-var _surfaces: Array = []
+var _entries: Array = []            # [{surfaces, verts, xform}] по кандидатам, только на время запекания
+var _parts: Array = []              # красимые: [{mi, tri, to_root}]
+var _blockers: Array = []           # не красимые: [{mi, tri}]
 var _bake_result: Dictionary = {}
 var _queue: Array = []              # [{p, n, color, flow, hardness, erase}]
 var _stroke_open := false
@@ -49,44 +58,51 @@ var _hist_index := 0
 var _raw_size := 0
 
 
-## Меш с UV2 у всех поверхностей, самый крупный по числу вершин; null, если такого нет
-static func pick_target(meshes: Array) -> MeshInstance3D:
-	var best: MeshInstance3D = null
-	var best_n := 0
-	for m in meshes:
-		if not (m is MeshInstance3D) or not is_instance_valid(m):
-			continue
-		var mi := m as MeshInstance3D
-		if not PaintBake.has_uv2(mi.mesh):
-			continue
-		var verts := 0
-		for si in mi.mesh.get_surface_count():
-			verts += (mi.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-		if verts > best_n:
-			best = mi
-			best_n = verts
-	return best
+## Меши с UV2 на всех поверхностях: кандидаты на кисть (дёшево, без проверки перекрытий)
+static func candidates(source: Array) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for m in source:
+		if m is MeshInstance3D and is_instance_valid(m) and PaintBake.has_uv2((m as MeshInstance3D).mesh):
+			out.append(m as MeshInstance3D)
+	return out
 
 
-## Строит карту позиций (в потоке) и слой. false: нет UV2 или карта пустая. Узел уже в дереве
-func setup(mi: MeshInstance3D, p_res: int = DEFAULT_RES) -> bool:
-	target = mi
-	res = p_res
-	var mesh := mi.mesh
-	if mesh == null or not PaintBake.has_uv2(mesh):
+## Строит карту позиций (в потоке) и слой для группы мешей общего атласа UV2. candidate_meshes: меш или массив мешей
+## (берутся с UV2). Опорный меш (больше всего вершин) задаёт пространство штампов; остальные входят, пока их UV2 не
+## перекрывает занятое (PaintBake.group). blockers: прочие меши модели: видимые не пропускают краску сквозь себя.
+## false: красить нечем (нет UV2 или карта пустая). Узел уже в дереве
+func setup(candidate_meshes: Variant, p_res: int = DEFAULT_RES, blockers: Array = []) -> bool:
+	var list: Array[MeshInstance3D] = []
+	if candidate_meshes is MeshInstance3D:
+		list = candidates([candidate_meshes])
+	elif candidate_meshes is Array:
+		list = candidates(candidate_meshes)
+	if list.is_empty():
 		return false
-	_tri = mesh.generate_triangle_mesh()
-	var aabb := mesh.get_aabb()
-	size_ref = maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z))
-	_surfaces = PaintBake.collect(mesh)
+	res = p_res
+	var entries: Array = []
+	for mi in list:
+		var surfaces := PaintBake.collect(mi.mesh)
+		var verts := 0
+		for surf in surfaces:
+			verts += (surf["verts"] as PackedVector3Array).size()
+		entries.append({"surfaces": surfaces, "verts": verts, "xform": Transform3D.IDENTITY})
+	var root := list[PaintBake.seed_index(entries)]
+	if root.is_inside_tree():
+		var inv := root.global_transform.affine_inverse()
+		for i in list.size():
+			if list[i].is_inside_tree():
+				entries[i]["xform"] = inv * list[i].global_transform
+	_entries = entries
 	var id := WorkerThreadPool.add_task(_bake_job, false, "Library: карта кисти")
 	while not WorkerThreadPool.is_task_completed(id):
 		await get_tree().process_frame
 	WorkerThreadPool.wait_for_task_completion(id)
 	bake_info = _bake_result
-	_surfaces = []
+	_entries = []
 	if not bake_info.get("ok", false):
 		return false
+	_collect_parts(list, entries, root, blockers)
 	_build_viewport()
 	await _settle()
 	_history = [_compress_layer()]
@@ -96,7 +112,60 @@ func setup(mi: MeshInstance3D, p_res: int = DEFAULT_RES) -> bool:
 
 
 func _bake_job() -> void:
-	_bake_result = PaintBake.bake(_surfaces, res)
+	_bake_result = PaintBake.bake_group(_entries, res)
+
+
+## Красимые части (с пересчётом в пространство опорного меша), закрывающие меши и габарит группы
+func _collect_parts(list: Array[MeshInstance3D], entries: Array, root: MeshInstance3D, blockers: Array) -> void:
+	target = root
+	meshes.clear()
+	skipped.clear()
+	_parts.clear()
+	_blockers.clear()
+	var included: PackedInt32Array = bake_info.get("included", PackedInt32Array())
+	var skip_idx: PackedInt32Array = bake_info.get("skipped", PackedInt32Array())
+	var box := AABB()
+	var has_box := false
+	for i in included:
+		var mi := list[i]
+		var xf: Transform3D = entries[i]["xform"]
+		meshes.append(mi)
+		var tri := mi.mesh.generate_triangle_mesh()
+		if tri != null:
+			_parts.append({"mi": mi, "tri": tri, "to_root": xf})
+		var bb: AABB = xf * mi.mesh.get_aabb()
+		box = bb if not has_box else box.merge(bb)
+		has_box = true
+	size_ref = maxf(box.size.x, maxf(box.size.y, box.size.z))
+	if size_ref <= 0.0:
+		size_ref = 1.0
+	var covers: Array = []
+	for i in skip_idx:
+		skipped.append(list[i])
+		covers.append(list[i])
+	for m in blockers:
+		if m is MeshInstance3D and is_instance_valid(m) and (m as MeshInstance3D).mesh != null:
+			covers.append(m)
+	for m in covers:
+		var tri := (m as MeshInstance3D).mesh.generate_triangle_mesh()
+		if tri != null:
+			_blockers.append({"mi": m, "tri": tri})
+
+
+## Имена красимых мешей (по ним слой привязывается к мешам исполнения)
+func mesh_names() -> Array[String]:
+	var out: Array[String] = []
+	for mi in meshes:
+		out.append(str(mi.name))
+	return out
+
+
+## Имена мешей, не вошедших в группу
+func skipped_names() -> Array[String]:
+	var out: Array[String] = []
+	for mi in skipped:
+		out.append(str(mi.name))
+	return out
 
 
 func _build_viewport() -> void:
@@ -143,17 +212,52 @@ func make_overlay() -> ShaderMaterial:
 # ПОПАДАНИЕ И ШТАМПЫ
 # ==========================================
 
-## Луч камеры в точку мыши: {position, normal} в локальных координатах меша или {}
+## Луч камеры в точку мыши: ближайшая красимая часть. {position, normal, mesh} в пространстве опорного меша (target)
+## или {}: луча нет, мимо, либо ближе красимой части стоит видимый меш, который не красится
 func raycast(camera: Camera3D, mouse: Vector2) -> Dictionary:
-	if _tri == null or target == null or not is_instance_valid(target):
+	if _parts.is_empty() or target == null or not is_instance_valid(target):
 		return {}
 	var from := camera.project_ray_origin(mouse)
 	var dir := camera.project_ray_normal(mouse)
-	var inv := target.global_transform.affine_inverse()
-	return _tri.intersect_ray(inv * from, (inv.basis * dir).normalized())
+	var best_d := INF
+	var best_hit: Dictionary = {}
+	var best_part: Dictionary = {}
+	for part in _parts:
+		var mi := part["mi"] as MeshInstance3D
+		if not is_instance_valid(mi):
+			continue
+		var d := _ray_dist(part["tri"] as TriangleMesh, mi, from, dir)
+		if d.is_empty() or d["dist"] >= best_d:
+			continue
+		best_d = d["dist"]
+		best_hit = d
+		best_part = part
+	if best_hit.is_empty():
+		return {}
+	for b in _blockers:
+		var bm := b["mi"] as MeshInstance3D
+		if not is_instance_valid(bm) or not bm.is_visible_in_tree():
+			continue
+		var bd := _ray_dist(b["tri"] as TriangleMesh, bm, from, dir)
+		if not bd.is_empty() and bd["dist"] < best_d - BLOCK_EPS:
+			return {}
+	var to_root: Transform3D = best_part["to_root"]
+	var n := (to_root.basis.inverse().transposed() * (best_hit["normal"] as Vector3)).normalized()
+	return {"position": to_root * (best_hit["position"] as Vector3), "normal": n, "mesh": best_part["mi"]}
 
 
-## Радиус кисти в локальных единицах меша по доле наибольшего габарита
+## Попадание луча в меш: {position, normal} в локальных координатах меша и dist до точки в мире; {} при промахе
+func _ray_dist(tri: TriangleMesh, mi: MeshInstance3D, from: Vector3, dir: Vector3) -> Dictionary:
+	var xf := mi.global_transform
+	var inv := xf.affine_inverse()
+	var h := tri.intersect_ray(inv * from, (inv.basis * dir).normalized())
+	if h.is_empty():
+		return {}
+	h["dist"] = from.distance_to(xf * (h["position"] as Vector3))
+	return h
+
+
+## Радиус кисти в единицах опорного меша по доле наибольшего габарита группы
 func radius_for(size_frac: float) -> float:
 	return size_ref * size_frac
 

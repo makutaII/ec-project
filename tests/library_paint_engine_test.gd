@@ -103,13 +103,13 @@ func _test_overlay_chain() -> void:
 func _test_engine() -> void:
 	var box := MeshInstance3D.new()
 	box.mesh = BoxMesh.new()
-	_check("меш без UV2: has_uv2 false, pick_target пуст", not PaintBake.has_uv2(box.mesh) and PaintEngine.pick_target([box]) == null)
+	_check("меш без UV2: has_uv2 false, кандидатов нет", not PaintBake.has_uv2(box.mesh) and PaintEngine.candidates([box]).is_empty())
 	box.free()
 
 	_mi = _sphere()
 	add_child(_mi)
 	_tri = _mi.mesh.generate_triangle_mesh()
-	_check("меш с UV2: has_uv2 true, pick_target находит его", PaintBake.has_uv2(_mi.mesh) and PaintEngine.pick_target([_mi]) == _mi)
+	_check("меш с UV2: has_uv2 true, он единственный кандидат", PaintBake.has_uv2(_mi.mesh) and PaintEngine.candidates([_mi]).size() == 1 and PaintEngine.candidates([_mi])[0] == _mi)
 
 	var eng := PaintEngine.new()
 	add_child(eng)
@@ -117,7 +117,7 @@ func _test_engine() -> void:
 	_check("setup: карта позиций построена (покрыто %d, перекрытий %d)" % [eng.bake_info.get("covered", 0), eng.bake_info.get("overlapped", 0)], ok and eng.is_built)
 	if not ok:
 		return
-	_check("радиус кисти считается от габарита меша", is_equal_approx(eng.radius_for(0.1), eng.size_ref * 0.1) and eng.size_ref > 0.0)
+	_check("радиус кисти считается от габарита группы мешей", is_equal_approx(eng.radius_for(0.1), eng.size_ref * 0.1) and eng.size_ref > 0.0)
 	var ov := eng.make_overlay()
 	_check("накладка слоя: шейдер и текстура слоя заданы", ov.shader != null and ov.get_shader_parameter("layer") != null and eng.texture != null)
 

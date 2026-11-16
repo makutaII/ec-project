@@ -714,6 +714,61 @@ def ensure_uvs(scene):
     return made, problems
 
 
+def pack_shared_uv2(scene, margin=0.01):
+    """UV2 всех мешей модели в один общий лист: острова всех мешей получают одну плотность (Average Islands Scale)
+    и упаковываются вместе без перекрытий. Нужна для кисти Library: один слой краски на всю модель.
+    Работает со второй UV-картой (UV2) каждого меша; у кого её нет, сначала «Создать UV1/UV2».
+    Возвращает (сколько мешей упаковано, список проблем)"""
+    view = bpy.context.view_layer
+    tool = scene.tool_settings
+    pairs = mesh_datas(scene)
+    problems = []
+    objs = []
+    for o, me in pairs:
+        if len(me.uv_layers) < 2:
+            problems.append("%s: нет второй UV-карты (сначала «Создать UV1/UV2»)" % o.name)
+        else:
+            objs.append((o, me))
+    if problems or not objs:
+        return 0, problems or ["в модели нет мешей"]
+    prev_sel = [o for o in scene.objects if o.select_get()]
+    prev_act = view.objects.active
+    prev_sync = tool.use_uv_select_sync
+    prev_active_uv = {me.name: me.uv_layers.active_index for _o, me in objs}
+    try:
+        if prev_act is not None and prev_act.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        for x in scene.objects:
+            x.select_set(False)
+        for o, me in objs:
+            o.select_set(True)
+            me.uv_layers.active_index = 1     # правим вторую карту
+        view.objects.active = objs[0][0]
+        tool.use_uv_select_sync = True        # выбор UV следует за выбором граней: все UV выбраны без окна UV-редактора
+        bpy.ops.object.mode_set(mode="EDIT")  # правка сразу всех выбранных мешей (Multi-Object Editing)
+        try:
+            bpy.ops.mesh.select_all(action="SELECT")
+            bpy.ops.uv.average_islands_scale()
+            bpy.ops.uv.pack_islands(**export_params(bpy.ops.uv.pack_islands, rotate=True, margin=margin))
+        finally:
+            bpy.ops.object.mode_set(mode="OBJECT")
+    except (RuntimeError, TypeError) as e:
+        problems.append(str(e))
+    finally:
+        tool.use_uv_select_sync = prev_sync
+        for _o, me in objs:
+            me.uv_layers.active_index = prev_active_uv.get(me.name, 0)
+        for x in scene.objects:
+            x.select_set(False)
+        for o in prev_sel:
+            try:
+                o.select_set(True)
+            except RuntimeError:
+                pass
+        view.objects.active = prev_act
+    return (0 if problems else len(objs)), problems
+
+
 def trim_uvs(scene, keep=2):
     """Оставляет у мешей модели первые keep UV-карт. Возвращает список 'меш: сколько убрано'"""
     out = []
@@ -1090,6 +1145,21 @@ class EC_OT_make_uvs(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EC_OT_pack_uv2(bpy.types.Operator):
+    bl_idname = "ec.pack_uv2"
+    bl_label = "UV2: общий атлас"
+    bl_description = ("Все меши модели: вторая UV-карта (UV2) получает одну плотность текселей и упаковывается в один общий лист без перекрытий. "
+                      "Нужно кисти Library: слой краски один на всю модель. Сначала «Применить трансформы» и «Создать UV1/UV2». Меняет только UV2")
+
+    def execute(self, context):
+        n, problems = pack_shared_uv2(context.scene)
+        if problems:
+            self.report({"WARNING"}, "Не удалось: %s" % "; ".join(problems))
+            return {"CANCELLED"}
+        self.report({"INFO"}, "UV2 упакована в общий атлас: мешей %d. Экспортируйте модель заново и проверьте её (кнопка проверки или glb_preflight.py --brush)" % n)
+        return {"FINISHED"}
+
+
 class EC_OT_trim_uvs(bpy.types.Operator):
     bl_idname = "ec.trim_uvs"
     bl_label = "Убрать лишние UV"
@@ -1226,6 +1296,7 @@ class EC_PT_panel(bpy.types.Panel):
         row = box.row(align=True)
         row.operator("ec.make_uvs", icon="UV")
         row.operator("ec.trim_uvs", icon="TRASH")
+        box.operator("ec.pack_uv2", icon="UV")
         col = box.column(align=True)
         col.prop(s, "wheel_d")
         col.prop(s, "gauge")
@@ -1278,7 +1349,7 @@ class EC_PT_panel(bpy.types.Panel):
 
 
 CLASSES = (ECSettings, EC_OT_check, EC_OT_show_report, EC_OT_copy_report, EC_OT_open_report, EC_OT_set_role, EC_OT_clear_role, EC_OT_add_buffers,
-           EC_OT_prepare, EC_OT_make_uvs, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
+           EC_OT_prepare, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
 
 
 def register():

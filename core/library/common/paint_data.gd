@@ -115,9 +115,10 @@ static func _normalize(v: Variant) -> Dictionary:
 # ==========================================
 # СЛОИ С ТЕКСТУРОЙ (кисть, C2.1b)
 # ==========================================
-## Слой кисти: {"id": "p1", "name": "Кисть", "coverage": "texture", "mesh": имя меша, "res": 1024, "file": "p1.png",
-## "premultiplied": true, "blend": "normal", "opacity": 1.0, "relief": 0.0, "visible": true}. Краска лежит в PNG
-## (RGBA, UV2 меша, цвет sRGB, умноженный на альфу). В файле исполнения слой ссылается на PNG (file); в сейве макета и
+## Слой кисти: {"id": "p1", "name": "Кисть", "coverage": "texture", "mesh": имя опорного меша, "meshes": [имена всех мешей
+## общего атласа], "res": 1024, "file": "p1.png", "premultiplied": true, "blend": "normal", "opacity": 1.0, "relief": 0.0,
+## "visible": true}. Краска лежит в PNG (RGBA, общий атлас UV2 мешей слоя, цвет sRGB, умноженный на альфу). Старые слои
+## без поля meshes относятся к одному мешу mesh. В файле исполнения слой ссылается на PNG (file); в сейве макета и
 ## у сущности в игре PNG лежит внутри словаря (поле data, PackedByteArray), поэтому макет не зависит от user://.
 ## data в JSON не пишется никогда (VariantIO вырезает).
 
@@ -144,8 +145,9 @@ static func is_blank(paint: Dictionary) -> bool:
 	return is_empty(paint) and not has_texture_layers(paint)
 
 
-## Создаёт или заменяет слой кисти. file: имя PNG рядом с исполнением; data: байты PNG внутри словаря (сейв, игра)
-static func set_texture_layer(paint: Dictionary, id: String, mesh_name: String, res: int, file := "", data := PackedByteArray()) -> Dictionary:
+## Создаёт или заменяет слой кисти. file: имя PNG рядом с исполнением; data: байты PNG внутри словаря (сейв, игра);
+## meshes: имена всех мешей общего атласа (пусто: слой только на mesh_name)
+static func set_texture_layer(paint: Dictionary, id: String, mesh_name: String, res: int, file := "", data := PackedByteArray(), meshes: Array = []) -> Dictionary:
 	remove_texture_layer(paint, id)
 	var layers: Variant = paint.get("layers")
 	if not (layers is Array):
@@ -156,12 +158,30 @@ static func set_texture_layer(paint: Dictionary, id: String, mesh_name: String, 
 		"id": id, "name": "Кисть", "coverage": "texture", "mesh": mesh_name, "res": res, "premultiplied": true,
 		"blend": "normal", "opacity": 1.0, "relief": 0.0, "visible": true,
 	}
+	if not meshes.is_empty():
+		var names: Array = []
+		for m in meshes:
+			names.append(str(m))
+		layer["meshes"] = names
 	if file != "":
 		layer["file"] = file
 	if not data.is_empty():
 		layer["data"] = data
 	(layers as Array).append(layer)
 	return layer
+
+
+## Имена мешей, на которые ложится слой: поле meshes, а у старых слоёв один меш из mesh
+static func layer_meshes(layer: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	var list: Variant = layer.get("meshes")
+	if list is Array:
+		for m in list:
+			if str(m) != "":
+				out.append(str(m))
+	if out.is_empty() and str(layer.get("mesh", "")) != "":
+		out.append(str(layer["mesh"]))
+	return out
 
 
 static func remove_texture_layer(paint: Dictionary, id: String) -> void:

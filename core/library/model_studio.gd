@@ -364,7 +364,8 @@ func _on_view_input(event: InputEvent) -> void:
 	world.handle_gui_input(event)
 
 
-## Строит движок кисти для меша кузова с UV2 (карта позиций в потоке). false: подходящего меша нет или модель сменилась.
+## Строит движок кисти для мешей кузова с UV2 (один слой на общий атлас, карта позиций в потоке). Меши с UV2 вне общего
+## атласа (перекрытие) и меши без UV2 не красятся, но закрывают краску. false: подходящих мешей нет или модель сменилась.
 ## Параллельные вызовы ждут общий результат (сигнал paint_engine_ready)
 func ensure_paint_engine() -> bool:
 	if paint_engine != null and paint_engine.is_built:
@@ -374,15 +375,20 @@ func ensure_paint_engine() -> bool:
 		await paint_engine_ready
 	if paint_engine != null and paint_engine.is_built:
 		return true
-	var target := PaintEngine.pick_target(body_meshes())
-	if target == null:
+	var bodies := body_meshes()
+	var cands := PaintEngine.candidates(bodies)
+	if cands.is_empty():
 		return false
+	var blockers: Array = []
+	for m in bodies:
+		if not cands.has(m):
+			blockers.append(m)
 	_engine_building = true
 	var eng := PaintEngine.new()
 	eng.name = "PaintEngine"
 	add_child(eng)
 	paint_engine = eng
-	var ok := await eng.setup(target)
+	var ok := await eng.setup(cands, PaintEngine.DEFAULT_RES, blockers)
 	_engine_building = false
 	# Пока строилась карта, модель могла смениться (движок отцеплен)
 	if not ok or paint_engine != eng:
@@ -391,7 +397,9 @@ func ensure_paint_engine() -> bool:
 			paint_engine = null
 		paint_engine_ready.emit(false)
 		return false
-	paint_overlays = {str(target.name): eng.make_overlay()}
+	paint_overlays = {}
+	for mesh_name in eng.mesh_names():
+		paint_overlays[mesh_name] = eng.make_overlay()
 	apply_variant()
 	paint_engine_ready.emit(true)
 	return true
@@ -413,8 +421,10 @@ func show_variant_layers() -> void:
 		if file == "" or not bool(layer.get("visible", true)):
 			continue
 		var tex := PaintLayers.texture_from_png(VariantIO.load_layer_png(variant.id, file))
-		if tex != null and str(layer.get("mesh", "")) != "":
-			paint_overlays[str(layer["mesh"])] = PaintLayers.make_overlay(tex)
+		if tex == null:
+			continue
+		for mesh_name in PaintData.layer_meshes(layer):
+			paint_overlays[mesh_name] = PaintLayers.make_overlay(tex)
 	apply_variant()
 
 
@@ -433,7 +443,7 @@ func _on_place_pressed() -> void:
 		await eng.wait_idle()
 		PaintData.remove_texture_layer(pv, PaintData.TEXTURE_LAYER_ID)
 		if not eng.is_empty():
-			PaintData.set_texture_layer(pv, PaintData.TEXTURE_LAYER_ID, str(eng.target.name), eng.res, "", eng.to_png())
+			PaintData.set_texture_layer(pv, PaintData.TEXTURE_LAYER_ID, str(eng.target.name), eng.res, "", eng.to_png(), eng.mesh_names())
 	elif PaintData.has_texture_layers(pv):
 		v = VariantIO.embed_layers(v, variant.id)   # сохранённый слой: PNG из файла
 	if PaintData.is_blank(v["paint"]):

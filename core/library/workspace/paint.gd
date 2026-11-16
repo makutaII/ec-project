@@ -234,12 +234,12 @@ func _refresh() -> void:
 	if _mode == MODE_BRUSH and (screen.paint_engine == null or not screen.paint_engine.is_built):
 		_mode = MODE_ZONES
 		_mode_zones_btn.button_pressed = true
-	var can_brush := level >= 2 and PaintEngine.pick_target(meshes) != null
+	var can_brush := level >= 2 and not PaintEngine.candidates(meshes).is_empty()
 	_mode_brush_btn.disabled = not can_brush
 	if level < 2:
 		_mode_brush_btn.tooltip_text = "Кисть доступна с уровня 2 (правила)"
 	elif not can_brush:
-		_mode_brush_btn.tooltip_text = "У модели нет меша с UV2 без перекрытий (tests/uv2_audit.gd): кисть недоступна, остаётся заливка зон"
+		_mode_brush_btn.tooltip_text = "У модели нет мешей с UV2 (tests/uv2_audit.gd, tools/glb_preflight.py --brush): кисть недоступна, остаётся заливка зон"
 	else:
 		_mode_brush_btn.tooltip_text = "Рисовать кистью, аэрографом и ластиком по UV2 модели"
 	_apply_mode_visibility()
@@ -362,7 +362,7 @@ func _on_save(as_new: bool) -> void:
 		if not eng.is_empty():
 			var file := PaintData.TEXTURE_LAYER_ID + ".png"
 			files[file] = eng.to_png()
-			PaintData.set_texture_layer(v.paint, PaintData.TEXTURE_LAYER_ID, str(eng.target.name), eng.res, file)
+			PaintData.set_texture_layer(v.paint, PaintData.TEXTURE_LAYER_ID, str(eng.target.name), eng.res, file, PackedByteArray(), eng.mesh_names())
 	else:
 		for layer in PaintData.texture_layers(v.paint):
 			var f := str(layer.get("file", ""))
@@ -550,8 +550,12 @@ func _enter_brush() -> void:
 	if _mode != MODE_BRUSH:
 		return
 	if ok:
-		var ms := int(screen.paint_engine.bake_info.get("ms", 0))
-		_brush_note.text = "Карта кисти готова (%d мс). ЛКМ рисует, ПКМ вращает, колесо зум. Мазки сохраняются вместе с исполнением." % ms
+		var eng: PaintEngine = screen.paint_engine
+		var ms := int(eng.bake_info.get("ms", 0))
+		var text := "Карта кисти готова (%d мс, мешей: %d). ЛКМ рисует, ПКМ вращает, колесо зум. Мазки сохраняются вместе с исполнением." % [ms, eng.meshes.size()]
+		if not eng.skipped.is_empty():
+			text += "\nНе красятся (UV2 перекрывает другие меши): %s. Blender: «UV2: общий атлас»." % ", ".join(eng.skipped_names())
+		_brush_note.text = text
 		await _sync_engine_from_variant()
 	else:
 		_brush_note.text = "Кисть недоступна для этой модели."

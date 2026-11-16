@@ -104,6 +104,129 @@ def read_accessor(g, binb, idx):
     return out
 
 
+UV2_GRID = 256          # сетка занятости UV2 (как PaintBake.GROUP_GRID в Godot)
+UV2_OVERLAP = 0.01      # допустимая доля ячеек меша, уже занятых другими мешами (PaintBake.GROUP_OVERLAP)
+UV2_DENSITY_RATIO = 2.0  # во сколько раз плотность UV2 мешей группы может различаться без предупреждения
+
+
+def read_uv2_mesh(g, binb, node_i):
+    """UV2, позиции и индексы по поверхностям меша узла: [(uv2, pos, idx)]; None, если UV2 есть не везде"""
+    out = []
+    for pr in g["meshes"][g["nodes"][node_i]["mesh"]]["primitives"]:
+        at = pr["attributes"]
+        if "TEXCOORD_1" not in at:
+            return None
+        acc = g["accessors"][at["TEXCOORD_1"]]
+        uv = read_accessor(g, binb, at["TEXCOORD_1"])
+        if acc.get("normalized"):
+            div = {5121: 255.0, 5123: 65535.0}.get(acc["componentType"], 1.0)
+            uv = [(u / div, v / div) for u, v in uv]
+        pos = read_accessor(g, binb, at["POSITION"])
+        idx = [i[0] for i in read_accessor(g, binb, pr["indices"])] if "indices" in pr else list(range(len(pos)))
+        out.append((uv, pos, idx))
+    return out
+
+
+def uv2_occupancy(surfs, grid=UV2_GRID):
+    """Занятые ячейки UV2 (bytearray grid*grid) и сумма площадей UV2; тот же растр, что PaintBake.occupancy"""
+    occ = bytearray(grid * grid)
+    area = 0.0
+    for uv, _pos, idx in surfs:
+        for t in range(0, len(idx) - 2, 3):
+            a, b, c = uv[idx[t]], uv[idx[t + 1]], uv[idx[t + 2]]
+            d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            area += abs(d) / 2.0
+            if abs(d) < 1e-14:
+                continue
+            x0 = min(max(int(math.floor(min(a[0], b[0], c[0]) * grid)), 0), grid - 1)
+            x1 = min(max(int(math.ceil(max(a[0], b[0], c[0]) * grid)), 0), grid - 1)
+            y0 = min(max(int(math.floor(min(a[1], b[1], c[1]) * grid)), 0), grid - 1)
+            y1 = min(max(int(math.ceil(max(a[1], b[1], c[1]) * grid)), 0), grid - 1)
+            for y in range(y0, y1 + 1):
+                py = (y + 0.5) / grid
+                for x in range(x0, x1 + 1):
+                    px = (x + 0.5) / grid
+                    w0 = ((b[1] - c[1]) * (px - c[0]) + (c[0] - b[0]) * (py - c[1])) / d
+                    w1 = ((c[1] - a[1]) * (px - c[0]) + (a[0] - c[0]) * (py - c[1])) / d
+                    if w0 < 0.0 or w1 < 0.0 or w0 + w1 > 1.0:
+                        continue
+                    occ[y * grid + x] = 1
+    return occ, area
+
+
+def world_area(surfs, scale):
+    """Площадь поверхностей меша в мире (масштаб узла учитывается средним по осям)"""
+    total = 0.0
+    for _uv, pos, idx in surfs:
+        for t in range(0, len(idx) - 2, 3):
+            p0, p1, p2 = pos[idx[t]], pos[idx[t + 1]], pos[idx[t + 2]]
+            ux, uy, uz = p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]
+            vx, vy, vz = p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]
+            cx, cy, cz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+            total += math.sqrt(cx * cx + cy * cy + cz * cz) / 2.0
+    return total * scale * scale
+
+
+def check_uv2_atlas(g, binb, nodes, rep, brush):
+    """Общий атлас UV2 для кисти Library: меши кузова делят один лист без перекрытий и с одной плотностью.
+    Группа собирается как в Godot (PaintBake.group): опорный меш самый крупный, остальные входят, пока не перекрывают занятое"""
+    lvl = "WARN" if brush else "INFO"
+    items = []
+    for i, n in enumerate(nodes):
+        if "mesh" not in n:
+            continue
+        surfs = read_uv2_mesh(g, binb, i)
+        if not surfs:
+            continue
+        sc = n.get("scale") or (1, 1, 1)
+        scale = abs(sc[0] * sc[1] * sc[2]) ** (1.0 / 3.0) or 1.0
+        occ, uv_area = uv2_occupancy(surfs)
+        wa = world_area(surfs, scale)
+        lo_u = min(min(u for u, _ in s[0]) for s in surfs)
+        hi_u = max(max(u for u, _ in s[0]) for s in surfs)
+        lo_v = min(min(v for _, v in s[0]) for s in surfs)
+        hi_v = max(max(v for _, v in s[0]) for s in surfs)
+        if lo_u < -0.001 or lo_v < -0.001 or hi_u > 1.001 or hi_v > 1.001:
+            rep.add(lvl, "Меш '%s': UV2 выходит за 0..1 (u %.2f..%.2f, v %.2f..%.2f): краска за границей листа теряется." % (node_name(g, i), lo_u, hi_u, lo_v, hi_v))
+        items.append({
+            "name": node_name(g, i), "occ": occ, "cnt": sum(occ), "verts": sum(len(s[1]) for s in surfs),
+            "density": math.sqrt(uv_area / wa) * 1024.0 if wa > 1e-12 else 0.0, "world": wa,
+        })
+    if not items:
+        return
+    order = sorted(range(len(items)), key=lambda k: (-items[k]["verts"], k))
+    seed = order[0]
+    union = bytearray(UV2_GRID * UV2_GRID)
+    group, skipped = [], []
+    for k in order:
+        it = items[k]
+        over = sum(1 for j in range(len(it["occ"])) if it["occ"][j] and union[j])
+        if k == seed or (it["cnt"] > 0 and over <= max(2, int(it["cnt"] * UV2_OVERLAP))):
+            for j in range(len(it["occ"])):
+                if it["occ"][j]:
+                    union[j] = 1
+            group.append(k)
+        else:
+            skipped.append((k, over))
+    for k, over in skipped:
+        it = items[k]
+        rep.add(lvl, "Меш '%s': UV2 перекрывает атлас других мешей (%d%% его ячеек): кисть Library его не красит, мазок через него не проходит. "
+                     "Blender: кнопка «UV2: общий атлас» (блок 2), затем экспорт заново." % (it["name"], round(100.0 * over / max(it["cnt"], 1))))
+    dens = [items[k]["density"] for k in group if items[k]["density"] > 0.0]
+    if len(dens) > 1 and max(dens) / min(dens) > UV2_DENSITY_RATIO:
+        lo_k = min((k for k in group if items[k]["density"] > 0.0), key=lambda k: items[k]["density"])
+        hi_k = max(group, key=lambda k: items[k]["density"])
+        rep.add(lvl, "Плотность UV2 в общем атласе различается в %.1f раза: '%s' %.0f текс/м, '%s' %.0f текс/м (при листе 1024). "
+                     "Кисть на густой детали будет резче, чем на редкой. Blender: «UV2: общий атлас» выравнивает масштаб островов." %
+                     (max(dens) / min(dens), items[hi_k]["name"], items[hi_k]["density"], items[lo_k]["name"], items[lo_k]["density"]))
+    filled = sum(union)
+    world = sum(items[k]["world"] for k in group)
+    mean = math.sqrt(max(filled, 1) / float(UV2_GRID * UV2_GRID) * 1024.0 * 1024.0 / max(world, 1e-9))
+    rep.add("INFO", "Атлас UV2 для кисти: в общем листе %d из %d мешей, занято %.0f%% листа, около %.1f текселя/м при слое 1024 (тексель около %.1f см). "
+                    "Опорный меш '%s'.%s" % (len(group), len(items), 100.0 * filled / (UV2_GRID * UV2_GRID), mean, 100.0 / mean if mean else 0.0,
+                                              items[seed]["name"], (" Вне группы: %s." % ", ".join(items[k]["name"] for k, _ in skipped)) if skipped else ""))
+
+
 def fmt3(v):
     return "(%.3f, %.3f, %.3f)" % (v[0], v[1], v[2])
 
@@ -218,6 +341,10 @@ def main():
             rep.add("WARN", "Узел '%s': имя по умолчанию из Blender, дайте осмысленное." % nm)
         if nm.lower() in DEBUG_NAMES:
             rep.add("WARN", "Узел '%s': отладочный, в рабочую модель не экспортируем." % nm)
+        if re.search(r"[A-Za-z]", nm) and re.search(r"[\u0400-\u04FF]", nm):
+            rep.add("WARN", "Узел '%s': латиница вместе с кириллицей (похожие буквы, например кириллическая «С» вместо латинской «C»). "
+                            "По имени узла строятся зоны покраски и слои кисти: найти такой узел по имени в Blender трудно. Переименуйте латиницей "
+                            "(покраска зон сохранённых исполнений этого узла сбросится)." % nm)
 
     # ---- Меши вне кузова ----
     for i, n in enumerate(nodes):
@@ -304,6 +431,9 @@ def main():
         lvl = "WARN" if args.brush else "INFO"
         rep.add(lvl, "UV2 (TEXCOORD_1) нет у %d из %d поверхностей. Кисть Library нужна неперекрывающаяся UV2 (Blender: вторая UV-карта "
                      "или import «Static Lightmaps»). Покраска по зонам работает и без неё." % (uv2_missing, prims_total))
+
+    if not uv2_missing and prims_total:
+        check_uv2_atlas(g, binb, nodes, rep, args.brush)
 
     # ---- Материалы ----
     paint_mats = [m for m in mats_used if m.lower().startswith("paint_")]
