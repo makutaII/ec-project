@@ -18,6 +18,7 @@ const MODE_CATEGORIES := {
 	&"build": [&"train", &"track", &"building", &"decor", &"terrain"],
 	&"operate": [&"dc_controller", &"dcc_controller"],
 	&"sections": [&"table"],   # XX claude-table T2: секции подмакетника, не категория Build
+	&"coaster": [&"coaster_track"],   # XX claude-coaster C1: ATTN_27, режим «горки» (вагоны: coaster_car, шаг C3)
 }
 
 const CATEGORIES := {
@@ -28,6 +29,8 @@ const CATEGORIES := {
 	&"terrain": {"name": "Terrain", "icon": preload("res://ui/icons/tool/spade.svg")},
 	# XX claude-table T1: секции подмакетника. Не входит в MODE_CATEGORIES[build]: секции ставит TableTool в режиме «Секции» (MODE_CATEGORIES[sections])
 	&"table": {"name": "Table", "icon": preload("res://ui/icons/resize.svg")},
+	# XX claude-coaster C1: траки горок. Не входит в MODE_CATEGORIES[build]: их ставят в режиме «Coaster»
+	&"coaster_track": {"name": "Coaster Tracks", "icon": preload("res://ui/icons/transport/path-distance.svg")},
 	&"dc_controller": {"name": "DC Controllers", "icon": preload("res://ui/icons/settings-knobs.svg")},
 	&"dcc_controller": {"name": "DCC Controllers", "icon": preload("res://ui/icons/transport/steam-locomotive.svg")},
 }
@@ -40,6 +43,7 @@ const TAGS := {
 	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"water", &"plaster", &"brush"],
 	&"table": [&"section"],
+	&"coaster_track": [&"straight"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)
 	&"dc_controller": [&"2d", &"3d", &"switch", &"wire"],
 }
 
@@ -52,6 +56,9 @@ const TAG_META := {
 	},
 	&"building": {
 		&"mybuildings": {"name": "Мои здания", "tooltip": "Здания игрока из генератора. Свои здания: Library, вкладка «Здания», «Сохранить»"},
+	},
+	&"coaster_track": {
+		&"straight": {"name": "Прямые"},
 	},
 	&"track": {
 		&"straight": {"name": "Прямые"},

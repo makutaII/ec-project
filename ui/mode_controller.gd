@@ -51,6 +51,7 @@ func _ready() -> void:
 		&"operate": toolbar,
 		&"observe": toolbar,
 		&"sections": toolbar,   # XX claude-table T2: каталог секций (категория table)
+		&"coaster": toolbar,   # XX claude-coaster C1: каталог траков горок (ATTN_27)
 	}
 	_plain_panels = {&"library": get_node_or_null("%LibraryPanel")}
 

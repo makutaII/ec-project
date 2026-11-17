@@ -19,6 +19,7 @@ const DIRS := [
 	"res://data/table/objects/",
 	"res://ui/dc_controllers/objects/",
 	"res://data/power/objects/",
+	"res://data/coaster/objects/",   # XX claude-coaster C0
 ]
 
 

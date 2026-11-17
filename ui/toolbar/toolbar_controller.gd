@@ -55,6 +55,8 @@ func _ready() -> void:
 	register_mode(&"build", EntityCatalogProvider.new(&"build"), _emit_build_selected)
 	# XX claude-table T2: режим «Секции»: категория table (пресеты секций), приёмник тот же: ToolController включит TableTool
 	register_mode(&"sections", EntityCatalogProvider.new(&"sections"), _emit_build_selected)
+	# XX claude-coaster C1: режим «Coaster» (ATTN_27): каталог траков горок, приёмник тот же: ToolController включит BuildTool
+	register_mode(&"coaster", EntityCatalogProvider.new(&"coaster"), _emit_build_selected)
 
 	_dup_btn = Button.new()
 	_dup_btn.text = "V"   # U15: на кнопке иконка того объекта, который будет повторён, и клавиша
@@ -163,6 +165,7 @@ static func _mode_title(mode: StringName) -> String:
 		&"operate": return "Operate"
 		&"observe": return "Observe"
 		&"sections": return "Секции"
+		&"coaster": return "Coaster"   # XX claude-coaster C1
 	return String(mode)
 
 

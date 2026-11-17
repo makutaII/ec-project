@@ -28,5 +28,9 @@ func _on_sections_button_pressed() -> void:
 	mode_selected.emit(&'sections') ##⚡Сигнал в ModeController (XX claude-table T1b)
 
 
+func _on_coaster_button_pressed() -> void:
+	mode_selected.emit(&'coaster') ##⚡Сигнал в ModeController (XX claude-coaster C1)
+
+
 func _on_library_button_pressed() -> void:
 	mode_selected.emit(&'library') ##⚡Сигнал в ModeController
