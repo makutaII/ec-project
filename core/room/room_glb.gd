@@ -36,9 +36,9 @@ var lights: Array[Light3D] = []
 
 ## Метаданные Blender узла (пустой словарь, если их нет)
 static func extras(n: Node) -> Dictionary:
-	if n == null:
+	if n == null or not n.has_meta("extras"):
 		return {}
-	var v: Variant = n.get_meta("extras", null)
+	var v: Variant = n.get_meta("extras")
 	if v is Dictionary:
 		return v
 	return {}

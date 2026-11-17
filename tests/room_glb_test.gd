@@ -71,7 +71,7 @@ func _ready() -> void:
 	if bed != null and bed.get_child_count() > 0:
 		var bs := (bed.get_child(0) as CollisionShape3D).shape as BoxShape3D
 		check("collider_bed: размер 200 x 50 x 120 см", near(bs.size, Vector3(200, 50, 120)), str(bs.size))
-		check("collider_bed: центр коробки (-130, -25, -120)", near(bed.position + (bed.get_child(0) as CollisionShape3D).position, Vector3(-130, -25, -120)),
+		check("collider_bed: центр коробки (-130, -25, 120)", near(bed.position + (bed.get_child(0) as CollisionShape3D).position, Vector3(-130, -25, 120)),
 				str(bed.position + (bed.get_child(0) as CollisionShape3D).position))
 
 	print("== 4. Числа карточки из сцены")
