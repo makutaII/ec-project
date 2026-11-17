@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="RoomConfig" format=3 uid="uid://jfo3w4yjc7eq"]
+[gd_resource type="Resource" script_class="RoomConfig" format=3 uid="uid://dwpulga7mmtkr"]
 
-[ext_resource type="Script" path="res://setting/room_config.gd" id="1_cfg"]
-[ext_resource type="PackedScene" uid="uid://a22ovx5a15r5" path="res://data/models/room_test_01/room_test_01.tscn" id="2_scene"]
+[ext_resource type="Script" uid="uid://cbb2byx0tf34w" path="res://setting/room_config.gd" id="1_cfg"]
+[ext_resource type="PackedScene" uid="uid://22ovx5a15r5" path="res://data/models/room_test_01/room_test_01.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_cfg")
@@ -10,19 +10,3 @@ title = "Тест: комната из .glb"
 tip = "Эталон пайплайна Blender → Godot (RM7/RM8): роли, свет, штора, лампочка. Заменяет комнату целиком"
 dev_only = true
 scene = ExtResource("2_scene")
-size = Vector3(480, 250, 380)
-floor_y = -50.0
-window = {
-"h": 140.0,
-"sill": 80.0,
-"w": 170.0,
-"x": 0.0
-}
-door = {
-"h": 200.0,
-"sill": 0.0,
-"w": 80.0,
-"x": 100.0
-}
-daylight = true
-bounds = AABB(-230, 3, -180, 460, 190, 360)

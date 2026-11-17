@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://c6xoghjbvmf3f"]
+
+[ext_resource type="Script" uid="uid://c2q3oh5oln37o" path="res://core/room/room_root.gd" id="1_u371i"]
+[ext_resource type="PackedScene" uid="uid://ur6opmryuuhe" path="res://data/models/room_test_glb/room_test_glb.glb" id="2_04ql1"]
+
+[node name="RoomTestGLB" type="Node3D" unique_id=842334248]
+script = ExtResource("1_u371i")
+
+[node name="room_test_glb" parent="." unique_id=1664003137 instance=ExtResource("2_04ql1")]

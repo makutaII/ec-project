@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RoomConfig" format=3 uid="uid://boomeo5ne7r3y"]
+
+[ext_resource type="Script" uid="uid://cbb2byx0tf34w" path="res://setting/room_config.gd" id="1_cfg"]
+[ext_resource type="PackedScene" uid="uid://ur6opmryuuhe" path="res://data/models/room_test_glb/room_test_glb.glb" id="1_habto"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = &"room_test_01"
+title = "Тест: комната из .glb"
+tip = "Эталон пайплайна Blender → Godot (RM7/RM8): роли, свет, штора, лампочка. Заменяет комнату целиком"
+dev_only = true
+scene = ExtResource("1_habto")
