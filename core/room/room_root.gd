@@ -20,18 +20,32 @@ class_name RoomRoot extends Node3D
 ## Меш с именем Bulb* светится, пока включена лампа (StandardMaterial3D, emission).
 ## Лампы на сцене работают так же, как раньше RoomConfig.lamps: энергия и тень настраиваются на самой ноде.
 ## Добавлять в карточку <id>.tres lamps не нужно (массив пустой).
+##
+## Комната из .glb (RM8): сцена-обёртка data/models/room_<имя>/room_<имя>.tscn = этот корень + экземпляр .glb. Группы там задаются
+## не именами, а ролями Blender (role = floor, shell, ceiling, decor_t1..3, fake_ao на пустышке или меше; всё под узлом роли в группе),
+## прокси и якоря света превращает в объекты Godot RoomGlb (import_glb). Имена детей корня (Floor, Shell...) при этом тоже работают.
 
 const SHELL := "Shell"
 const CEILING := "Ceiling"
 const LIGHTS := "Lights"
 const WALL_GROUP := &"room_wall"   # доп. способ пометить меш как стену (тень в Observe), если он не в Shell
 
+## Роль группы (&"floor", &"shell", &"ceiling", &"decor_t1", &"decor_t2", &"decor_t3", &"fake_ao") -> узлы. Имена детей корня и роли .glb
+const NAME_ROLES := {"Floor": &"floor", "Shell": &"shell", "Ceiling": &"ceiling", "Decor": &"decor_t1", "DecorT2": &"decor_t2",
+		"DecorT3": &"decor_t3", "FakeAO": &"fake_ao"}
+
+## Результат разбора .glb (после import_glb). present = false: в сцене ролей Blender нет
+var glb: RoomGlb
+
 var _shell_layer := 0
 var _vis_layer := 0
+var _imported := false
+var _groups := {}   # StringName -> Array[Node]
 
 
 ## Слои и группы. Вызывает RoomBuilder сразу после instantiate (до добавления в дерево)
 func setup(vis_layer: int, shell_layer: int) -> void:
+	import_glb()
 	_vis_layer = vis_layer
 	_shell_layer = shell_layer
 	for n in _all_nodes(self):
@@ -43,6 +57,37 @@ func setup(vis_layer: int, shell_layer: int) -> void:
 				mi.layers = vis_layer
 		if String(n.name).begins_with("SkyCard") and not n.is_in_group(&"gfx_sky"):
 			n.add_to_group(&"gfx_sky")
+
+
+## Разобрать роли .glb (RoomGlb.run) и собрать группы. Один раз (повторный вызов ничего не делает), узел может быть вне дерева.
+## Зовут setup, RoomControlRegistry.collect и Room Studio: вызывать вручную не нужно
+func import_glb() -> void:
+	if _imported:
+		return
+	_imported = true
+	glb = RoomGlb.new()
+	glb.run(self)
+	_groups.clear()
+	for nm in NAME_ROLES:
+		var n := get_node_or_null(nm)
+		if n != null:
+			_add_group(NAME_ROLES[nm], n)
+	for r in glb.groups:
+		for n in glb.groups[r]:
+			_add_group(r, n)
+
+
+func _add_group(role: StringName, n: Node) -> void:
+	if not _groups.has(role):
+		_groups[role] = []
+	if not (_groups[role] as Array).has(n):
+		(_groups[role] as Array).append(n)
+
+
+## Узлы группы по роли (пустой массив, если группы нет)
+func group_nodes(role: StringName) -> Array:
+	import_glb()
+	return _groups.get(role, [])
 
 
 ## Лампы комнаты отдельной нодой (RoomBuilder ставит её рядом с комнатой). null, если ламп нет
@@ -63,24 +108,32 @@ func get_wall_meshes() -> Array[MeshInstance3D]:
 
 
 func get_ceiling() -> Node3D:
-	return get_node_or_null(CEILING) as Node3D
+	var l := group_nodes(&"ceiling")
+	return l[0] as Node3D if not l.is_empty() else null
 
 
+## Меш потолка: сам узел роли ceiling, если это меш; иначе ребёнок CeilingSlab, иначе первый меш внутри
 func get_ceiling_mesh() -> MeshInstance3D:
 	var c := get_ceiling()
 	if c == null:
 		return null
-	return c.get_node_or_null("CeilingSlab") as MeshInstance3D
+	if c is MeshInstance3D:
+		return c as MeshInstance3D
+	var slab := c.get_node_or_null("CeilingSlab") as MeshInstance3D
+	if slab != null:
+		return slab
+	for n in _all_nodes(c):
+		if n is MeshInstance3D:
+			return n as MeshInstance3D
+	return null
 
 
 ## Мелочи по QualityPreset.room_detail_lod (0: только T1, 1: T1 + T2, 2: все)
 func set_detail(lod: int) -> void:
-	var t2 := get_node_or_null("DecorT2") as Node3D
-	if t2:
-		t2.visible = lod >= 1
-	var t3 := get_node_or_null("DecorT3") as Node3D
-	if t3:
-		t3.visible = lod >= 2
+	for n in group_nodes(&"decor_t2"):
+		(n as Node3D).visible = lod >= 1
+	for n in group_nodes(&"decor_t3"):
+		(n as Node3D).visible = lod >= 2
 
 
 ## Лампочки (меши Bulb*) светятся, когда лампа включена (GFX.lamp_changed)
@@ -93,19 +146,23 @@ func set_lamp_glow(on: bool) -> void:
 
 
 func _in_shell(n: Node) -> bool:
-	return _under(n, SHELL) or _in_ceiling(n)
+	return _in_group(n, &"shell") or _in_ceiling(n)
 
 
 func _in_ceiling(n: Node) -> bool:
-	return _under(n, CEILING)
+	return _in_group(n, &"ceiling")
 
 
-## n лежит внутри прямого ребёнка корня с этим именем
-func _under(n: Node, top: String) -> bool:
+## n сам узел группы или лежит внутри её узла
+func _in_group(n: Node, role: StringName) -> bool:
+	import_glb()
+	var nodes: Array = _groups.get(role, [])
+	if nodes.is_empty():
+		return false
 	var p := n
 	while p != null and p != self:
-		if p.get_parent() == self:
-			return String(p.name) == top
+		if nodes.has(p):
+			return true
 		p = p.get_parent()
 	return false
 

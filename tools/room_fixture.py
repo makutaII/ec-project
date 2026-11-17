@@ -83,6 +83,7 @@ def reference_scene():
     # ложный AO
     n.append(box_node("ao_bed", "FakeAO", (-2.3, -0.499, 0.6), (-0.3, -0.498, 1.8), "paint_fake_ao"))
     # прокси-коробки
+    n.append(box_node("collider_floor", "Room", (-2.4, -0.6, -1.9), (2.4, -0.5, 1.9), None, {"role": "collider", "shape": "box"}))
     n.append(box_node("collider_bed", "Room", (-2.3, -0.5, 0.6), (-0.3, 0.0, 1.8), None, {"role": "collider", "shape": "box"}))
     n.append(box_node("collider_wardrobe", "Room", (1.6, -0.5, -1.8), (2.3, 1.5, -0.9), None, {"role": "collider", "shape": "box"}))
     n.append(box_node("window_n", "Room", (-0.85, 0.30, -2.0), (0.85, 1.70, -1.9), None, {"role": "window"}))
@@ -204,6 +205,18 @@ def _ctl_bad_kind(sc):
     _find(sc, "lamp_ceiling_b")["extras"]["ctl"] = "dimmer"
 
 
+def _no_floor_collider(sc):
+    sc["nodes"] = [x for x in sc["nodes"] if x["name"] != "collider_floor"]
+
+
+def _floor_mesh_group(sc):
+    "role floor на самом меше пола (как у реального экспорта): это группа из одного меша, замечаний нет"
+    fl = _find(sc, "floor_slab")
+    fl["extras"] = {"role": "floor"}
+    fl["parent"] = "Room"
+    sc["nodes"] = [x for x in sc["nodes"] if x["name"] != "Floor"]
+
+
 def _no_floor(sc):
     sc["nodes"] = [x for x in sc["nodes"] if x["name"] not in ("Floor", "floor_slab")]
 
@@ -289,6 +302,8 @@ BROKEN = {
     "ctl_dup": (_ctl_dup, "ERROR", "не уникален"),
     "slider_mesh": (_slider_mesh, "ERROR", "slider работает только"),
     "ctl_bad_kind": (_ctl_bad_kind, "ERROR", "допустимо toggle, slider, mech"),
+    "no_floor_collider": (_no_floor_collider, "WARN", "коллайдера пола"),
+    "floor_mesh_group": (_floor_mesh_group, "OK", ""),
     "no_floor": (_no_floor, "ERROR", "Нет объекта с role = floor"),
     "material_dup": (_material_dup, "ERROR", "Материал 'paint_wall.001'"),
     "materials_41": (_materials_41, "ERROR", "Материалов 51"),

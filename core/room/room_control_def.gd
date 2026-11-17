@@ -16,6 +16,8 @@ var default_value := 1.0
 var group: StringName = &""
 var nodes: Array[Node] = []
 var mechanisms: Array[RoomMechanism] = []
+## Лампочки лампы (из .glb: bulb_of): светятся, пока управление включено
+var bulbs: Array[Node] = []
 var value := 1.0
 
 var _base_energy := {}   # Light3D -> энергия в сцене (1.0 у SLIDER = она)
@@ -25,12 +27,13 @@ func display_title() -> String:
 	return title if title != "" else String(id)
 
 
-## Добавить узел под это управление. Для MECH передайте cfg (метка RoomControl.mechanism)
-func add_node(node: Node, cfg: MechanismConfig = null, owner_name := "") -> bool:
+## Добавить узел под это управление. Для MECH передайте cfg (метка RoomControl.mechanism или MechanismConfig из .glb).
+## search_root: где искать плеер анимации mech_<id> (у .glb в корне модели), по умолчанию внутри самого узла
+func add_node(node: Node, cfg: MechanismConfig = null, owner_name := "", search_root: Node = null) -> bool:
 	if node == null:
 		return false
 	if kind == RoomControl.Kind.MECH:
-		var rm := RoomMechanism.make(node, cfg, owner_name)
+		var rm := RoomMechanism.make(node, cfg, owner_name, search_root)
 		if rm == null:
 			return false
 		mechanisms.append(rm)
@@ -65,6 +68,8 @@ func set_value(v: float, instant := true) -> void:
 			(n as Node3D).visible = value > 0.0
 	for rm in mechanisms:
 		rm.set_state(value, instant)
+	for b in bulbs:
+		RoomGlb.set_glow(b, value > 0.001)
 
 
 ## Включено ли управление для карточки-переключателя (Observe). MECH: по цели (открывается и закрывается целиком)

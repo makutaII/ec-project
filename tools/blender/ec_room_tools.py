@@ -129,6 +129,10 @@ def check_room(snap):
             out.extend(desc(c))
         return out
 
+    def members(nid):
+        "узел и всё внутри него: группа может быть пустышкой с мешами или самим мешем (role на меше)"
+        return [nid] + desc(nid)
+
     def ancestors(nid):
         out = []
         p = by_id[nid]["parent"]
@@ -208,11 +212,11 @@ def check_room(snap):
     # ---- тип объекта по роли ----
     for r in GROUP_ROLES:
         for n in roles.get(r, []):
-            if n["kind"] != "EMPTY":
-                add("WARN", "Группа '%s' (role=%s) должна быть пустышкой, меши лежат внутри." % (n["name"], r), n["id"])
+            if n["kind"] not in ("EMPTY", "MESH"):
+                add("WARN", "Группа '%s' (role=%s) должна быть пустышкой (меши внутри) или одним мешем." % (n["name"], r), n["id"])
             if n["parent"] != rid:
                 add("WARN", "Группа '%s' (role=%s) должна быть прямым ребёнком корня комнаты." % (n["name"], r), n["id"])
-            if not [c for c in desc(n["id"]) if by_id[c]["kind"] == "MESH"]:
+            if not [c for c in members(n["id"]) if by_id[c]["kind"] == "MESH"]:
                 add("WARN", "Группа '%s' (role=%s) пуста: в ней нет мешей." % (n["name"], r), n["id"])
     for r in PROXY_ROLES:
         for n in roles.get(r, []):
@@ -246,7 +250,7 @@ def check_room(snap):
     group_of = {}   # id меша -> роль группы
     for r in GROUP_ROLES:
         for g in roles.get(r, []):
-            for c in desc(g["id"]):
+            for c in members(g["id"]):
                 group_of.setdefault(c, r)
     meshes = [n for n in export if n["kind"] == "MESH" and n["id"] not in proxy_ids]
     for n in meshes:
@@ -307,12 +311,17 @@ def check_room(snap):
     floor_top = FLOOR_TOP
     floors = roles.get("floor", [])
     if floors:
-        zs = [by_id[c]["bbox"][1][2] for c in desc(floors[0]["id"]) if by_id[c]["kind"] == "MESH" and by_id[c].get("bbox")]
+        zs = [by_id[c]["bbox"][1][2] for c in members(floors[0]["id"]) if by_id[c]["kind"] == "MESH" and by_id[c].get("bbox")]
         if zs:
             floor_top = max(zs)
             if abs(floor_top - FLOOR_TOP) > FLOOR_TOL:
                 add("WARN", "Верх пола на %.1f см от нуля, ожидается %.0f ±%.0f (стол 50 см, ноль на столешнице). Если стол другой высоты, так и задумано." %
                     (floor_top * 100.0, FLOOR_TOP * 100.0, FLOOR_TOL * 100.0), floors[0]["id"])
+    if floors:
+        tops = [c["bbox"][1][2] for c in roles.get("collider", []) if c.get("bbox")]
+        if not any(abs(t - floor_top) <= FLOOR_TOL for t in tops):
+            add("WARN", "Нет коллайдера пола: ни у одной коробки collider верх не лежит на уровне пола (%.0f см). Без него упавшее со стола пройдёт сквозь пол." % (floor_top * 100.0),
+                floors[0]["id"])
     vol = (roles.get("room_volume") or [None])[0]
     cam = (roles.get("camera_bounds") or [None])[0]
     if vol is not None and vol.get("bbox"):

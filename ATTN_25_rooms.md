@@ -59,7 +59,7 @@
 | C5 | `setting/room_config.gd` | в одном ресурсе поля процедурной комнаты (`shape`, `window`, `door`, `lamps`, `roof_top_x`, `furnished`, `variants`, `wall_thickness`) и поля сцены; нет `dev_only`; в комментариях «кнопка Room» | RM3, RM9 |
 | C6 | `core/library/room_studio/room_studio.gd` | нет своей сцены: по F6 не запустить; нет активации комнаты; нет панели объектов; паспорт только для чтения | RM4, RM5 |
 | C7 | `core/library/library_screen.gd` | нет сигнала «оставить комнату активной» (есть только `place_requested` для моделей) | RM4 |
-| C8 | `core/room/room_root.gd` | контракт только по именам детей (`Floor`, `Shell`, …); ролей и `extras` из `.glb` нет; управляемых объектов нет | RM8 |
+| C8 | `core/room/room_root.gd` | контракт только по именам детей (`Floor`, `Shell`, …); ролей и `extras` из `.glb` нет; управляемых объектов нет. Сделано в RM8: `RoomGlb` + `import_glb` | RM8 [x] |
 | C9 | `saves/saved_game.gd`, `core/controllers/save_manager.gd` | `room_variants` хранятся и применяются; состояния света комнаты в сейве нет | RM6, RM9 |
 | C10 | `core/graphics/look_lab.gd` | прогон вариантов использует слоты `RoomBuilder.set_variant` | RM9 |
 | C11 | `tests/` | тестов на каталог комнат, контракт `RoomRoot`, права смены нет; `catalog_lint.gd` комнат не знает | RM2, RM3, RM8 |
@@ -226,12 +226,12 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 | Роль | Что | Объект | Сколько | Что делает Godot |
 |---|---|---|---|---|
 | `room` | корень комнаты | Empty | 1 | корень `RoomRoot`-модели, нулевая точка |
-| `floor` | пол | Empty-группа | 1 | как нода `Floor` (слой комнаты) |
-| `shell` | стены, рама окна, шторы, подоконник | Empty-группа | 1 | как `Shell`: слой оболочки, тень в Observe |
-| `ceiling` | потолок | Empty-группа с мешем `ceiling_slab` | 0–1 | как `Ceiling`: скрыт, тень остаётся |
+| `floor` | пол | Empty-группа или один меш | 1 | как нода `Floor` (слой комнаты) |
+| `shell` | стены, рама окна, шторы, подоконник | Empty-группа или один меш | 1 | как `Shell`: слой оболочки, тень в Observe |
+| `ceiling` | потолок | Empty-группа с мешем `ceiling_slab` или один меш | 0–1 | как `Ceiling`: скрыт, тень остаётся |
 | `decor_t1`, `decor_t2`, `decor_t3` | ярусы декора | Empty-группа | 0–1 каждая | `DecorT1/2/3`, видимость по `room_detail_lod` |
 | `fake_ao` | квады ложного AO | Empty-группа | 0–1 | как `FakeAO` |
-| `collider` | коллизия мебели | прокси-коробка | любое | `StaticBody3D` со слоем `room`, узел-коробка удаляется |
+| `collider` | коллизия мебели и пола | прокси-коробка | любое | `StaticBody3D` со слоем `room`, узел-коробка удаляется. Пол тоже коробка `collider` (верх на уровне пола), иначе упавшее со стола пройдёт сквозь пол |
 | `window`, `door` | проём | прокси-коробка | 0–N | числа `window`/`door` карточки (`x`, `w`, `h`, `sill`) |
 | `camera_bounds` | границы камеры | прокси-коробка | 1 | `RoomConfig.bounds` |
 | `room_volume` | внутренний объём комнаты | прокси-коробка | 1 | `RoomConfig.size`, проверка габаритов |
@@ -271,7 +271,7 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 | `light_kind` | `light` | `spot` или `omni` |
 | `light_energy` | `light` | энергия Godot (в сантиметровом мире 100–250 для лампы на 120 u, §14.13.2) |
 | `light_range` | `light` | дальность, см |
-| `light_angle` | `light` (spot) | угол конуса, градусы |
+| `light_angle` | `light` (spot) | `spot_angle` Godot: полуугол конуса, градусы (1–89) |
 | `light_color` | `light` | `#rrggbb` |
 | `light_shadow` | `light` | 0 или 1 |
 | `bulb_of` | `bulb` | `ctl_id` лампы, с которой светится колба |
@@ -303,9 +303,9 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 | хвост `.001`, пробел, `Cube`/`Plane`/`Empty` | | любое |
 | `ctl` без `ctl_id`; `bulb` без `bulb_of` | | любое |
 | `mech_<id>` без объекта с таким `ctl_id`; анимация не по одному каналу | | любое |
-| верх группы `floor` не на −0.50 ±0.05 м от нуля (стол может быть другой высоты) | любое | |
+| верх группы `floor` не на −0.50 ±0.05 м от нуля (стол может быть другой высоты); ни у одной коробки `collider` верх не на уровне пола (нет коллайдера пола) | любое | |
 | нет обязательной роли (`floor`, `shell`, `camera_bounds`, `room_volume`) или одиночная роль у нескольких объектов | | любое |
-| роль не из списка §25.7.2; объект вне групп; группа пуста или не пустышка; материал не по роли; `camera_bounds` вне `room_volume`; проём в боковой стене или не в той стене (окно в северной, дверь в южной) | любое | |
+| роль не из списка §25.7.2; объект вне групп; группа пуста или не пустышка и не меш; материал не по роли; `camera_bounds` вне `room_volume`; проём в боковой стене или не в той стене (окно в северной, дверь в южной) | любое | |
 | отладочные узлы (камеры, Punctual Lights, `sphere`, `FrontMarker`) | | любое |
 
 ### 25.7.6. Скрипты
@@ -320,12 +320,13 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 
 1. `.glb` кладётся в `data/models/room_<имя>/`, импорт со стандартными настройками (масштаб 1: файл уже в сантиметрах).
 2. Обёртка `<id>.tscn`: корень `RoomRoot`, под ним инстанс `.glb` (меши не копируются, `Editable Children` не включать), рядом необязательный узел `Extras` для добавок Godot (свет с `RoomControl`, любые ноды).
-3. `RoomRoot.setup` (RM8) обходит дерево один раз:
-   - группы находит **по роли** (`extras.role`) или по имени ребёнка корня (`Floor`, `Shell`, `Ceiling`, `Decor`, `DecorT2`, `DecorT3`, `FakeAO`, `Lights`): комнаты, собранные руками (`attic`, `bench`), продолжают работать;
-   - превращает `collider` в `StaticBody3D` слоя `room`, читает габариты `window`, `door`, `camera_bounds`, `room_volume`, затем скрывает/удаляет прокси;
-   - строит из якорей `light` источники и кладёт их в `Lights` (их выносит `RoomBuilder.take_lights`, кнопка скрытия комнаты свет не гасит);
-   - помечает `sky_card` и `bulb`, регистрирует `mech_part`;
-   - собирает описания управления (`ctl_*`) в `RoomControlRegistry` вместе с узлами `RoomControl` из сцены.
+3. `RoomRoot.import_glb()` (RM8; его зовут `setup`, `RoomControlRegistry.collect` и Room Studio, повторный вызов ничего не делает) прогоняет сцену через `RoomGlb.run` один раз. Свойства Blender лежат в метаданных узла `extras` (`RoomGlb.extras(node)`):
+   - группы находит **по роли** (`extras.role` на пустышке или на самом меше) или по имени ребёнка корня (`Floor`, `Shell`, `Ceiling`, `Decor`, `DecorT2`, `DecorT3`, `FakeAO`): комнаты, собранные руками (`attic`, `bench`), продолжают работать; всё внутри узла роли относится к группе;
+   - превращает `collider` в `StaticBody3D` слоя `room` (маска 0, `BoxShape3D` по габариту коробки), читает габариты `window`, `door`, `camera_bounds`, `room_volume` в числа карточки (`RoomGlb.card`: `floor_y` по верху группы `floor`, `size`, `bounds`, `window`, `door`, `daylight`) и удаляет прокси;
+   - строит из якорей `light` `SpotLight3D`/`OmniLight3D` (энергия, дальность, угол, цвет, тень из свойств, bias и мягкость как у ламп `RoomBuilder`) и кладёт их в узел `Lights` корня (его выносит `RoomBuilder.take_lights`, кнопка скрытия комнаты свет не гасит);
+   - `sky_card` попадает в группу `gfx_sky`; `bulb` получает свои копии материалов, свечение следует за управлением `bulb_of`; `table_origin` и `window_sun` читаются в `RoomGlb.table_origin` и `RoomGlb.sun_dir` (солнцем по-прежнему управляет GFX, направление окна пока только данные);
+   - управление собирает `RoomControlRegistry` из `extras` (`ctl`, `ctl_id`, `ctl_title`, `ctl_scope`, `ctl_default`, `ctl_group`) вместе с узлами `RoomControl`; плеер анимации `mech_<id>` ищется по всей комнате (он лежит в корне `.glb`, а не внутри штор);
+   - нарушения (нет `floor`, окно не в той стене, `light_kind` не spot и не omni) не роняют сборку, а попадают в `RoomGlb.warnings` и в замечания реестра (вкладка «Проверка» Room Studio).
 4. Слои, тень оболочки, потолок, лампочки, детали по `QualityPreset.room_detail_lod` подключает `RoomBuilder` через `RoomRoot`, как сейчас.
 
 ## 25.9. План этапов
@@ -423,20 +424,23 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 
 - [x] Правила §25.7.5 в одном месте (`check_room`), роли и свойства §25.7.2 и §25.7.4; `glb_preflight.py --kind room` использует тот же код.
 - [x] Панель EC Room (блоки §25.7.6), командный режим `-- check` и `-- export`.
-- [x] Тестовая комната `room_test_01` (480 × 250 × 380 см): группы, 2 `collider`, `window`, `door`, `camera_bounds`, `room_volume`, `table_origin`, `window_sun`, 2 якоря `light`, `bulb`, штора `mech_curtain`. Файл собран генератором без Blender (§25.7.6).
+- [x] Тестовая комната `room_test_01` (480 × 250 × 380 см): группы, 3 `collider` (пол и мебель), `window`, `door`, `camera_bounds`, `room_volume`, `table_origin`, `window_sun`, 2 якоря `light`, `bulb`, штора `mech_curtain`. Файл собран генератором без Blender (§25.7.6).
 - Не проверено на Blender: сам скрипт панели (снятие сцены, кнопки, экспорт) написан без Blender. Правила проверены тестом на `.glb`, снятие сцены Blender проверено на подставных объектах.
 
-**Проверка:** (1) `python tools/test_room_pipeline.py`: в конце `ИТОГ: OK`. (2) `python tools/glb_preflight.py data/models/room_test_01/room_test_01.glb --kind room`: `Итог: ERROR 0, WARN 0`, в INFO строка «Для карточки RoomConfig» с числами `size = Vector3(480.0, 250.0, 380.0)`, `floor_y = -50.0`, окно, дверь, bounds, три управления (штора, лампа, подсветка), заготовка `mech_curtain`. (3) Испортить: `python tools/room_fixture.py bad.glb --broken two_rooms` и `python tools/glb_preflight.py bad.glb --kind room` показывают ERROR по этой поломке и код возврата 1 (`--broken list`: все 35 имён, среди них `dup_suffix`, `no_ctl_id`). (4) Blender 4.2+: Units: Metric, Unit Scale 0.01, Length: Centimeters. Scripting → Open `ec_room_tools.py` → Run Script, в боковой панели (N) вкладка **EC Room**. С Unit Scale 1.0 проверка даёт ERROR про единицы. Создать пустышку `Room`, «Назначить из шаблона» `room`, «Проверить комнату»: ERROR про отсутствующие группы и прокси, отчёт скопирован в буфер. «Создать якорь света» ставит стрелку вниз со свойствами. (5) Собрать по шпаргалке минимальную комнату, «Экспорт .glb»: файл лёг в `data/models/<id>/`, ниже отчёт `glb_preflight`. (6) `blender -b room.blend -P tools/blender/ec_room_tools.py -- check` печатает отчёт, код возврата 1 на испорченной сцене и 0 на исправной.
+**Проверка:** (1) `python tools/test_room_pipeline.py`: в конце `ИТОГ: OK`. (2) `python tools/glb_preflight.py data/models/room_test_01/room_test_01.glb --kind room`: `Итог: ERROR 0, WARN 0`, в INFO строка «Для карточки RoomConfig» с числами `size = Vector3(480.0, 250.0, 380.0)`, `floor_y = -50.0`, окно, дверь, bounds, три управления (штора, лампа, подсветка), заготовка `mech_curtain`. (3) Испортить: `python tools/room_fixture.py bad.glb --broken two_rooms` и `python tools/glb_preflight.py bad.glb --kind room` показывают ERROR по этой поломке и код возврата 1 (`--broken list`: все 37 имён, среди них `dup_suffix`, `no_ctl_id`). (4) Blender 4.2+: Units: Metric, Unit Scale 0.01, Length: Centimeters. Scripting → Open `ec_room_tools.py` → Run Script, в боковой панели (N) вкладка **EC Room**. С Unit Scale 1.0 проверка даёт ERROR про единицы. Создать пустышку `Room`, «Назначить из шаблона» `room`, «Проверить комнату»: ERROR про отсутствующие группы и прокси, отчёт скопирован в буфер. «Создать якорь света» ставит стрелку вниз со свойствами. (5) Собрать по шпаргалке минимальную комнату, «Экспорт .glb»: файл лёг в `data/models/<id>/`, ниже отчёт `glb_preflight`. (6) `blender -b room.blend -P tools/blender/ec_room_tools.py -- check` печатает отчёт, код возврата 1 на испорченной сцене и 0 на исправной.
 
-### RM8. Импорт `.glb` в `RoomRoot` [ ]
+### RM8. Импорт `.glb` в `RoomRoot` [x]
 
-**Файлы:** `core/room/room_root.gd`, `core/room/room_control_registry.gd`, `core/room/room_builder.gd` (мелко), `setting/room_config.gd`, `tests/room_glb_test.tscn`, `data/models/room_test_01/` (обёртка) и карточка `data/rooms/cards/room_test_01.tres`.
+**Файлы:** `core/room/room_glb.gd` (новый), `core/room/room_root.gd`, `core/room/room_control_registry.gd`, `core/room/room_control_def.gd`, `core/room/room_mechanism.gd`, `core/library/room_studio/room_studio.gd`, `tests/room_glb_test.tscn` (новый), `data/models/room_test_01/room_test_01.tscn` (обёртка), `data/rooms/cards/room_test_01.tres` (карточка, `dev_only`), `tools/blender/ec_room_tools.py`, `tools/room_fixture.py`, `data/models/room_test_01/room_test_01.glb` (пересобран).
 
-- [ ] `RoomRoot.setup` читает роли (§25.8 п. 3), по имени ребёнка продолжает работать.
-- [ ] Число карточки из меток, Room Studio «Обновить из сцены».
-- [ ] Управляемые объекты из `extras` попадают в `RoomControlRegistry`.
+- [x] `RoomRoot.import_glb()` читает роли (§25.8 п. 3); по имени ребёнка корня продолжает работать (`attic`, `bench`).
+- [x] Числа карточки из прокси-коробок (`RoomGlb.card`); Room Studio: кнопка «Обновить паспорт из сцены» (только редактор, пишет в `data/rooms/cards/<id>.tres`), вкладка «Проверка» показывает расхождения карточки и сцены и замечания разбора.
+- [x] Управляемые объекты из `extras` попадают в `RoomControlRegistry` вместе с метками `RoomControl`; `mech` из `.glb` строится как `MechanismConfig` с `actuator = ANIM`; лампочка `bulb_of` светится вместе с лампой.
+- [x] Инструменты Blender: роль группы разрешена на самом меше (как у реального экспорта: `Floor` с `role = floor`), новое предупреждение «нет коллайдера пола» (в эталон добавлен `collider_floor`), в тесте пайплайна 81 проверка.
+- Допущение, которое первым проверяет тест: Godot-импортёр кладёт Custom Properties узла в метаданные `extras`. Если нет, тест остановится с понятной строкой, и читать свойства придётся иначе (из JSON `.glb`).
+- Солнце окна: `window_sun` читается как данные (`sun_dir`), на GFX не влияет: привязка солнца к окну отдельным решением (ATTN_14).
 
-**Проверка:** (1) в FileSystem импорт `room_test_01.glb`: ошибок нет, настройки по умолчанию, комната 480 u шириной (стена от x = −240 до 240). (2) Library → Room Studio → `room_test_01`: видны группы, прокси-коробок нет, свет и штора управляются во вкладке «Объекты». (3) «Обновить из сцены»: `floor_y`, `bounds`, `window`, `door` заполнены. (4) Оставить активной, выйти: в игре комната, вагон со стола падает на пол и лежит (коллайдеры), камера в границах, солнце попадает в окно. (5) F6 на `tests/room_glb_test.tscn`: все PASS. (6) `attic` и `bench` работают как раньше.
+**Проверка:** (1) В FileSystem импорт `room_test_01.glb` (после пересборки): ошибок нет, Import → Root Scale 1.0. (2) F6 на `tests/room_glb_test.tscn`: все OK, в конце `ИТОГ: OK`. Первая секция «Свойства Blender дошли до Godot»: если здесь ОШИБКА «НЕТ extras», остальное не проверяется, пришлите вывод. Секция 10 только печатает разбор вашего `room_test_glb.glb` (роли, карточка, замечания), ошибок не считает. (3) Library → Room Studio → `room_test_01` (dev): прокси-коробок нет, вкладка «Объекты»: Штора, Потолочная лампа [Observe], Подсветка [студия]; штора ходит по ползунку, лампы гаснут, лампочка над кроватью гаснет вместе с «Потолочная лампа». (4) Вкладка «Паспорт»: «Обновить паспорт из сцены» (только из редактора), затем «Проверка»: «числа сходятся»; в Git файл `room_test_01.tres` не меняется (числа те же). (5) «Оставить активной», выйти: в игре комната 480 × 250 × 380, штора и лампа в Observe → Light, вагон со стола падает на пол и лежит (коллайдеры пола и мебели), камера в границах. Солнце окна пока не привязано (см. выше). (6) `attic` и `bench` и процедурные комнаты работают как раньше; F6 на `tests/room_control_test.tscn`, `room_light_test.tscn`, `room_catalog_test.tscn`: OK. (7) `python tools/test_room_pipeline.py`: `ИТОГ: OK`.
 
 ### RM9. Первая настоящая комната и конец процедурных [ ]
 

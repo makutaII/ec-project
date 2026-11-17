@@ -49,6 +49,7 @@ var _table_check: CheckButton
 var _keep_check: CheckButton
 var _objects_box: VBoxContainer   # вкладка «Объекты»: строки управлений
 var _check_label: Label           # вкладка «Проверка»
+var _sync_btn: Button             # «Обновить паспорт из сцены» (только редактор, комната из .glb)
 var _registry: RoomControlRegistry
 var _active_label: Label
 var _selected_id: StringName = &""   # выбранная в списке (у процедурной сцены нет, а выбрать её можно)
@@ -213,6 +214,13 @@ func _build_passport_tab() -> Control:
 	_table_check.tooltip_text = "Столешница подмакетника по паспорту (table_top) на y = 0, только для масштаба: это не часть сцены комнаты"
 	_table_check.toggled.connect(func(_on: bool): _apply_toggles())
 	v.add_child(_table_check)
+	_sync_btn = Button.new()
+	_sync_btn.text = "Обновить паспорт из сцены"
+	_sync_btn.tooltip_text = "Комната из .glb: числа сцены (floor_y, size, bounds, window, door, daylight) записываются в карточку data/rooms/cards/<id>.tres. Только из редактора"
+	_sync_btn.visible = OS.has_feature("editor")
+	_sync_btn.disabled = true
+	_sync_btn.pressed.connect(_sync_card)
+	v.add_child(_sync_btn)
 	if _can_keep():
 		v.add_child(HSeparator.new())
 		_active_label = Label.new()
@@ -393,15 +401,54 @@ func _show_room(i: int) -> void:
 	_build_table(cfg)
 	_apply_toggles()
 	_info.text = _info_text(e)
-	_registry = RoomControlRegistry.collect(_room, String(e["id"]))
+	_registry = RoomControlRegistry.collect(_room, String(e["id"]))   # внутри RoomRoot.import_glb: прокси и якоря .glb становятся объектами
 	_rebuild_objects()
 	_rebuild_check(e)
+	_refresh_sync_btn()
 	_fit()
+
+
+## Числа сцены .glb -> файл карточки (только редактор) и копия паспорта в списке
+func _sync_card() -> void:
+	var rr := _room as RoomRoot
+	var e := _entry(_current_id)
+	if rr == null or rr.glb == null or not rr.glb.present or e.is_empty():
+		return
+	var path := "res://data/rooms/cards/%s.tres" % _current_id
+	var res := load(path) as RoomConfig
+	if res == null:
+		_info.text = "%s\n\nКарточки %s нет: паспорт не обновлён." % [_info_head(e), path]
+		return
+	rr.glb.apply_to(res)
+	var err := ResourceSaver.save(res, path)
+	if err != OK:
+		_info.text = "%s\n\nНе удалось записать %s (код %d)." % [_info_head(e), path, err]
+		return
+	rr.glb.apply_to(e["cfg"])
+	_info.text = _info_text(e) + "\n\nПаспорт обновлён из сцены и записан в %s." % path
+	_rebuild_check(e)
+
+
+func _entry(id: StringName) -> Dictionary:
+	for e in _entries:
+		if e["id"] == id:
+			return e
+	return {}
+
+
+func _refresh_sync_btn() -> void:
+	if _sync_btn == null:
+		return
+	var rr := _room as RoomRoot
+	var ok := rr != null and rr.glb != null and rr.glb.present
+	_sync_btn.disabled = not ok
 
 
 func _clear_room() -> void:
 	_current_id = &""
 	_registry = null
+	if _sync_btn != null:
+		_sync_btn.disabled = true
 	_rebuild_objects()
 	_rebuild_check({})
 	if _room != null:
@@ -565,6 +612,15 @@ func _rebuild_check(e: Dictionary) -> void:
 	var n_ctl := _registry.defs.size() if _registry != null else 0
 	lines.append("Управляемых объектов: %d (Observe: %d)" % [n_ctl,
 			_registry.for_scope(RoomControl.Scope.OBSERVE).size() if _registry != null else 0])
+	var rr := _room as RoomRoot
+	if rr != null and rr.glb != null and rr.glb.present and e.has("cfg"):
+		lines.append("")
+		lines.append("Сцена из .glb: ламп создано %d, лампочек %d, группы: %s" % [rr.glb.lights.size(), rr.glb.bulbs.size(),
+				", ".join(PackedStringArray(rr.glb.groups.keys().map(func(k): return String(k))))])
+		var df := rr.glb.diff(e["cfg"] as RoomConfig)
+		lines.append("Паспорт и сцена: %s" % ("числа сходятся" if df.is_empty() else "расходятся (кнопка «Обновить паспорт из сцены» на вкладке «Паспорт»)"))
+		for d in df:
+			lines.append("  - " + d)
 	if _registry != null and not _registry.warnings.is_empty():
 		lines.append("")
 		lines.append("Замечания:")

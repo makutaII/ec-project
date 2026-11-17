@@ -10,14 +10,15 @@ class_name RoomMechanism extends RefCounted
 var mech: C_Mechanisms.Mech
 
 
-## Механизм на узле node (SLIDE, ROTATE: сам node; ANIM: плеер внутри node или сам node). null: привязка не удалась (причина в Output)
-static func make(node: Node, cfg: MechanismConfig, owner_name: String) -> RoomMechanism:
+## Механизм на узле node (SLIDE, ROTATE: сам node; ANIM: плеер внутри node или сам node). null: привязка не удалась (причина в Output).
+## search_root: где искать плеер анимации ANIM (у .glb плеер лежит в корне модели, а не внутри двигающегося узла); пусто: node
+static func make(node: Node, cfg: MechanismConfig, owner_name: String, search_root: Node = null) -> RoomMechanism:
 	if node == null or cfg == null:
 		return null
 	var m := C_Mechanisms.Mech.new()
 	m.cfg = cfg
 	if cfg.actuator == MechanismConfig.Actuator.ANIM:
-		if not C_Mechanisms.bind_anim(m, node, owner_name):
+		if not C_Mechanisms.bind_anim(m, search_root if search_root != null else node, owner_name):
 			return null
 	elif cfg.actuator == MechanismConfig.Actuator.SLIDE or cfg.actuator == MechanismConfig.Actuator.ROTATE:
 		var n3 := node as Node3D
