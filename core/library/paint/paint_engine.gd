@@ -274,7 +274,8 @@ func end_stroke() -> void:
 
 ## Поставить штамп в очередь (рисуется в ближайшем кадре, до 32 штампов с одинаковыми параметрами за проход).
 ## opts (PaintBrushes.stamp_opts): tip (id текстуры конца или ""), shape ("round" или "box"), box (Vector2, полуразмеры конца
-## в долях радиуса), tan (направление конца в касательной плоскости), load (запас краски 0..1), dry (сила сухой кисти)
+## в долях радиуса), tan (направление конца в касательной плоскости), load (запас краски 0..1), dry (сила сухой кисти),
+## sample (id образца из PaintSamples или ""), sample_size (повтор образца в долях габарита группы мешей)
 func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Color, flow: float, hardness: float, erase := false, opts: Dictionary = {}) -> void:
 	if not is_built:
 		return
@@ -291,6 +292,7 @@ func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Colo
 		"color": color, "flow": flow, "hardness": hardness, "erase": erase,
 		"tip": str(opts.get("tip", "")), "shape": 1 if str(opts.get("shape", "round")) == "box" else 0,
 		"box": opts.get("box", Vector2.ONE), "dry": float(opts.get("dry", 0.0)),
+		"sample": str(opts.get("sample", "")), "ssize": float(opts.get("sample_size", 0.25)),
 	})
 
 
@@ -342,6 +344,11 @@ func _flush() -> void:
 	mat.set_shader_parameter("tip_box", box)
 	mat.set_shader_parameter("tip_plain", first["shape"] == 0 and not PaintTips.has(tip_id) and box.is_equal_approx(Vector2.ONE))
 	mat.set_shader_parameter("dry", first["dry"])
+	if mat == _stamp_mat:
+		var sample_id: String = first["sample"]
+		mat.set_shader_parameter("sample_on", PaintSamples.has(sample_id))
+		mat.set_shader_parameter("sample_tex", PaintSamples.texture(sample_id))
+		mat.set_shader_parameter("sample_scale", 1.0 / maxf(size_ref * float(first["ssize"]), 0.0001))
 	mat.set_shader_parameter("brush_color", first["color"])
 	mat.set_shader_parameter("flow", first["flow"])
 	mat.set_shader_parameter("hardness", first["hardness"])
@@ -355,7 +362,8 @@ func _flush() -> void:
 
 func _same_params(a: Dictionary, b: Dictionary) -> bool:
 	return a["erase"] == b["erase"] and a["flow"] == b["flow"] and a["hardness"] == b["hardness"] and a["color"] == b["color"] \
-		and a["tip"] == b["tip"] and a["shape"] == b["shape"] and a["box"] == b["box"] and a["dry"] == b["dry"]
+		and a["tip"] == b["tip"] and a["shape"] == b["shape"] and a["box"] == b["box"] and a["dry"] == b["dry"] \
+		and a["sample"] == b["sample"] and a["ssize"] == b["ssize"]
 
 
 # ==========================================

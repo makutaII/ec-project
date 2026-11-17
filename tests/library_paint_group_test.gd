@@ -4,7 +4,7 @@ extends Node3D
 ## Проверка: кисть на группе мешей с общим атласом UV2 (ATTN_22 §22.7.2.1, шаги C2.1c и C2.2): PaintBake.group, transformed,
 ## bake_group, PaintData.layer_meshes, ключ кэша PNG по SHA-1, а в конце PaintEngine на нескольких мешах (нужен рендер:
 ## слой краски это SubViewport): опорный меш, пропуск перекрытия, луч по ближайшему мешу, закрывающие меши, штамп на дочернем меше,
-## цвет слоя 16 бит, квадратный штамп, сухая кисть.
+## цвет слоя 16 бит, квадратный штамп, сухая кисть, образец вместо плоского цвета.
 ## Запуск: открыть tests/library_paint_group_test.tscn и нажать F6.
 ## Итог в Output: строки PASS/FAIL и «Library paint group: n/m». Меши это квадраты QuadMesh со своей UV2 (без xatlas).
 
@@ -250,6 +250,26 @@ func _test_engine() -> void:
 	await _frames(6)
 	var dried := _alpha_count(eng.read_layer(), Rect2i(half, 0, half, half))
 	_check("щетина с полным запасом красит (%d текселей), с почти пустым заметно меньше (%d)" % [full, dried], full > 200 and dried < full / 2)
+
+	# C2.3: образец вместо плоского цвета. Синяя краска с образцом «Ржавчина» ложится рыжей (красный канал больше синего)
+	eng.clear()
+	await _frames(6)
+	eng.begin_stroke()
+	eng.stamp(pos, nrm, 0.45, Color(0, 0, 1), 1.0, 0.99, false, {"sample": "rust", "sample_size": 0.1})
+	eng.end_stroke()
+	await _frames(6)
+	var rust_img := eng.read_layer()
+	var painted := 0
+	var red_sum := 0.0
+	var blue_sum := 0.0
+	for y in range(0, half):
+		for x in range(half, RES):
+			var px := rust_img.get_pixel(x, y)
+			if px.a > 0.3:
+				painted += 1
+				red_sum += px.r
+				blue_sum += px.b
+	_check("образец ржавчины: краска легла (%d текселей) цветом образца, а не синим (красный %.1f, синий %.1f)" % [painted, red_sum, blue_sum], painted > 50 and red_sum > blue_sum * 1.5)
 
 	eng.queue_free()
 	a.queue_free()

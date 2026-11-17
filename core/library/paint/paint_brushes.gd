@@ -14,13 +14,15 @@ class_name PaintBrushes extends RefCounted
 ##   "random" (случайный угол на каждый штамп), "fixed" (по оси Y модели); scatter: разброс центра штампа в долях радиуса;
 ##   jitter: случайность размера и угла 0..1; spacing: шаг штампов вдоль мазка, пиксели экрана;
 ##   dry: сила сухой кисти 0..1 (0 выключена); dry_len: сколько пикселей мазка хватает запаса краски;
+##   sample: образец из PaintSamples ("" плоский цвет; с образцом цвет берётся из него); sample_size: размер повтора
+##   образца в долях наибольшего габарита модели;
 ##   level: с какого уровня правил (paint.level) инструмент доступен.
 
 const ORDER := ["brush", "airbrush", "eraser", "flat", "dry", "sponge", "splatter", "square"]
 const DEFAULTS := {
 	"name": "", "size": 0.04, "hardness": 0.8, "flow": 1.0, "accumulate": false, "erase": false,
 	"tip": "", "shape": "round", "box": Vector2(1.0, 1.0), "rotate": "none", "scatter": 0.0, "jitter": 0.0,
-	"spacing": 6.0, "dry": 0.0, "dry_len": 300.0, "level": 2,
+	"spacing": 6.0, "dry": 0.0, "dry_len": 300.0, "sample": "", "sample_size": 0.25, "level": 2,
 }
 const PRESETS := {
 	"brush": {"name": "Кисть", "size": 0.04, "hardness": 0.8, "flow": 1.0},
@@ -46,11 +48,12 @@ static func preset(id: String) -> Dictionary:
 	return out
 
 
-## Параметры конца штампа для PaintEngine.stamp (opts): текстура, форма, размеры, направление, запас краски, сухая кисть
+## Параметры штампа для PaintEngine.stamp (opts): текстура конца, форма, размеры, направление, запас краски, сухая кисть, образец
 static func stamp_opts(p: Dictionary, tangent_dir: Vector3, reserve: float) -> Dictionary:
 	return {
 		"tip": str(p.get("tip", "")), "shape": str(p.get("shape", "round")), "box": p.get("box", Vector2.ONE),
 		"tan": tangent_dir, "load": reserve, "dry": float(p.get("dry", 0.0)),
+		"sample": str(p.get("sample", "")), "sample_size": float(p.get("sample_size", 0.25)),
 	}
 
 

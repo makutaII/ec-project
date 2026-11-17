@@ -52,6 +52,8 @@ var _undo_btn: Button
 var _redo_btn: Button
 var _scatter_slider: HSlider
 var _spacing_slider: HSlider
+var _sample_opt: OptionButton
+var _sample_size_slider: HSlider
 var _stroke_active := false
 var _last_pos := Vector2.ZERO
 var _carry_px := 0.0              # сколько пикселей пройдено после последнего штампа
@@ -486,6 +488,8 @@ func _build_brush_box() -> void:
 	_hard_slider = _add_slider("Жёсткость, %", 0.0, 95.0, 1.0, "hardness")
 	_scatter_slider = _add_slider("Разброс, %", 0.0, 200.0, 1.0, "scatter")
 	_spacing_slider = _add_slider("Шаг, px", 2.0, 60.0, 1.0, "spacing", 1.0)
+	_build_sample_row()
+	_sample_size_slider = _add_slider("Размер образца, %", 5.0, 100.0, 1.0, "sample_size")
 
 	var row := HBoxContainer.new()
 	_brush_box.add_child(row)
@@ -504,6 +508,26 @@ func _build_brush_box() -> void:
 	clear_btn.pressed.connect(_on_clear_layer)
 	row.add_child(clear_btn)
 	_sync_tool_sliders()
+
+
+## Выбор образца: «Без образца» (плоский цвет выбранной краски) и образцы PaintSamples (цвет берётся из образца)
+func _build_sample_row() -> void:
+	var row := HBoxContainer.new()
+	_brush_box.add_child(row)
+	var l := Label.new()
+	l.text = "Образец"
+	l.custom_minimum_size = Vector2(100, 0)
+	row.add_child(l)
+	_sample_opt = OptionButton.new()
+	_sample_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sample_opt.tooltip_text = "С образцом краска берёт цвет и пятнистость из образца (ржавчина, грязь и т. д.), а не выбранный цвет"
+	_sample_opt.add_item("Без образца")
+	for id in PaintSamples.ORDER:
+		_sample_opt.add_item(PaintSamples.title(id))
+	_sample_opt.item_selected.connect(func(i: int) -> void:
+		if not _silent:
+			_tool_params[_tool]["sample"] = "" if i == 0 else str(PaintSamples.ORDER[i - 1]))
+	row.add_child(_sample_opt)
 
 
 ## Ползунок параметра инструмента. key: size, flow, hardness, scatter или spacing; value_scale: сколько единиц ползунка
@@ -535,6 +559,8 @@ func _sync_tool_sliders() -> void:
 	_hard_slider.value = float(p["hardness"]) * 100.0
 	_scatter_slider.value = float(p["scatter"]) * 100.0
 	_spacing_slider.value = float(p["spacing"])
+	_sample_size_slider.value = float(p["sample_size"]) * 100.0
+	_sample_opt.select(PaintSamples.ORDER.find(str(p["sample"])) + 1)
 	_silent = false
 
 
@@ -548,6 +574,14 @@ func _update_tool_levels(level: int) -> void:
 	if int(PaintBrushes.PRESETS[_tool].get("level", PaintBrushes.DEFAULTS["level"])) > level:
 		_tool_buttons["brush"].button_pressed = true
 		_select_tool("brush")
+	# образцы доступны с уровня PaintSamples.LEVEL; выбранный образец при нехватке уровня сбрасывается
+	for i in range(1, _sample_opt.item_count):
+		_sample_opt.set_item_disabled(i, level < PaintSamples.LEVEL)
+	_sample_opt.disabled = level < PaintSamples.LEVEL
+	if level < PaintSamples.LEVEL:
+		for id in PaintBrushes.ORDER:
+			_tool_params[id]["sample"] = ""
+		_sync_tool_sliders()
 
 
 func _select_tool(id: String) -> void:
