@@ -67,5 +67,14 @@ if os.path.exists(ref):
 else:
     check("room_test_01.glb существует", False)
 
+# путь экспорта из поля панели: папка или голое имя не должны давать файл без .glb
+rules = pf.load_room_rules()
+rp = rules.resolve_export_path
+md = os.path.join("D:", "m")
+check("путь: пусто -> <models>/<id>/<id>.glb", rp("", md, "r1") == os.path.join(md, "r1", "r1.glb"), rp("", md, "r1"))
+check("путь: .glb остаётся как есть", rp(os.path.join(md, "x", "y.glb"), md, "r1") == os.path.join(md, "x", "y.glb"))
+check("путь: папка -> папка/имя.glb", rp(os.path.join(md, "room_a"), md, "r1") == os.path.join(md, "room_a", "room_a.glb"), rp(os.path.join(md, "room_a"), md, "r1"))
+check("путь: голое имя -> <models>/<имя>/<имя>.glb", rp("room_a", md, "r1") == os.path.join(md, "room_a", "room_a.glb"), rp("room_a", md, "r1"))
+
 print("\nИТОГ: %s" % ("OK" if not fails else "ПРОВАЛЕНО %d: %s" % (len(fails), "; ".join(fails))))
 sys.exit(1 if fails else 0)

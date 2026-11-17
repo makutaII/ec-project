@@ -956,6 +956,20 @@ def default_export_path(s):
     return str(models_dir_of(s) / rid / (rid + ".glb"))
 
 
+def resolve_export_path(raw, models_dir, rid):
+    """Путь .glb из поля панели (без bpy). Пусто: <models_dir>/<rid>/<rid>.glb. Папка или путь без .glb: файл <папка>/<имя папки>.glb
+    (одна папка на модель, как data/models/room_<имя>/room_<имя>.glb); голое имя: <models_dir>/<имя>/<имя>.glb"""
+    raw = (raw or "").strip()
+    if not raw:
+        return str(Path(models_dir) / rid / (rid + ".glb"))
+    p = Path(raw)
+    if p.suffix.lower() == ".glb":
+        return str(p)
+    if str(p.parent) in ("", "."):
+        return str(Path(models_dir) / p.name / (p.name + ".glb"))
+    return str(p / (p.name + ".glb"))
+
+
 def export_params(op, **wanted):
     """Оставляет только те параметры, которые есть у оператора в этой версии Blender"""
     names = {p.identifier for p in op.get_rna_type().properties}
@@ -1469,7 +1483,7 @@ if bpy is not None:
 
         def execute(self, context):
             s = settings(context.scene)
-            path = bpy.path.abspath(s.export_path) if s.export_path else default_export_path(s)
+            path = resolve_export_path(bpy.path.abspath(s.export_path) if s.export_path else "", models_dir_of(s), room_id_of(s))
             ok, msg, rep = do_export(context.scene, path)
             copied = publish_report("Экспорт: " + msg, (msg + "\n\n" + rep) if rep else msg, PREFLIGHT_TEXT)
             print(msg)
@@ -1597,11 +1611,9 @@ def _cli(argv):
         items = check(scene)
         print(format_report(items))
         return 1 if any(lv == "ERROR" for lv, _, _ in items) else 0
-    path = a.out
-    if not path:
-        class _S:  # минимальная замена настроек панели; id по умолчанию берётся из имени файла .blend
-            room_id, models_dir = a.id, a.models_dir
-        path = default_export_path(_S)
+    class _S:  # минимальная замена настроек панели; id по умолчанию берётся из имени файла .blend
+        room_id, models_dir = a.id, a.models_dir
+    path = resolve_export_path(a.out, models_dir_of(_S), room_id_of(_S))
     ok, msg, rep = do_export(scene, path)
     print(msg)
     print(rep)

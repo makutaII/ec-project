@@ -456,6 +456,11 @@ def run_room(path):
     if rules is None:
         print("[ERROR] Не найден tools/blender/ec_room_tools.py: правила комнаты лежат в нём.")
         return 1
+    if os.path.isdir(path):   # указана папка модели: файл <папка>/<имя папки>.glb
+        path = os.path.join(path, os.path.basename(os.path.normpath(path)) + ".glb")
+    if not os.path.isfile(path):
+        print("[ERROR] Файла нет: %s (нужен путь к .glb)." % path)
+        return 1
     g, binb = load_gltf(path)
     snap = room_snapshot(g, binb, rules.UNIT)
     items = [(lv, tx) for lv, tx, _ in rules.check_room(snap)]
