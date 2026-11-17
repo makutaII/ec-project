@@ -927,7 +927,7 @@ def run_preflight_tool(glb):
         return "tools/glb_preflight.py не найден: запустите проверку файла вручную (python tools/glb_preflight.py <файл> --kind room)."
     try:
         res = subprocess.run([sys.executable, str(pf), glb, "--kind", "room"], capture_output=True, text=True, encoding="utf-8", timeout=120)
-        return res.stdout + res.stderr
+        return (res.stdout or "") + (res.stderr or "")
     except (OSError, subprocess.SubprocessError) as e:
         return "Не удалось запустить glb_preflight.py: %s" % e
 

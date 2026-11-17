@@ -307,9 +307,9 @@ func _build_room() -> void:
 ## Комната из сцены (RoomConfig.scene, корень RoomRoot): лампы выносятся рядом с Room, остальное лежит в visuals
 func _build_from_scene() -> void:
 	var inst := config.scene.instantiate()
-	var r := inst as RoomRoot
+	var r := RoomRoot.wrap(inst)   # чужой Node3D-корень (унаследованная от .glb сцена) заворачивается в RoomRoot
 	if r == null:
-		push_warning("RoomBuilder: корень сцены комнаты %s не RoomRoot, слои, потолок и лампы не настроены" % config.id)
+		push_warning("RoomBuilder: корень сцены комнаты %s не Node3D, слои, потолок и лампы не настроены" % config.id)
 		visuals.add_child(inst)
 		return
 	_root = r

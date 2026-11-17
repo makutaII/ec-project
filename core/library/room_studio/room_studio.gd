@@ -393,7 +393,7 @@ func _show_room(i: int) -> void:
 	_current_id = e["id"]
 	settings.set_value("state", "last_id", String(_current_id))
 
-	_room = cfg.scene.instantiate() as Node3D
+	_room = RoomRoot.wrap(cfg.scene.instantiate())
 	if _room == null:
 		_info.text = "Не удалось создать сцену комнаты %s (корень не Node3D)." % e["id"]
 		return

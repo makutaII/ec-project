@@ -43,6 +43,19 @@ var _imported := false
 var _groups := {}   # StringName -> Array[Node]
 
 
+## Корень комнаты из экземпляра сцены: свой RoomRoot остаётся как есть; сцена с другим Node3D-корнем (например, унаследованная от .glb без скрипта)
+## заворачивается в новый RoomRoot, чтобы роли .glb и контракт работали. null: корень не Node3D
+static func wrap(inst: Node) -> RoomRoot:
+	if inst is RoomRoot:
+		return inst as RoomRoot
+	if not (inst is Node3D):
+		return null
+	var r := RoomRoot.new()
+	r.name = inst.name
+	r.add_child(inst)
+	return r
+
+
 ## Слои и группы. Вызывает RoomBuilder сразу после instantiate (до добавления в дерево)
 func setup(vis_layer: int, shell_layer: int) -> void:
 	import_glb()

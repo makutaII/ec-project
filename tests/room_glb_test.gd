@@ -183,6 +183,15 @@ func _ready() -> void:
 		check("attic: группы по именам (Shell, Ceiling)", not attic.group_nodes(&"shell").is_empty() and attic.get_ceiling() != null)
 		attic.free()
 
+	print("== 10. Сцена с чужим корнем заворачивается в RoomRoot")
+	check("свой RoomRoot остаётся тем же", RoomRoot.wrap(room) == room)
+	var plain := Node3D.new()
+	plain.name = "Plain"
+	var wrapped := RoomRoot.wrap(plain)
+	check("Node3D-корень заворачивается: RoomRoot с одним ребёнком", wrapped != null and wrapped.get_child_count() == 1 and wrapped.get_child(0) == plain)
+	check("не Node3D даёт null", RoomRoot.wrap(Node.new()) == null)
+	wrapped.free()
+
 	_real_file()
 	room.queue_free()
 	_finish()
@@ -193,7 +202,7 @@ func _real_file() -> void:
 	var path := "res://data/models/room_test_glb/room_test_glb.glb"
 	if not ResourceLoader.exists(path):
 		return
-	print("== 10. Реальный экспорт room_test_glb.glb (только разбор)")
+	print("== 11. Реальный экспорт room_test_glb.glb (только разбор)")
 	var ps := load(path) as PackedScene
 	if ps == null:
 		print("  не загрузился как PackedScene")
