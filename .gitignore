@@ -17,8 +17,3 @@
 # Python (tools/)
 __pycache__/
 *.pyc
-
-# Звук (ATTN_26, S0.6): ленты, нарезка и спектрограммы не коммитятся, в git только листы меток
-data/sounds/*/*
-!data/sounds/*/*.sheet.json
-data/sounds/*/*.draft.sheet.json
