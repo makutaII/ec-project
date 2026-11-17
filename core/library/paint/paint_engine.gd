@@ -172,6 +172,7 @@ func _build_viewport() -> void:
 	_vp = SubViewport.new()
 	_vp.size = Vector2i(res, res)
 	_vp.transparent_bg = true
+	_vp.use_hdr_2d = true      # слой 16 бит на канал: в 8 битах малый поток залипал, а цвет на мягком крае темнел
 	_vp.disable_3d = true
 	_vp.gui_disable_input = true
 	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
@@ -200,6 +201,7 @@ func _make_stamp_material(shader: Shader, pos_tex: Texture2D, nrm_tex: Texture2D
 	m.set_shader_parameter("pos_tex", pos_tex)
 	m.set_shader_parameter("nrm_tex", nrm_tex)
 	m.set_shader_parameter("stamp_count", 0)
+	m.set_shader_parameter("tip_plain", true)
 	return m
 
 
@@ -270,14 +272,25 @@ func end_stroke() -> void:
 	_stroke_open = false
 
 
-## Поставить штамп в очередь (рисуется в ближайшем кадре, до 32 штампов с одинаковыми параметрами за проход)
-func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Color, flow: float, hardness: float, erase := false) -> void:
+## Поставить штамп в очередь (рисуется в ближайшем кадре, до 32 штампов с одинаковыми параметрами за проход).
+## opts (PaintBrushes.stamp_opts): tip (id текстуры конца или ""), shape ("round" или "box"), box (Vector2, полуразмеры конца
+## в долях радиуса), tan (направление конца в касательной плоскости), load (запас краски 0..1), dry (сила сухой кисти)
+func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Color, flow: float, hardness: float, erase := false, opts: Dictionary = {}) -> void:
 	if not is_built:
 		return
+	var n := local_normal.normalized()
+	var tan_dir: Vector3 = opts.get("tan", Vector3.ZERO)
+	tan_dir = tan_dir - n * tan_dir.dot(n)
+	if tan_dir.length() < 0.00001:
+		tan_dir = PaintBrushes.tangent(n, "fixed", Vector3.ZERO, null)
+	tan_dir = tan_dir.normalized()
 	_queue.append({
 		"p": Vector4(local_pos.x, local_pos.y, local_pos.z, radius),
-		"n": Vector4(local_normal.x, local_normal.y, local_normal.z, 0.0),
+		"n": Vector4(n.x, n.y, n.z, 0.0),
+		"t": Vector4(tan_dir.x, tan_dir.y, tan_dir.z, clampf(float(opts.get("load", 1.0)), 0.0, 1.0)),
 		"color": color, "flow": flow, "hardness": hardness, "erase": erase,
+		"tip": str(opts.get("tip", "")), "shape": 1 if str(opts.get("shape", "round")) == "box" else 0,
+		"box": opts.get("box", Vector2.ONE), "dry": float(opts.get("dry", 0.0)),
 	})
 
 
@@ -307,16 +320,28 @@ func _flush() -> void:
 		count += 1
 	var centers: Array = []
 	var normals: Array = []
+	var tangents: Array = []
 	for i in MAX_STAMPS:
 		if i < count:
 			centers.append(_queue[i]["p"])
 			normals.append(_queue[i]["n"])
+			tangents.append(_queue[i]["t"])
 		else:
 			centers.append(Vector4.ZERO)
 			normals.append(Vector4(0, 1, 0, 0))
+			tangents.append(Vector4(1, 0, 0, 1))
 	mat.set_shader_parameter("stamps", centers)
 	mat.set_shader_parameter("stamp_nrm", normals)
+	mat.set_shader_parameter("stamp_tan", tangents)
 	mat.set_shader_parameter("stamp_count", count)
+	var tip_id: String = first["tip"]
+	var box: Vector2 = first["box"]
+	mat.set_shader_parameter("tip_tex", PaintTips.texture(tip_id))
+	mat.set_shader_parameter("tip_textured", PaintTips.has(tip_id))
+	mat.set_shader_parameter("tip_shape", first["shape"])
+	mat.set_shader_parameter("tip_box", box)
+	mat.set_shader_parameter("tip_plain", first["shape"] == 0 and not PaintTips.has(tip_id) and box.is_equal_approx(Vector2.ONE))
+	mat.set_shader_parameter("dry", first["dry"])
 	mat.set_shader_parameter("brush_color", first["color"])
 	mat.set_shader_parameter("flow", first["flow"])
 	mat.set_shader_parameter("hardness", first["hardness"])
@@ -329,7 +354,8 @@ func _flush() -> void:
 
 
 func _same_params(a: Dictionary, b: Dictionary) -> bool:
-	return a["erase"] == b["erase"] and a["flow"] == b["flow"] and a["hardness"] == b["hardness"] and a["color"] == b["color"]
+	return a["erase"] == b["erase"] and a["flow"] == b["flow"] and a["hardness"] == b["hardness"] and a["color"] == b["color"] \
+		and a["tip"] == b["tip"] and a["shape"] == b["shape"] and a["box"] == b["box"] and a["dry"] == b["dry"]
 
 
 # ==========================================

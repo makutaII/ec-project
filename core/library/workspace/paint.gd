@@ -14,8 +14,7 @@ extends "res://core/library/workspace/workspace.gd"
 
 const MODE_ZONES := 0
 const MODE_BRUSH := 1
-const STROKE_STEP_PX := 6.0
-const STROKE_MAX_STEPS := 24
+const STROKE_MAX_STEPS := 24    # штампов за одно движение мыши (шаг задаёт инструмент: spacing)
 
 const PALETTE := [
 	["Белый", "#f2f2f0"], ["Чёрный", "#1b1b1d"], ["Серый", "#7d7f82"], ["Красный", "#c0392b"],
@@ -51,8 +50,18 @@ var _flow_slider: HSlider
 var _hard_slider: HSlider
 var _undo_btn: Button
 var _redo_btn: Button
+var _scatter_slider: HSlider
+var _spacing_slider: HSlider
 var _stroke_active := false
 var _last_pos := Vector2.ZERO
+var _carry_px := 0.0              # сколько пикселей пройдено после последнего штампа
+var _travel_px := 0.0             # длина мазка в пикселях (запас краски сухой кисти)
+var _stroke_prev := Vector3.ZERO  # предыдущая точка мазка на модели
+var _stroke_prev_ok := false
+var _stroke_tan := Vector3.ZERO   # последнее направление мазка в касательной плоскости
+var _rng := RandomNumberGenerator.new()
+var _synced_engine: PaintEngine   # движок и исполнение, с которыми слой кисти уже согласован (см. _enter_brush)
+var _synced_variant: ModelVariant
 
 
 func _init() -> void:
@@ -242,6 +251,7 @@ func _refresh() -> void:
 		_mode_brush_btn.tooltip_text = "У модели нет мешей с UV2 (tests/uv2_audit.gd, tools/glb_preflight.py --brush): кисть недоступна, остаётся заливка зон"
 	else:
 		_mode_brush_btn.tooltip_text = "Рисовать кистью, аэрографом и ластиком по UV2 модели"
+	_update_tool_levels(level)
 	_apply_mode_visibility()
 	_build_zone_list()
 	_sync_controls()
@@ -404,6 +414,8 @@ func _sync_engine_from_variant() -> void:
 	var layers := PaintData.texture_layers(v.paint)
 	var eng: PaintEngine = screen.paint_engine
 	if eng != null and eng.is_built:
+		_synced_engine = eng
+		_synced_variant = v
 		var bytes := PackedByteArray()
 		if not layers.is_empty() and layers[0].has("file"):
 			bytes = VariantIO.load_layer_png(v.id, str(layers[0]["file"]))
@@ -453,7 +465,9 @@ func _build_brush_box() -> void:
 	_brush_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_brush_box.add_child(_brush_note)
 
-	var tool_row := HBoxContainer.new()
+	var tool_row := HFlowContainer.new()
+	tool_row.add_theme_constant_override("h_separation", 4)
+	tool_row.add_theme_constant_override("v_separation", 4)
 	_brush_box.add_child(tool_row)
 	var group := ButtonGroup.new()
 	for id in PaintBrushes.ORDER:
@@ -470,6 +484,8 @@ func _build_brush_box() -> void:
 	_size_slider = _add_slider("Размер, %", 0.33, 30.0, 0.01, "size")
 	_flow_slider = _add_slider("Поток, %", 1.67, 100.0, 0.01, "flow")
 	_hard_slider = _add_slider("Жёсткость, %", 0.0, 95.0, 1.0, "hardness")
+	_scatter_slider = _add_slider("Разброс, %", 0.0, 200.0, 1.0, "scatter")
+	_spacing_slider = _add_slider("Шаг, px", 2.0, 60.0, 1.0, "spacing", 1.0)
 
 	var row := HBoxContainer.new()
 	_brush_box.add_child(row)
@@ -490,8 +506,9 @@ func _build_brush_box() -> void:
 	_sync_tool_sliders()
 
 
-## Ползунок параметра инструмента. key: size, flow или hardness; значения в процентах
-func _add_slider(caption: String, lo: float, hi: float, step: float, key: String) -> HSlider:
+## Ползунок параметра инструмента. key: size, flow, hardness, scatter или spacing; value_scale: сколько единиц ползунка
+## в единице параметра (проценты: 100, пиксели: 1)
+func _add_slider(caption: String, lo: float, hi: float, step: float, key: String, value_scale := 100.0) -> HSlider:
 	var row := HBoxContainer.new()
 	_brush_box.add_child(row)
 	var l := Label.new()
@@ -505,7 +522,7 @@ func _add_slider(caption: String, lo: float, hi: float, step: float, key: String
 	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sl.value_changed.connect(func(v: float) -> void:
 		if not _silent:
-			_tool_params[_tool][key] = v / 100.0)
+			_tool_params[_tool][key] = v / value_scale)
 	row.add_child(sl)
 	return sl
 
@@ -516,7 +533,21 @@ func _sync_tool_sliders() -> void:
 	_size_slider.value = float(p["size"]) * 100.0
 	_flow_slider.value = float(p["flow"]) * 100.0
 	_hard_slider.value = float(p["hardness"]) * 100.0
+	_scatter_slider.value = float(p["scatter"]) * 100.0
+	_spacing_slider.value = float(p["spacing"])
 	_silent = false
+
+
+## Инструменты, которым не хватает уровня правил, недоступны (серые, подсказка с нужным уровнем)
+func _update_tool_levels(level: int) -> void:
+	for id in PaintBrushes.ORDER:
+		var need := int(PaintBrushes.PRESETS[id].get("level", PaintBrushes.DEFAULTS["level"]))
+		var b: Button = _tool_buttons[id]
+		b.disabled = level < need
+		b.tooltip_text = "Нужен уровень покраски %d (правила: «Реалистичная»)" % need if level < need else ""
+	if int(PaintBrushes.PRESETS[_tool].get("level", PaintBrushes.DEFAULTS["level"])) > level:
+		_tool_buttons["brush"].button_pressed = true
+		_select_tool("brush")
 
 
 func _select_tool(id: String) -> void:
@@ -556,7 +587,10 @@ func _enter_brush() -> void:
 		if not eng.skipped.is_empty():
 			text += "\nНе красятся (UV2 перекрывает другие меши): %s. Blender: «UV2: общий атлас»." % ", ".join(eng.skipped_names())
 		_brush_note.text = text
-		await _sync_engine_from_variant()
+		# Слой уже согласован с этим исполнением и движком (вышли в «Заливку зон» и вернулись): живые мазки,
+		# ещё не сохранённые в файл, не трогаем. Иначе загрузить слой исполнения (или очистить, если его нет)
+		if screen.paint_engine != _synced_engine or screen.variant != _synced_variant:
+			await _sync_engine_from_variant()
 	else:
 		_brush_note.text = "Кисть недоступна для этой модели."
 		_mode_zones_btn.button_pressed = true
@@ -612,14 +646,28 @@ func _process(_delta: float) -> void:
 func _stroke_begin(pos: Vector2) -> void:
 	_stroke_active = true
 	_last_pos = pos
+	_carry_px = 0.0
+	_travel_px = 0.0
+	_stroke_prev_ok = false
+	_stroke_tan = Vector3.ZERO
+	_rng.randomize()
 	screen.paint_engine.begin_stroke()
 	_stamp_at(pos)
 
 
+## Штампы вдоль отрезка мыши с шагом spacing инструмента (остаток шага переносится на следующее движение)
 func _stroke_move(pos: Vector2) -> void:
-	var steps := clampi(int(ceil(pos.distance_to(_last_pos) / STROKE_STEP_PX)), 1, STROKE_MAX_STEPS)
-	for s in steps:
-		_stamp_at(_last_pos.lerp(pos, float(s + 1) / steps))
+	var dist := pos.distance_to(_last_pos)
+	if dist <= 0.0:
+		return
+	var spacing := maxf(float(_tool_params[_tool]["spacing"]), 1.0)
+	var d := spacing - _carry_px
+	var count := 0
+	while d <= dist and count < STROKE_MAX_STEPS:
+		_stamp_at(_last_pos.lerp(pos, d / dist), spacing)
+		d += spacing
+		count += 1
+	_carry_px = dist - (d - spacing)
 	_last_pos = pos
 
 
@@ -631,16 +679,31 @@ func _stroke_end() -> void:
 		screen.paint_engine.end_stroke()
 
 
-func _stamp_at(pos: Vector2) -> void:
+## Один штамп в точке экрана. step_px: сколько пикселей мазка пройдено с прошлого штампа (запас краски сухой кисти)
+func _stamp_at(pos: Vector2, step_px := 0.0) -> void:
 	var eng: PaintEngine = screen.paint_engine
 	if eng == null or not eng.is_built:
 		return
 	var hit := eng.raycast(screen.world.camera, pos)
 	if hit.is_empty():
 		return
+	_travel_px += step_px
 	var p: Dictionary = _tool_params[_tool]
-	eng.stamp(hit["position"], hit["normal"], eng.radius_for(float(p["size"])), _color_btn.color,
-		float(p["flow"]), float(p["hardness"]), bool(p["erase"]))
+	var n: Vector3 = hit["normal"]
+	var at: Vector3 = hit["position"]
+	var jit := float(p["jitter"])
+	var radius := eng.radius_for(float(p["size"])) * (1.0 + _rng.randf_range(-1.0, 1.0) * jit * 0.5)
+	# направление конца: по мазку (смещение на модели), случайное или по оси Y; без движения прежнее
+	var move := at - _stroke_prev if _stroke_prev_ok else Vector3.ZERO
+	var base := PaintBrushes.tangent(n, str(p["rotate"]), move, _rng, 0.0, _stroke_tan)
+	if str(p["rotate"]) == "stroke" and move.length() > 0.00001:
+		_stroke_tan = base
+	_stroke_prev = at
+	_stroke_prev_ok = true
+	var tan_dir := PaintBrushes.jittered(n, base, jit, _rng)
+	var center := at + PaintBrushes.scatter_offset(n, tan_dir, radius, float(p["scatter"]), _rng)
+	var opts := PaintBrushes.stamp_opts(p, tan_dir, PaintBrushes.load_left(p, _travel_px))
+	eng.stamp(center, n, radius, _color_btn.color, float(p["flow"]), float(p["hardness"]), bool(p["erase"]), opts)
 
 
 func _on_undo() -> void:

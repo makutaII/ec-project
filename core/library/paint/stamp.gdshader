@@ -1,18 +1,15 @@
 // XX claude-library (новый файл)
-// Штамп кисти по 3D-позиции (ATTN_22 §22.7.2.1, шаг C2.1). Рисуется в SubViewport размером с слой краски.
-// Для каждого текселя берётся его позиция на модели (карта позиций, UV2) и сравнивается с центрами штампов.
+// Штамп кисти по 3D-позиции (ATTN_22 §22.7.2.1, шаги C2.1 и C2.2). Рисуется в SubViewport размером с слой краски.
+// Для каждого текселя берётся его позиция на модели (карта позиций, UV2) и сравнивается с центрами штампов;
+// форма штампа (круг, прямоугольник, текстурный конец, сухая кисть) считается в stamp_common.gdshaderinc.
 // Накопление: render_target_clear_mode = ONCE и blend_mix, кадр дорисовывается поверх прежнего (проверено прототипом C2.0).
+// Слой хранится в 16 битах (SubViewport.use_hdr_2d): при 8 битах краска при малом потоке «залипала» и темнела на мягком крае.
 shader_type canvas_item;
 render_mode blend_mix;
 
-uniform sampler2D pos_tex : filter_nearest, repeat_disable;   // xyz: позиция, a: 1 если тексель покрыт
-uniform sampler2D nrm_tex : filter_nearest, repeat_disable;   // xyz: нормаль
-uniform vec4 stamps[32];       // xyz: центр штампа (локальные координаты меша), w: радиус
-uniform vec4 stamp_nrm[32];    // xyz: нормаль в точке попадания
-uniform int stamp_count = 0;
+#include "res://core/library/paint/stamp_common.gdshaderinc"
+
 uniform vec4 brush_color = vec4(1.0, 0.0, 0.0, 1.0);
-uniform float flow : hint_range(0.0, 1.0) = 1.0;
-uniform float hardness : hint_range(0.0, 0.99) = 0.5;
 
 void fragment() {
 	vec4 p = texture(pos_tex, UV);
@@ -20,17 +17,5 @@ void fragment() {
 		discard;
 	}
 	vec3 n = normalize(texture(nrm_tex, UV).xyz);
-	float a = 0.0;
-	for (int i = 0; i < 32; i++) {
-		if (i >= stamp_count) {
-			break;
-		}
-		float d = distance(p.xyz, stamps[i].xyz) / max(stamps[i].w, 0.00001);
-		float c = 1.0 - smoothstep(hardness, 1.0, d);
-		// не красить обратную сторону тонких деталей
-		float facing = smoothstep(0.05, 0.35, dot(n, normalize(stamp_nrm[i].xyz)));
-		c *= facing * flow;
-		a = a + c * (1.0 - a);
-	}
-	COLOR = vec4(brush_color.rgb, a);
+	COLOR = vec4(brush_color.rgb, stamp_coverage(p.xyz, n));
 }

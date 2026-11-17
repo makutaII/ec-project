@@ -1,9 +1,10 @@
 extends Node3D
 
 # XX claude-library (новый файл)
-## Проверка: кисть на группе мешей с общим атласом UV2 (ATTN_22 §22.7.2.1, шаг C2.1c): PaintBake.group, transformed,
+## Проверка: кисть на группе мешей с общим атласом UV2 (ATTN_22 §22.7.2.1, шаги C2.1c и C2.2): PaintBake.group, transformed,
 ## bake_group, PaintData.layer_meshes, ключ кэша PNG по SHA-1, а в конце PaintEngine на нескольких мешах (нужен рендер:
-## слой краски это SubViewport): опорный меш, пропуск перекрытия, луч по ближайшему мешу, закрывающие меши, штамп на дочернем меше.
+## слой краски это SubViewport): опорный меш, пропуск перекрытия, луч по ближайшему мешу, закрывающие меши, штамп на дочернем меше,
+## цвет слоя 16 бит, квадратный штамп, сухая кисть.
 ## Запуск: открыть tests/library_paint_group_test.tscn и нажать F6.
 ## Итог в Output: строки PASS/FAIL и «Library paint group: n/m». Меши это квадраты QuadMesh со своей UV2 (без xatlas).
 
@@ -211,6 +212,44 @@ func _test_engine() -> void:
 	var in_a := _alpha_count(img, Rect2i(0, 0, half, half))
 	_check("штамп на дочернем меше красит его четверть атласа (%d текселей)" % in_b, in_b > 200)
 	_check("опорный меш A мазком по B не тронут", in_a == 0)
+
+	# C2.2: цвет слоя без искажений (слой 16 бит), форма штампа, сухая кисть. Центр B в текселях (48, 16), угол (57, 6)
+	eng.clear()
+	await _frames(6)
+	var pos: Vector3 = hit["position"]
+	var nrm: Vector3 = hit["normal"]
+	eng.begin_stroke()
+	eng.stamp(pos, nrm, 0.4, Color(0.5, 0.25, 0.75), 1.0, 0.99)
+	eng.end_stroke()
+	await _frames(6)
+	img = eng.read_layer()
+	var mid := img.get_pixel(48, 16)
+	_check("слой хранит цвет как есть: центр штампа (0.5, 0.25, 0.75) при полной альфе", absf(mid.r - 0.5) < 0.02 and absf(mid.g - 0.25) < 0.02 and absf(mid.b - 0.75) < 0.02 and mid.a > 0.97)
+	_check("круглый штамп радиуса 0.4 угла квадрата (0.3, 0.3) не достаёт", img.get_pixel(57, 6).a < 0.05)
+	eng.begin_stroke()
+	eng.stamp(pos, nrm, 0.4, Color(0, 1, 0), 1.0, 0.99, false, {"shape": "box", "box": Vector2.ONE, "tan": Vector3(0, 1, 0), "load": 1.0})
+	eng.end_stroke()
+	await _frames(6)
+	var corner := eng.read_layer().get_pixel(57, 6)
+	_check("квадратный штамп того же радиуса красит угол", corner.a > 0.5 and corner.g > 0.8)
+
+	var dry_opts := {"tip": "bristle", "shape": "box", "box": Vector2.ONE, "tan": Vector3(0, 1, 0), "load": 1.0, "dry": 0.9}
+	eng.clear()
+	await _frames(6)
+	eng.begin_stroke()
+	eng.stamp(pos, nrm, 0.45, Color(1, 0, 0), 1.0, 0.5, false, dry_opts)
+	eng.end_stroke()
+	await _frames(6)
+	var full := _alpha_count(eng.read_layer(), Rect2i(half, 0, half, half))
+	eng.clear()
+	await _frames(6)
+	dry_opts["load"] = 0.05
+	eng.begin_stroke()
+	eng.stamp(pos, nrm, 0.45, Color(1, 0, 0), 1.0, 0.5, false, dry_opts)
+	eng.end_stroke()
+	await _frames(6)
+	var dried := _alpha_count(eng.read_layer(), Rect2i(half, 0, half, half))
+	_check("щетина с полным запасом красит (%d текселей), с почти пустым заметно меньше (%d)" % [full, dried], full > 200 and dried < full / 2)
 
 	eng.queue_free()
 	a.queue_free()
