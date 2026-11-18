@@ -675,7 +675,7 @@ func handle_key(event: InputEventKey) -> bool:
 ## вида), и попадает в модель. Обновляется каждый кадр: вид может двигаться при неподвижной мыши (колесо, вращение)
 func _update_cursor() -> void:
 	var eng: PaintEngine = screen.paint_engine if screen != null else null
-	var active := _mode == MODE_BRUSH and eng != null and eng.is_built and is_visible_in_tree() \
+	var active = _mode == MODE_BRUSH and eng != null and eng.is_built and is_visible_in_tree() \
 		and get_viewport().gui_get_hovered_control() == screen._view_area \
 		and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
 	if not active:
