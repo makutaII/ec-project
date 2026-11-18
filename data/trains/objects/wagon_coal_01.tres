@@ -76,7 +76,6 @@ suspension = SubResource("Resource_yrtcf")
 scene = ExtResource("7_od62w")
 bogie_configs = Array[ExtResource("2_o43rn")]([SubResource("Resource_u60jt"), SubResource("Resource_6ly6f")])
 coupler_offset = 8.0
-coupler_rear = &"fixed"
 mechanisms = Array[ExtResource("6_8nbd5")]([SubResource("Resource_ag4h2"), SubResource("Resource_od62w")])
 lights = Array[ExtResource("5_g6rui")]([SubResource("Resource_r5d8a")])
 metadata/_custom_type_script = "uid://bicjny5dv1h3s"

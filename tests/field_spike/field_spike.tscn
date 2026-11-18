@@ -1,6 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://7ixapiaw5ecb"]
 
-[ext_resource type="Script" path="res://tests/field_spike/field_spike.gd" id="1_spike"]
+[ext_resource type="Script" uid="uid://das0p1ym1lb4a" path="res://tests/field_spike/field_spike.gd" id="1_spike"]
 
-[node name="FieldSpike" type="Node3D"]
+[node name="FieldSpike" type="Node3D" unique_id=786530135]
 script = ExtResource("1_spike")
