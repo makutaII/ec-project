@@ -7,38 +7,105 @@ class_name PaintSamples extends RefCounted
 ## Образец это бесшовная текстура 256x256 RGBA: цвет и «пятнистость» (альфа). Кисть с образцом красит не плоским цветом,
 ## а цветом образца, который берётся по позиции на модели (triplanar в шейдере штампа), поэтому рисунок не рвётся на
 ## швах UV2 и не растягивается. Образец запекается в слой краски при штампе, формат слоя не меняется.
-## Рисуются кодом при первом обращении с фиксированным зерном (FastNoiseLite и линии с заворотом), файлов нет.
+## Встроенные образцы рисуются кодом при первом обращении с фиксированным зерном (FastNoiseLite и линии с заворотом).
+## Свои образцы это картинки (png, jpg, webp) в папках USER_DIRS: каждый файл становится образцом с id "f:<имя файла>"
+## и названием из имени. Картинка должна быть бесшовной (края стыкуются), альфа-канал это пятнистость (без альфы
+## образец сплошной), цвет как есть. Список читается при входе в режим «Кисть» (refresh).
 
 const SIZE := 256
 const LEVEL := 3          ## с какого уровня правил (paint.level) образцы доступны
 const ORDER := ["rust", "dirt", "soot", "wear", "streaks"]
+const USER_DIRS := ["res://art/paint_samples", "user://library/paint_samples"]
+const FILE_PREFIX := "f:"
+const FILE_EXT := ["png", "jpg", "jpeg", "webp"]
 const NAMES := {
 	"rust": "Ржавчина", "dirt": "Грязь", "soot": "Копоть", "wear": "Потёртость", "streaks": "Подтёки",
 }
 
+static var dirs: Array = USER_DIRS.duplicate()   # где искать свои образцы (тест подменяет)
 static var _cache := {}      # id -> {image, texture}
+static var _files := {}      # id файла -> путь
+static var _file_tex := {}   # id файла -> Texture2D
 
 
 static func has(id: String) -> bool:
-	return ORDER.has(id)
+	return ORDER.has(id) or _files.has(id)
+
+
+## Все образцы по порядку: встроенные, затем файлы по имени
+static func ids() -> Array[String]:
+	var out: Array[String] = []
+	for id in ORDER:
+		out.append(id)
+	var names := _files.keys()
+	names.sort()
+	for id in names:
+		out.append(str(id))
+	return out
 
 
 static func title(id: String) -> String:
+	if _files.has(id):
+		return id.trim_prefix(FILE_PREFIX).replace("_", " ")
 	return str(NAMES.get(id, ""))
 
 
-## Картинка образца (RGBA8, SIZE x SIZE). null: id нет
+## Перечитать папки со своими образцами (USER_DIRS). Убранные файлы пропадают, изменённые загружаются заново
+static func refresh() -> void:
+	var found := {}
+	for dir in dirs:
+		var da := DirAccess.open(str(dir))
+		if da == null:
+			continue
+		for f in da.get_files():
+			var name := f
+			# в собранной игре картинки лежат как «имя.png.import» или «имя.png.remap»
+			for suffix in [".import", ".remap"]:
+				if name.ends_with(suffix):
+					name = name.trim_suffix(suffix)
+			if not FILE_EXT.has(name.get_extension().to_lower()):
+				continue
+			found[FILE_PREFIX + name.get_basename()] = str(dir).path_join(name)
+	for id in _files.keys():
+		if not found.has(id) or found[id] != _files[id]:
+			_file_tex.erase(id)
+	_files = found
+
+
+## Путь картинки файлового образца ("" для встроенных)
+static func file_path(id: String) -> String:
+	return str(_files.get(id, ""))
+
+
+## Картинка встроенного образца (RGBA8, SIZE x SIZE). null: id нет или образец из файла
 static func image(id: String) -> Image:
-	if not has(id):
+	if not ORDER.has(id):
 		return null
 	return _entry(id)["image"]
 
 
-## Текстура образца для шейдера (повторяется). null: id нет
+## Текстура образца для шейдера (повторяется). null: id нет или файл не читается
 static func texture(id: String) -> Texture2D:
-	if not has(id):
+	if _files.has(id):
+		return _file_texture(id)
+	if not ORDER.has(id):
 		return null
 	return _entry(id)["texture"]
+
+
+static func _file_texture(id: String) -> Texture2D:
+	if _file_tex.has(id):
+		return _file_tex[id]
+	var path := str(_files[id])
+	var tex: Texture2D = null
+	if path.begins_with("res://"):
+		tex = ResourceLoader.load(path) as Texture2D
+	else:
+		var img := Image.load_from_file(path)
+		if img != null and not img.is_empty():
+			tex = ImageTexture.create_from_image(img)
+	_file_tex[id] = tex
+	return tex
 
 
 static func _entry(id: String) -> Dictionary:

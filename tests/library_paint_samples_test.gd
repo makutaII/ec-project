@@ -15,6 +15,7 @@ func _ready() -> void:
 	_check("образцы доступны с уровня 3, пустой id и неизвестный id это «без образца»", PaintSamples.LEVEL == 3 and not PaintSamples.has("") and PaintSamples.image("nope") == null and PaintSamples.texture("") == null)
 	for id in PaintSamples.ORDER:
 		_test_sample(id)
+	_test_files()
 	print("Library paint samples: %d/%d" % [_ok, _all])
 	get_tree().quit(0 if _ok == _all else 1)
 
@@ -59,6 +60,36 @@ func _test_sample(id: String) -> void:
 	seam_y /= size
 	inner_y /= size
 	_check("%s: бесшовно по обеим осям (шов %.3f и %.3f, внутри %.3f и %.3f)" % [id, seam_x, seam_y, inner_x, inner_y], seam_x <= inner_x * 3.0 + 0.03 and seam_y <= inner_y * 3.0 + 0.03)
+
+
+## Свои образцы из файлов: папка подменяется временной, файл появляется и исчезает вместе с папкой
+func _test_files() -> void:
+	var tmp := "user://library_samples_test"
+	DirAccess.make_dir_recursive_absolute(tmp)
+	var img := Image.create(8, 4, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.8, 0.2, 0.1, 0.5))
+	img.save_png(tmp + "/ржавые_подтёки.png")
+	img.save_png(tmp + "/b_plain.png")
+	var note := FileAccess.open(tmp + "/notes.txt", FileAccess.WRITE)
+	note.store_string("не картинка")
+	note.close()
+	var saved := PaintSamples.dirs
+	PaintSamples.dirs = [tmp, "user://library_samples_test_missing"]
+	PaintSamples.refresh()
+	var ids := PaintSamples.ids()
+	_check("файлы: образцы из папки идут после встроенных, по имени, текстовый файл пропущен", ids.size() == PaintSamples.ORDER.size() + 2 and ids[ids.size() - 2] == "f:b_plain" and ids[ids.size() - 1] == "f:ржавые_подтёки")
+	_check("файлы: название из имени файла, has и file_path", PaintSamples.title("f:ржавые_подтёки") == "ржавые подтёки" and PaintSamples.has("f:b_plain") and PaintSamples.file_path("f:b_plain") == tmp + "/b_plain.png" and PaintSamples.file_path("rust") == "")
+	var tex := PaintSamples.texture("f:b_plain")
+	_check("файлы: текстура загружена с размером картинки и кэшируется; у встроенных image есть, у файла нет", tex != null and tex.get_width() == 8 and tex.get_height() == 4 and PaintSamples.texture("f:b_plain") == tex and PaintSamples.image("f:b_plain") == null and PaintSamples.image("rust") != null)
+	_check("файлы: неизвестный файловый id это «без образца»", PaintSamples.texture("f:нет") == null and not PaintSamples.has("f:нет"))
+	DirAccess.remove_absolute(tmp + "/b_plain.png")
+	PaintSamples.refresh()
+	_check("файлы: убранный файл пропадает из списка после refresh", not PaintSamples.has("f:b_plain") and PaintSamples.has("f:ржавые_подтёки"))
+	DirAccess.remove_absolute(tmp + "/ржавые_подтёки.png")
+	DirAccess.remove_absolute(tmp + "/notes.txt")
+	DirAccess.remove_absolute(tmp)
+	PaintSamples.dirs = saved
+	PaintSamples.refresh()
 
 
 func _check(title: String, cond: bool) -> void:

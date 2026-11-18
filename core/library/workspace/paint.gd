@@ -53,7 +53,12 @@ var _redo_btn: Button
 var _scatter_slider: HSlider
 var _spacing_slider: HSlider
 var _cursor: PaintCursor          # контур кисти на модели (в World3D студии)
+var _preview_engine: PaintEngine  # движок, для которого запомнена точка предпросмотра
+var _preview_pos := Vector3.ZERO  # последняя точка под курсором на модели (пространство опорного меша)
+var _preview_normal := Vector3.UP
+var _preview_ok := false
 var _sample_opt: OptionButton
+var _sample_ids: Array[String] = []   # id образцов в списке по порядку (после «Без образца»)
 var _sample_size_slider: HSlider
 var _stroke_active := false
 var _last_pos := Vector2.ZERO
@@ -521,14 +526,24 @@ func _build_sample_row() -> void:
 	row.add_child(l)
 	_sample_opt = OptionButton.new()
 	_sample_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_sample_opt.tooltip_text = "С образцом краска берёт цвет и пятнистость из образца (ржавчина, грязь и т. д.), а не выбранный цвет"
-	_sample_opt.add_item("Без образца")
-	for id in PaintSamples.ORDER:
-		_sample_opt.add_item(PaintSamples.title(id))
+	_sample_opt.tooltip_text = "С образцом краска берёт цвет и пятнистость из образца (ржавчина, грязь и т. д.), а не выбранный цвет.\nСвои образцы: картинки png, jpg, webp в папке art/paint_samples (бесшовные, альфа это пятнистость)"
 	_sample_opt.item_selected.connect(func(i: int) -> void:
 		if not _silent:
-			_tool_params[_tool]["sample"] = "" if i == 0 else str(PaintSamples.ORDER[i - 1]))
+			_tool_params[_tool]["sample"] = "" if i == 0 or i > _sample_ids.size() else _sample_ids[i - 1])
 	row.add_child(_sample_opt)
+	_fill_sample_options()
+
+
+## Список образцов: «Без образца», встроенные и файлы из папок со своими образцами (перечитываются)
+func _fill_sample_options() -> void:
+	PaintSamples.refresh()
+	_sample_ids = PaintSamples.ids()
+	_sample_opt.clear()
+	_sample_opt.add_item("Без образца")
+	for id in _sample_ids:
+		_sample_opt.add_item(PaintSamples.title(id))
+	if _tool_params.has(_tool):
+		_sample_opt.select(_sample_ids.find(str(_tool_params[_tool]["sample"])) + 1)
 
 
 ## Ползунок параметра инструмента. key: size, flow, hardness, scatter или spacing; value_scale: сколько единиц ползунка
@@ -561,7 +576,7 @@ func _sync_tool_sliders() -> void:
 	_scatter_slider.value = float(p["scatter"]) * 100.0
 	_spacing_slider.value = float(p["spacing"])
 	_sample_size_slider.value = float(p["sample_size"]) * 100.0
-	_sample_opt.select(PaintSamples.ORDER.find(str(p["sample"])) + 1)
+	_sample_opt.select(_sample_ids.find(str(p["sample"])) + 1)
 	_silent = false
 
 
@@ -611,6 +626,8 @@ func _apply_mode_visibility() -> void:
 
 ## Строит карту кисти (в потоке) и включает рисование. Если нельзя, возвращает «Заливку зон»
 func _enter_brush() -> void:
+	_fill_sample_options()                     # свои образцы могли появиться в папке
+	_update_tool_levels(_paint_level())
 	_brush_note.text = "Построение карты кисти..."
 	var ok: bool = await screen.ensure_paint_engine()
 	if _mode != MODE_BRUSH:
@@ -675,31 +692,60 @@ func handle_key(event: InputEventKey) -> bool:
 ## вида), и попадает в модель. Обновляется каждый кадр: вид может двигаться при неподвижной мыши (колесо, вращение)
 func _update_cursor() -> void:
 	var eng: PaintEngine = screen.paint_engine if screen != null else null
-	var active = _mode == MODE_BRUSH and eng != null and eng.is_built and is_visible_in_tree() \
-		and get_viewport().gui_get_hovered_control() == screen._view_area \
+	var hovered: Control = get_viewport().gui_get_hovered_control() if is_inside_tree() else null
+	var over_view: bool = hovered != null and hovered == screen._view_area
+	var over_panel: bool = hovered != null and not over_view and (hovered == self or is_ancestor_of(hovered))
+	var active: bool = _mode == MODE_BRUSH and eng != null and eng.is_built and is_visible_in_tree() \
+		and (over_view or over_panel) \
 		and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
 	if not active:
 		if _cursor != null:
 			_cursor.hide_cursor()
 		return
-	var hit := eng.raycast(screen.world.camera, screen._view_area.get_local_mouse_position())
-	if hit.is_empty():
-		if _cursor != null:
-			_cursor.hide_cursor()
-		return
+	if eng != _preview_engine:
+		_preview_engine = eng
+		_preview_ok = false
+	var xf := eng.target.global_transform
+	if over_view:
+		var hit := eng.raycast(screen.world.camera, screen._view_area.get_local_mouse_position())
+		if hit.is_empty():
+			if _cursor != null:
+				_cursor.hide_cursor()
+			return
+		_preview_pos = hit["position"]
+		_preview_normal = hit["normal"]
+		_preview_ok = true
+	else:
+		# Мышь над панелью (ползунки размера, жёсткости): кольцо остаётся там, где мышь была над моделью,
+		# а если оно ушло за кадр или такой точки ещё нет, берётся точка в центре вида
+		if not _preview_ok or not _on_screen(xf * _preview_pos):
+			var center := eng.raycast(screen.world.camera, screen._view_area.size * 0.5)
+			if center.is_empty():
+				if _cursor != null:
+					_cursor.hide_cursor()
+				return
+			_preview_pos = center["position"]
+			_preview_normal = center["normal"]
+			_preview_ok = true
 	if _cursor == null or not is_instance_valid(_cursor):
 		_cursor = PaintCursor.new()
 		screen.world.add_child(_cursor)
 	var p: Dictionary = _tool_params[_tool]
-	var xf := eng.target.global_transform
-	var n_root: Vector3 = hit["normal"]
 	# направление конца: у «по мазку» последнее направление мазка, иначе по оси Y модели (случайный угол заранее неизвестен)
 	var mode := "stroke" if str(p["rotate"]) == "stroke" else "fixed"
-	var t_root := PaintBrushes.tangent(n_root, mode, Vector3.ZERO, null, 0.0, _stroke_tan)
+	var t_root := PaintBrushes.tangent(_preview_normal, mode, Vector3.ZERO, null, 0.0, _stroke_tan)
 	var sc := xf.basis.get_scale()
 	var radius := eng.radius_for(float(p["size"])) * (sc.x + sc.y + sc.z) / 3.0
-	_cursor.show_at(xf * (hit["position"] as Vector3), (xf.basis.inverse().transposed() * n_root).normalized(),
+	_cursor.show_at(xf * _preview_pos, (xf.basis.inverse().transposed() * _preview_normal).normalized(),
 		(xf.basis * t_root).normalized(), radius, p)
+
+
+## Точка мира в кадре вида (перед камерой и внутри области вида)
+func _on_screen(world_pos: Vector3) -> bool:
+	var cam: Camera3D = screen.world.camera
+	if cam.is_position_behind(world_pos):
+		return false
+	return Rect2(Vector2.ZERO, screen._view_area.size).has_point(cam.unproject_position(world_pos))
 
 
 func _free_cursor() -> void:
