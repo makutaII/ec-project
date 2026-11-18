@@ -52,6 +52,7 @@ var _undo_btn: Button
 var _redo_btn: Button
 var _scatter_slider: HSlider
 var _spacing_slider: HSlider
+var _cursor: PaintCursor          # контур кисти на модели (в World3D студии)
 var _sample_opt: OptionButton
 var _sample_size_slider: HSlider
 var _stroke_active := false
@@ -633,6 +634,7 @@ func _enter_brush() -> void:
 
 func exit() -> void:
 	_stroke_end()
+	_free_cursor()
 
 
 func view_input(event: InputEvent) -> bool:
@@ -669,7 +671,45 @@ func handle_key(event: InputEventKey) -> bool:
 	return false
 
 
+## Контур кисти под курсором: показывается в режиме «Кисть», когда мышь над видом (не над панелями и не при вращении
+## вида), и попадает в модель. Обновляется каждый кадр: вид может двигаться при неподвижной мыши (колесо, вращение)
+func _update_cursor() -> void:
+	var eng: PaintEngine = screen.paint_engine if screen != null else null
+	var active := _mode == MODE_BRUSH and eng != null and eng.is_built and is_visible_in_tree() \
+		and get_viewport().gui_get_hovered_control() == screen._view_area \
+		and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
+	if not active:
+		if _cursor != null:
+			_cursor.hide_cursor()
+		return
+	var hit := eng.raycast(screen.world.camera, screen._view_area.get_local_mouse_position())
+	if hit.is_empty():
+		if _cursor != null:
+			_cursor.hide_cursor()
+		return
+	if _cursor == null or not is_instance_valid(_cursor):
+		_cursor = PaintCursor.new()
+		screen.world.add_child(_cursor)
+	var p: Dictionary = _tool_params[_tool]
+	var xf := eng.target.global_transform
+	var n_root: Vector3 = hit["normal"]
+	# направление конца: у «по мазку» последнее направление мазка, иначе по оси Y модели (случайный угол заранее неизвестен)
+	var mode := "stroke" if str(p["rotate"]) == "stroke" else "fixed"
+	var t_root := PaintBrushes.tangent(n_root, mode, Vector3.ZERO, null, 0.0, _stroke_tan)
+	var sc := xf.basis.get_scale()
+	var radius := eng.radius_for(float(p["size"])) * (sc.x + sc.y + sc.z) / 3.0
+	_cursor.show_at(xf * (hit["position"] as Vector3), (xf.basis.inverse().transposed() * n_root).normalized(),
+		(xf.basis * t_root).normalized(), radius, p)
+
+
+func _free_cursor() -> void:
+	if _cursor != null and is_instance_valid(_cursor):
+		_cursor.queue_free()
+	_cursor = null
+
+
 func _process(_delta: float) -> void:
+	_update_cursor()
 	if _stroke_active and bool(_tool_params[_tool]["accumulate"]):
 		_stamp_at(_last_pos)
 	if _undo_btn != null and _brush_box.visible and screen != null and screen.paint_engine != null:
