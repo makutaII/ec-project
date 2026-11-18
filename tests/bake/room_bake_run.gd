@@ -84,10 +84,14 @@ func _setup_view() -> void:
 	add_child(we)
 
 
+## baked: так будет в игре с bake: lightmap включён, лампа и луна выключены (свет уже в текстурах).
+## dynamic: lightmap выключен, лампа и луна как обычные динамические источники с тенями.
+## Прежняя версия оставляла источники включёнными (BAKE_STATIC), поэтому они продолжали считаться в реальном времени
 func _set_baked(baked: bool) -> void:
 	_gi.visible = baked
 	for l in _lights:
-		l.light_bake_mode = Light3D.BAKE_STATIC if baked else Light3D.BAKE_DYNAMIC
+		l.visible = not baked
+		l.light_bake_mode = Light3D.BAKE_STATIC if baked else Light3D.BAKE_DISABLED
 
 
 ## Один замер: режим и масштаб 3D-рендера (2.0 даёт 4x пикселей: так разница по GPU видна и на сильной видеокарте).
