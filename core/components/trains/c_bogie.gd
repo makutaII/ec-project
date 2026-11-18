@@ -9,6 +9,9 @@ class BogieData:
 	var current_track: Entity
 	var track_distance: float = 0.0
 	var route: int = 0   # XX claude-switch: номер маршрута на кроссе (C_Path.curve_of). Остальным траком не важен
+	## XX claude-coaster C2: знак движения при current_speed > 0 вдоль сплайна (+1 к концу, −1 к началу) на траке БЕЗ C_PowerTrack.
+	## На траке с питанием его не читают: там знак даёт полярность (см. C_Bogie.dir_of)
+	var dir_sign: float = 1.0
 	var calculated_global_pos: Vector3
 	var calculated_global_basis: Basis
 	#var is_front: bool = false # уже не надо
@@ -99,10 +102,12 @@ func set_track_to_bogies_data(track_data: Dictionary, w_flipped: bool) -> Dictio
 				bogie.current_track = hit_track
 				bogie.route = hit.route
 				bogie.track_distance = clampf(hit.distance, 0.0, hit_path.curve_of(hit.route).get_baked_length())
+				bogie.dir_sign = 1.0   # XX claude-coaster C2: согласуем после цикла
 				_assist_update_calc_global_pos(bogie)
 				continue
 		bogie.current_track = track
 		bogie.route = route
+		bogie.dir_sign = 1.0   # XX claude-coaster C2
 		
 		# Если вагон посажен мордой против сплайна (w_flipped = true), 
 		# передняя тележка (у которой Z < 0) должна оказаться ближе к началу сплайна (0.0).
@@ -114,6 +119,8 @@ func set_track_to_bogies_data(track_data: Dictionary, w_flipped: bool) -> Dictio
 		# Сразу обновляем глобальные позиции (с учетом словаря из прошлого шага)
 		_assist_update_calc_global_pos(bogie)# , w_flipped) 
 		
+	_assist_align_directions()   # XX claude-coaster C2: тележки на разных траках горок смотрят в одну сторону
+
 	# Возвращаем словарь крайних точек для хорды
 	if bogies_data.size() > 0:
 		return {
@@ -158,16 +165,52 @@ func _assist_move_bogie(bogie: BogieData, delta: float, speed: float) -> void:
 	# 1️⃣ если вагон развернут, локальное смещение тележки НЕ инвертируется относительно сплайна
 	# 2️⃣ если трак  развернут, локальное смещение тележки инвертируется относительно сплайна
 	# Разворот трака держит C_PowerTrack
-	var power_track = bogie.current_track.get_comp(C_PowerTrack)
-
-	# Учитываем инверсию  трака 
-	var  dir_sign = 1.0
-	if power_track:
-		dir_sign =-1.0 if power_track.flip_of(bogie.route) else 1.0   # XX claude-switch: луч кросса
-		
-	bogie.track_distance += speed * delta * dir_sign 
+	# Учитываем инверсию трака: с питанием по полярности (XX claude-switch), без питания по знаку тележки (XX claude-coaster C2)
+	bogie.track_distance += speed * delta * dir_of(bogie)
 
 
+
+
+## Знак движения тележки при current_speed > 0 вдоль сплайна её трака: +1 к концу, −1 к началу.
+## Трак с питанием: полярность контура (flip_of). Трак без питания (горки): запомненный знак тележки (dir_sign).
+## XX claude-coaster C2: раньше без питания знак был всегда +1, и на стыке траков, повёрнутых друг к другу
+## «задом наперёд», вагон ехал бы обратно
+func dir_of(bogie: BogieData) -> float:
+	if is_instance_valid(bogie.current_track):
+		var pt := bogie.current_track.get_comp(C_PowerTrack) as C_PowerTrack
+		if pt != null:
+			return -1.0 if pt.flip_of(bogie.route) else 1.0   # XX claude-switch: луч кросса
+	return bogie.dir_sign
+
+
+## Мировая касательная сплайна тележки в её текущей точке (в сторону роста длины)
+func _assist_tangent_of(bogie: BogieData) -> Vector3:
+	var pc := bogie.current_track.get_comp(C_Path) as C_Path
+	var crv: Curve3D = pc.curve_of(bogie.route)
+	var t := crv.sample_baked_with_rotation(clampf(bogie.track_distance, 0.0, crv.get_baked_length()))
+	return (pc.path_node.global_basis * -t.basis.z).normalized()
+
+
+## После перехода на новый трак: если он без питания, знак выбираем так, чтобы движение продолжилось в ту же сторону
+func _assist_inherit_direction(bogie: BogieData, positive_dir: Vector3) -> void:
+	if not is_instance_valid(bogie.current_track) or bogie.current_track.has_comp(C_PowerTrack):
+		return   # трак с питанием: знак даёт полярность
+	bogie.dir_sign = BogieDirection.inherit(positive_dir, _assist_tangent_of(bogie), bogie.dir_sign)
+
+
+## Посадка и загрузка: тележки одного вагона на разных траках горок (стык, загрузка по bogie_hits) должны двигаться
+## в одну сторону. Эталон это первая тележка, остальным знак берём по её направлению
+func _assist_align_directions() -> void:
+	if bogies_data.size() < 2:
+		return
+	var ref := bogies_data[0]
+	if not is_instance_valid(ref.current_track):
+		return
+	var ref_dir := _assist_tangent_of(ref) * dir_of(ref)
+	for i in range(1, bogies_data.size()):
+		var b := bogies_data[i]
+		if is_instance_valid(b.current_track) and not b.current_track.has_comp(C_PowerTrack):
+			b.dir_sign = BogieDirection.inherit(ref_dir, _assist_tangent_of(b), b.dir_sign)
 
 
 #### Резервный переход через границы/сокеты (если рейкаст на мгновение потерял рельс)
@@ -194,6 +237,8 @@ func _assist_check_transition(bogie: BogieData) -> void:
 	
 	# В Godot вперед - это -Z
 	var global_forward = (path_comp.path_node.global_basis * -edge_transform.basis.z).normalized()
+	# XX claude-coaster C2: мировое направление движения при current_speed > 0 в точке стыка (до смены трака)
+	var positive_dir: Vector3 = global_forward * dir_of(bogie)
 	if not is_exiting_end:
 		global_forward = -global_forward # Инвертируем, если вылетели с нулевой отметки
 		
@@ -235,6 +280,7 @@ func _assist_check_transition(bogie: BogieData) -> void:
 				bogie.current_track = hit_entity
 				bogie.route = next_path.entry_route(extrapolated_pos)   # XX claude-switch
 				bogie.track_distance = next_path.curve_of(bogie.route).get_closest_offset(local_hit_pos)
+				_assist_inherit_direction(bogie, positive_dir)   # XX claude-coaster C2
 				return
 	
 	# 5. Если улетели за пределы толерантности зазора (0.4м) и ничего не нащупали — дерейл
@@ -275,8 +321,7 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 	var wp_z = bogie.config.wheel_pair_position.z  if bogie.config else 0.0
 	
 	# --- ИСПРАВЛЕНИЕ: Получаем данные о развороте трака ---
-	var power_track = bogie.current_track.get_comp(C_PowerTrack)
-	var is_track_flipped = power_track.flip_of(bogie.route) if power_track else false   # XX claude-switch
+	var is_track_flipped := dir_of(bogie) < 0.0   # XX claude-switch (питание), XX claude-coaster C2 (без питания)
 	# --------------------------------------------------------
 	
 	if wp_z > 0.001:
