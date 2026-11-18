@@ -103,7 +103,7 @@ func _ready() -> void:
 		add_child(rb)
 		await get_tree().physics_frame
 		await get_tree().physics_frame
-		check("kid_room_10 процедурная: управлений нет", rb.get_controls().defs.is_empty() and rb.get_control_state().is_empty())
+		check("kid_room_10 из сцены: управлений нет", rb.get_controls().defs.is_empty() and rb.get_control_state().is_empty())
 		check("request_room(attic)", rb.request_room(&"attic", &"start") and rb.get_room_id() == &"attic")
 		check("в attic два управления, одно для Observe", rb.get_controls().defs.size() == 2 and rb.get_controls().for_scope(RoomControl.Scope.OBSERVE).size() == 1)
 		var st := rb.get_control_state()

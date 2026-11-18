@@ -12,7 +12,7 @@ class_name LookLab extends Node
 ## После прогона всё возвращается: Look, Time, Quality, Environment, камера, UI.
 ## Запускать в режиме Observe (виньетка и tilt-shift работают только там). Во время прогона мышь и клавиши не трогать.
 ## Вариант (_variants): {"id": "...", "look": {поле GraphicsPreset: значение}, "time": {поле TimeOfDayPreset: значение},
-##           "env": {свойство Environment: значение}, "room": {слот варианта комнаты: значение}}. Все поля необязательны.
+##           "env": {свойство Environment: значение}}. Все поля необязательны.
 ## Кнопки на вкладке Keys панели F3: прогон на High, Medium, Low (в папке user://look_lab/<время>_<tier>/).
 
 ## Снимки пишутся в JPEG (около 0,3 МБ вместо 1,5 МБ у PNG); метрики считаются по изображению до сжатия
@@ -43,8 +43,8 @@ func _variants() -> Array:
 	]
 
 
-func _mk(id: String, look: Dictionary, time := {}, env := {}, room := {}) -> Dictionary:
-	return {"id": id, "look": look, "time": time, "env": env, "room": room}
+func _mk(id: String, look: Dictionary, time := {}, env := {}) -> Dictionary:
+	return {"id": id, "look": look, "time": time, "env": env}
 
 
 func _m(a: Dictionary, b: Dictionary) -> Dictionary:
@@ -143,8 +143,6 @@ func run(only: Array = [], quality: StringName = &"high") -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var rows: Array[String] = ["variant,view,sat,val,val_std,sat50_pct,draw_calls,objects,primitives,gpu_ms,cpu_ms,fps"]
 	var variants := _variants()
-	var rb := get_tree().get_first_node_in_group(&"room_root") as RoomBuilder
-	var room_saved := {}
 	var vp := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
 	var vsync_was := DisplayServer.window_get_vsync_mode()
@@ -158,7 +156,6 @@ func run(only: Array = [], quality: StringName = &"high") -> void:
 		if not only.is_empty() and not only.has(id):
 			continue
 		_restore_env(env, env_saved)
-		_restore_room(rb, room_saved)
 		var look := look0.duplicate() as GraphicsPreset
 		_set_props(look, v.get("look", {}), id)
 		var tod := time0.duplicate() as TimeOfDayPreset
@@ -175,12 +172,6 @@ func run(only: Array = [], quality: StringName = &"high") -> void:
 			if not env_saved.has(k):
 				env_saved[k] = env.get(k)
 			env.set(k, extra[k])
-		var room_want: Dictionary = v.get("room", {})
-		if rb and not room_want.is_empty():
-			for slot in room_want:
-				if not room_saved.has(slot):
-					room_saved[slot] = rb.config.variants.get(slot, null)
-				rb.set_variant(slot, room_want[slot])
 		await _frames(SETTLE_FIRST)
 
 		for i in views.size():
@@ -204,7 +195,6 @@ func run(only: Array = [], quality: StringName = &"high") -> void:
 
 	# --- Возврат состояния ---
 	_restore_env(env, env_saved)
-	_restore_room(rb, room_saved)
 	RenderingServer.viewport_set_measure_render_time(vp, false)
 	DisplayServer.window_set_vsync_mode(vsync_was)
 	GFX.looks[BASE_LOOK] = look0
@@ -332,20 +322,6 @@ func _restore_env(env: Environment, saved: Dictionary) -> void:
 	for k in saved:
 		env.set(k, saved[k])
 	saved.clear()
-
-
-## Возвращает комнату к исходным вариантам (слоты, которые меняли варианты прогона)
-func _restore_room(rb: RoomBuilder, saved: Dictionary) -> void:
-	if rb == null or saved.is_empty():
-		saved.clear()
-		return
-	for slot in saved:
-		if saved[slot] == null:
-			rb.config.variants.erase(slot)
-		else:
-			rb.config.variants[slot] = saved[slot]
-	saved.clear()
-	rb.rebuild_room()
 
 
 ## Среднее время кадра GPU и CPU (мс) за несколько кадров и fps. Без V-Sync числа точнее

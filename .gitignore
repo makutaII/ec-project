@@ -17,3 +17,6 @@
 # Python (tools/)
 __pycache__/
 *.pyc
+
+# D2: пробный bake света (ATTN_14), результат prep-скрипта и lightmap
+tests/bake/out/

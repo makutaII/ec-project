@@ -6,7 +6,7 @@ room_builder.gd), с ролями §25.7.2. Файл собран без Blender
 Материалы по ролям (6 штук + колба, небо, ложный AO): цвет детали лежит в вершинных цветах (COLOR_0, линейные), поэтому материалов мало.
 Варианты стен, постели, штор и постеров процедурной детской здесь зафиксированы по умолчанию (dusty, red, yellow, trains).
 
-    python tools/kid_room_gen.py data/models/room_kid_room_10_scene/room_kid_room_10_scene.glb
+    python tools/kid_room_gen.py data/models/room_kid_room_10/room_kid_room_10.glb
 """
 import math
 import os
@@ -211,12 +211,15 @@ def bake(geom, rot=None, color=None):
 # ---------------------------------------------------------------- сцена
 
 class Builder:
-    def __init__(self):
+    def __init__(self, groups=None):
+        """groups: имена нужных групп (None: все). Пустые группы дают предупреждение проверки"""
         self.nodes = []
         self.count = {}
         self.mats = set()
         self.nodes.append(fx.node("Room", None, extras={"role": "room"}))
         for gname, grole in fx.GROUPS:
+            if groups is not None and gname not in groups:
+                continue
             self.nodes.append(fx.node(gname, "Room", extras={"role": grole}))
 
     def _name(self, group, nm):

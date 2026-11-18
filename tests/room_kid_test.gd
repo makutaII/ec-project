@@ -1,11 +1,11 @@
 extends Node
 
-## ATTN_25 RM9: заготовка детской из .glb (data/models/room_kid_room_10_scene, собрана tools/kid_room_gen.py).
+## ATTN_25 RM9: заготовка детской из .glb (data/models/room_kid_room_10, собрана tools/kid_room_gen.py).
 ## Запуск: открыть tests/room_kid_test.tscn и нажать F6. Результат в Output: во всех строках OK, в конце ИТОГ: OK.
 ## Проверяет, что детская из .glb сходится с процедурной (числа карточки, коллайдеры, колба, небо, потолок, детали) и работает
 ## с теми же механизмами комнаты (RoomRoot, GFX.lamp_changed, слои оболочки).
 
-const ID := &"kid_room_10_scene"
+const ID := &"kid_room_10"
 
 var _bad := 0
 
@@ -19,7 +19,7 @@ func check(label: String, cond: bool, detail: String = "") -> void:
 func _ready() -> void:
 	print("== RM9: детская из .glb")
 	var cfg := RoomCatalog.make(ID)
-	check("карточка kid_room_10_scene со сценой", cfg != null and cfg.scene != null)
+	check("карточка kid_room_10 со сценой", cfg != null and cfg.scene != null)
 	if cfg == null or cfg.scene == null:
 		_finish()
 		return
@@ -77,7 +77,7 @@ func _ready() -> void:
 	if sky != null:
 		var sm := sky.material_override as StandardMaterial3D
 		check("небо: material_override с градиентом (GFX красит его)", sm != null and sm.albedo_texture is GradientTexture2D)
-	var reg := RoomControlRegistry.collect(room, "kid_room_10_scene")
+	var reg := RoomControlRegistry.collect(room, "kid_room_10")
 	check("управлений нет, замечаний реестра нет", reg.defs.is_empty() and reg.warnings.is_empty(), str(reg.warnings))
 	room.queue_free()
 	_finish()

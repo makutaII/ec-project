@@ -3,7 +3,7 @@ extends Node
 ## ATTN_25 RM3: каталог комнат читает карточки из data/rooms/cards/. Запуск: открыть tests/room_catalog_test.tscn и нажать F6.
 ## Результат в Output: во всех строках OK, в конце ИТОГ: OK.
 ## Проверяет: папка карточек чистая (RoomCatalog.validate), порядок и состав списка, dev_only (стенд и куб не видны игроку),
-## сцена у карточек attic и bench (в data/models/room_*), процедурные kid_room_10 и cube без сцены, и что validate() ловит плохие карточки
+## сцена у всех четырёх комнат (attic, bench, kid_room_10, cube в data/models/room_*), и что validate() ловит плохие карточки
 ## (временные файлы в user://, в проект ничего не пишется).
 
 var _bad := 0
@@ -46,7 +46,7 @@ func _ready() -> void:
 	check("id не повторяются", dup_ids == 0, str(ids))
 	for id in [&"kid_room_10", &"cube", &"bench", &"attic"]:
 		check("в списке есть %s" % id, ids.has(id))
-	check("встроенные идут первыми в своём порядке", ids.slice(0, 4) == [&"kid_room_10", &"cube", &"bench", &"attic"], str(ids))
+	check("комната по умолчанию первая", ids[0] == RoomCatalog.DEFAULT_ID, str(ids))
 	for e in all:
 		check("у '%s' есть название" % e.id, String(e.title) != "")
 
@@ -71,8 +71,13 @@ func _ready() -> void:
 	check("model_id: префикс не дублируется", RoomCatalog.model_id(&"room_test_01") == "room_test_01")
 	check("scene_path", RoomCatalog.scene_path(&"attic") == "res://data/models/room_attic/room_attic.tscn")
 	check("bench: сцена из карточки, dev_only", bench.scene != null and bench.dev_only)
-	check("kid_room_10: процедурная, без сцены", RoomCatalog.make(&"kid_room_10").scene == null)
-	check("cube: процедурная, без сцены, dev_only", RoomCatalog.make(&"cube").scene == null and RoomCatalog.make(&"cube").dev_only)
+	var kid := RoomCatalog.make(&"kid_room_10")
+	var cube := RoomCatalog.make(&"cube")
+	check("kid_room_10: сцена в data/models/room_kid_room_10", kid.scene != null and kid.scene.resource_path == "res://data/models/room_kid_room_10/room_kid_room_10.tscn",
+			kid.scene.resource_path if kid.scene else "")
+	check("cube: сцена в data/models/room_cube, dev_only", cube.scene != null and cube.scene.resource_path == "res://data/models/room_cube/room_cube.tscn" and cube.dev_only)
+	check("make даёт свой экземпляр, не общий ресурс", kid != RoomCatalog.make(&"kid_room_10"))
+	check("все комнаты каталога со сценой", RoomCatalog.entries().all(func(d: Dictionary) -> bool: return RoomCatalog.make(d.id).scene != null))
 	check("неизвестный id: комната по умолчанию", RoomCatalog.make(&"no_such_room").id == RoomCatalog.DEFAULT_ID)
 
 	print("== 5. validate ловит плохие карточки (user://)")

@@ -84,7 +84,7 @@ art/blender/room_<имя>.blend             # исходник (или вне gi
 data/models/room_<имя>/room_<имя>.glb    # экспорт из Blender, имя постоянное (+ .import)
 data/models/room_<имя>/room_<имя>.tscn   # сцена-обёртка: RoomRoot, инстанс .glb, добавки Godot
 data/rooms/cards/<id>.tres               # карточка и конфиг (RoomConfig), id равен имени файла; в data/rooms только cards/
-core/room/                               # код комнаты: room_builder, room_catalog, room_root, room_decor, room_attic, table_supports
+core/room/                               # код комнаты: room_builder, room_catalog, room_root, room_glb, room_control*, table_supports
 core/library/room_studio/                # Room Studio (инструмент Library, рядом с track_studio и icon_studio)
 ```
 
@@ -104,7 +104,7 @@ core/library/room_studio/                # Room Studio (инструмент Lib
 
 Лишние переезды (`gimbal.tscn`, `game_root.tscn`) трогают главную сцену и `uid`, поэтому они идут отдельным патчем после проверки RM3b. Room Studio остаётся в `core/library/room_studio/`: это один из инструментов Library, как `track_studio` и `icon_studio`, а не часть кода самой комнаты.
 
-**Поля `RoomConfig` после перехода на сцены** (процедурные поля живут до RM9):
+**Поля `RoomConfig` после перехода на сцены** (процедурные поля убраны в RM9b):
 
 | Поле | Откуда берётся | Кто читает |
 |---|---|---|
@@ -442,11 +442,11 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 
 **Проверка:** (1) В FileSystem импорт `room_test_01.glb` (после пересборки): ошибок нет, Import → Root Scale 1.0. (2) F6 на `tests/room_glb_test.tscn`: все OK, в конце `ИТОГ: OK`. Первая секция «Свойства Blender дошли до Godot»: если здесь ОШИБКА «НЕТ extras», остальное не проверяется, пришлите вывод. Секция 11 только печатает разбор вашего `room_test_glb.glb` (роли, карточка, замечания), ошибок не считает. (3) Library → Room Studio → `room_test_01` (dev): прокси-коробок нет, вкладка «Объекты»: Штора, Потолочная лампа [Observe], Подсветка [студия]; штора ходит по ползунку, лампы гаснут, лампочка над кроватью гаснет вместе с «Потолочная лампа». (4) Вкладка «Паспорт»: «Обновить паспорт из сцены» (только из редактора), затем «Проверка»: «числа сходятся»; в Git файл `room_test_01.tres` не меняется (числа те же). (5) «Оставить активной», выйти: в игре комната 480 × 250 × 380, штора и лампа в Observe → Light, вагон со стола падает на пол и лежит (коллайдеры пола и мебели), камера в границах. Солнце окна пока не привязано (см. выше). (6) `attic` и `bench` и процедурные комнаты работают как раньше; F6 на `tests/room_control_test.tscn`, `room_light_test.tscn`, `room_catalog_test.tscn`: OK. (7) `python tools/test_room_pipeline.py`: `ИТОГ: OK`.
 
-### RM9. Первая настоящая комната и конец процедурных [ ]
+### RM9. Первая настоящая комната и конец процедурных [x]
 
-Делится на два патча: **RM9a** (заготовка детской из `.glb`, сделана) и **RM9b** (после вашей приёмки: удаление процедурного кода).
+Делится на два патча: **RM9a** (заготовка детской из `.glb`) и **RM9b** (удаление процедурного кода и пробный bake): оба сделаны.
 
-**RM9a [x]. Заготовка детской.** Файлы: `tools/kid_room_gen.py` (генератор без Blender), `data/models/room_kid_room_10_scene/room_kid_room_10_scene.glb` (+ обёртка `.tscn`), `data/rooms/cards/kid_room_10_scene.tres` (`dev_only`), `tests/room_kid_test.tscn`, `tools/room_fixture.py` (вершинные цвета, материалы с параметрами), правила `bulb_of = gfx_lamp`, `RoomGlb.sky_material`.
+**RM9a [x]. Заготовка детской.** Файлы: `tools/kid_room_gen.py` (генератор без Blender), `data/models/room_kid_room_10_scene/room_kid_room_10_scene.glb` (+ обёртка `.tscn`), `data/rooms/cards/kid_room_10_scene.tres` (`dev_only`); в RM9b папка, файлы и карточка переименованы в `room_kid_room_10` и `kid_room_10`, `tests/room_kid_test.tscn`, `tools/room_fixture.py` (вершинные цвета, материалы с параметрами), правила `bulb_of = gfx_lamp`, `RoomGlb.sky_material`.
 
 - [x] Заготовка собрана по числам процедурной детской (`room_decor.gd`, `room_builder.gd`): пол, 4 стены с окном и дверью, рама, штора, карниз, подоконник, мебель (кровать, стол, стул, шкаф, стеллаж, ковёр, дверь, лампа), T2, T3, ложный AO, небо, коллайдеры (пол, стены, мебель), прокси, `table_origin`, `window_sun`. ERROR 0, WARN 0, 5970 треугольников.
 - [x] 6 материалов по ролям + колба + небо + ложный AO; цвет детали лежит в вершинных цветах (линейных), поэтому материалов мало. Автор в Blender красит как хочет (`paint_*` красится автором).
@@ -455,12 +455,14 @@ API (RM2): `RoomBuilder.request_room(id, source)`, где `source` это `&"sta
 
 **Проверка RM9a:** (1) `python tools/test_room_pipeline.py`: `ИТОГ: OK`. (2) В редакторе импорт `room_kid_room_10_scene.glb` без ошибок, Root Scale 1.0. (3) F6 на `tests/room_kid_test.tscn`: все OK, `ИТОГ: OK`. (4) Library → Room Studio → «Детская (из .glb)» (dev): комната без видимых коробок, мебель стоит как в процедурной детской. (5) «Оставить активной», игра: сравнить с процедурной по скриншотам эталона ([ATTN_14 §14.13](ATTN_14_observe_room.md), закладки 1–5): окно, небо, тень рамы на столе, колба горит при включении лампы, вагон со стола падает на пол и лежит, камера в границах. Если есть расхождения, пришлите скриншот: правится генератор (или файл в Blender).
 
-**RM9b [ ]. Конец процедурных** (после приёмки):
-- [ ] Карточка `kid_room_10.tres` берёт сцену из `.glb` (`kid_room_10_scene` переименовывается), старые сейвы с `room_variants` загружаются.
-- [ ] Удаляются `RoomDecor`, `RoomAttic`, `BUILTIN`, процедурные поля `RoomConfig`, `variants` (в `RoomBuilder`, сейве, `look_lab.gd`), «Комнату в сцену».
-- [ ] Пробный bake света (D2 в ATTN_14), если решено идти.
+**RM9b [x]. Конец процедурных.** Файлы: удалены `core/room/room_decor.gd`, `core/room/room_attic.gd`; `core/room/room_builder.gd` (нет greybox, паркета, ложного AO, рамы окна, ламп из `RoomConfig`, `set_variant(s)`, `rebuild_room`, `save_room_scene`; комната по умолчанию берётся из `RoomCatalog`), `core/room/room_catalog.gd` (нет `BUILTIN`: каталог читает только карточки; первой идёт `DEFAULT_ID`), `setting/room_config.gd`, `core/controllers/save_manager.gd`, `saves/saved_game.gd`, `core/graphics/look_lab.gd`, `ui/debug/debug_toggles_tab.gd`; новое: `tools/cube_room_gen.py`, `data/models/room_cube/`, `data/rooms/cards/cube.tres`, `tests/bake/`.
+- [x] Карточка `kid_room_10.tres` берёт сцену `data/models/room_kid_room_10/room_kid_room_10.tscn` (бывшая `kid_room_10_scene`, больше не `dev_only`), `cube` это сцена-коробка 400 × 250 × 400 из генератора (`dev_only`, `daylight = true`: солнце светит без окна, как раньше), `bench` и `attic` уже были на сценах.
+- [x] Удалены `RoomDecor`, `RoomAttic`, `BUILTIN`, поля `RoomConfig`: `furnished`, `wall_thickness`, `roof_top_x`, `lamps`, `variants`. Остались паспортные числа, `shape` (правила стола: `box`, `attic`, `none`), `daylight`, `ambient_mul`, `bounds`, поля стола, `show_stats`, `scene`.
+- [x] Старые сейвы: `SavedGame.room_variants` читается, но не применяется и не пишется; остальное в сейве работает как раньше.
+- [x] «Комнату в сцену» и слоты вариантов в `look_lab.gd` удалены. В Room Studio ветка «(процедурная)» осталась как запасная (в каталоге процедурных комнат больше нет), уберём при следующей правке студии.
+- [x] Пробный bake света (D2 в ATTN_14): подготовка и прогон в `tests/bake/` (`room_bake_prep.gd`, `room_bake_run.tscn`). Решение «идём/не идём» после ваших замеров, запишет ATTN_14 D2.
 
-**Проверка RM9b:** fps на Low не упал больше чем на 10%, старый сейв (с `room_variants`) загружается, `kid_room_10` берётся из сцены, `attic` и `bench` на сценах.
+**Проверка RM9b:** (1) `python tools/test_room_pipeline.py`: `ИТОГ: OK`. (2) F6 на `tests/room_catalog_test.tscn`, `room_kid_test.tscn`, `room_light_test.tscn`, `room_studio_test.tscn`, `table_layout_test.tscn`, `table_support_test.tscn`, `table_grow_test.tscn`, `room_access_test.tscn`: везде `ИТОГ: OK`. (3) Игра: комната детская из сцены, fps на Low не упал больше чем на 10% к прежнему (F4). (4) Старый сейв (с `room_variants`) загружается, комната детская. (5) Игра с `--room=attic`, `--room=bench`, `--room=cube`: сцены на месте. (6) F3 → Toggles: кнопки «Комнату в сцену» нет. (7) В FileSystem нет папки `data/models/room_kid_room_10_scene/` и файла `kid_room_10_scene.tres` (если Godot оставил старые `.import` или `.uid`, удалите их).
 
 ## 25.10. Решения и вопросы
 

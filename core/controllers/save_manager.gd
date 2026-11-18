@@ -132,7 +132,6 @@ func save_game(slot_name: String ='savegame') -> bool:
 	var _rb := _room()
 	if _rb and _rb.is_in_group(&"room_root"):
 		_saved_game.room_id = _rb.get_room_id()
-		_saved_game.room_variants = _rb.config.variants.duplicate()
 		_saved_game.room_controls = _rb.get_control_state()
 
 	# XX claude-table T0: подмакетник (ATTN_23)
@@ -240,9 +239,7 @@ func load_game(slot_name: String  ='savegame', dir: String = SAVE_DIR, style_ove
 		# --room при запуске важнее комнаты сейва (один раз), иначе сейв просит свою комнату как «load»
 		if not _apply_room_override():
 			_rb.request_room(_saved_game.room_id, RoomBuilder.SRC_LOAD)
-		# XX claude-table T0: варианты комнаты из сейва. Старый сейв (layout пуст) их не хранит: остаются текущие
-		if not _saved_game.layout.is_empty():
-			_rb.set_variants(_saved_game.room_variants)
+		# SavedGame.room_variants (варианты процедурной комнаты) читается, но игнорируется: процедурной комнаты больше нет (RM9b)
 		# Свет и механизмы комнаты (RM6). Если вместо комнаты сейва взята другая (--room), её управления не трогаем
 		_rb.set_control_state(_saved_game.room_controls if _rb.get_room_id() == _saved_game.room_id else {})
 	# XX claude-table T0: подмакетник; пустой layout = стол как в v1

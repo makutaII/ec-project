@@ -67,9 +67,9 @@ if os.path.exists(ref):
 else:
     check("room_test_01.glb существует", False)
 
-# заготовка детской (RM9): tools/kid_room_gen.py -> data/models/room_kid_room_10_scene
+# заготовка детской (RM9): tools/kid_room_gen.py -> data/models/room_kid_room_10
 import kid_room_gen as kg
-kid = os.path.join(HERE, "..", "data", "models", "room_kid_room_10_scene", "room_kid_room_10_scene.glb")
+kid = os.path.join(HERE, "..", "data", "models", "room_kid_room_10", "room_kid_room_10.glb")
 rc, out = report(kg.build_scene())
 check("детская: ERROR 0, WARN 0", "Итог: ERROR 0, WARN 0" in out, out)
 for needle in ("floor_y = -50.0", "size = Vector3(480.0, 250.0, 380.0)", "AABB(Vector3(-230.0, 3.0, -180.0), Vector3(460.0, 190.0, 360.0))",
@@ -79,9 +79,22 @@ for role in ("collider", "bulb", "sky_card", "fake_ao", "decor_t1", "decor_t2", 
     check("детская: роль %s есть" % role, role in out.split("Роли:")[1].split("\n")[0])
 if os.path.exists(kid):
     check("детская: файл совпадает с генератором", open(kid, "rb").read() == fx.to_glb(kg.build_scene()),
-          "пересоберите: python tools/kid_room_gen.py data/models/room_kid_room_10_scene/room_kid_room_10_scene.glb")
+          "пересоберите: python tools/kid_room_gen.py data/models/room_kid_room_10/room_kid_room_10.glb")
 else:
     check("детская: файл есть", False)
+
+# пустой куб (RM9b): tools/cube_room_gen.py -> data/models/room_cube
+import cube_room_gen as cg
+cube = os.path.join(HERE, "..", "data", "models", "room_cube", "room_cube.glb")
+rc, out = report(cg.build_scene())
+check("куб: ERROR 0, WARN 0", "Итог: ERROR 0, WARN 0" in out, out)
+for needle in ("floor_y = -50.0", "size = Vector3(400.0, 250.0, 400.0)", "AABB(Vector3(-190.0, 3.0, -190.0), Vector3(380.0, 190.0, 380.0))"):
+    check("куб: в отчёте «%s»" % needle, needle in out, out)
+if os.path.exists(cube):
+    check("куб: файл совпадает с генератором", open(cube, "rb").read() == fx.to_glb(cg.build_scene()),
+          "пересоберите: python tools/cube_room_gen.py data/models/room_cube/room_cube.glb")
+else:
+    check("куб: файл есть", False)
 
 # путь экспорта из поля панели: папка или голое имя не должны давать файл без .glb
 rules = pf.load_room_rules()

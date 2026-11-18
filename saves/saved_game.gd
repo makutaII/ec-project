@@ -21,7 +21,7 @@ class_name SavedGame extends Resource
 @export var entities: Array = []
 ## Комната мира (RoomCatalog). В сейвах до второй комнаты поля нет: детская
 @export var room_id: StringName = &"kid_room_10"
-## Варианты комнаты (RoomConfig.variants: стена, покрывало, шторы, постеры). В сейвах до подмакетника поля нет
+## Устарело (RM9b): варианты процедурной комнаты (стена, покрывало, шторы, постеры). Поле оставлено, чтобы старые сейвы читались; игра его не пишет и не читает
 @export var room_variants: Dictionary = {}
 ## Состояние управляемых объектов комнаты со scope = observe: id управления -> значение 0..1 (RoomBuilder.get_control_state, ATTN_25 RM6).
 ## В старых сейвах поля нет: начальные значения. Относится к room_id этого же сейва

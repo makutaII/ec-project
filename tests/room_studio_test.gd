@@ -3,7 +3,7 @@ extends Node
 ## ATTN_25 RM4: Room Studio запускается отдельно и поверх игры, переключатель «Оставить активной при выходе».
 ## Запуск: открыть tests/room_studio_test.tscn и нажать F6. Результат в Output: во всех строках OK, в конце ИТОГ: OK.
 ## Проверяет: room_studio.tscn создаётся и сама строит интерфейс; без embedded и без Global.debug_mode переключателя нет;
-## с обоими условиями он есть, выключен, и шлёт keep_room_changed с выбранным id (процедурные комнаты выбираются тоже);
+## с обоими условиями он есть, выключен, и шлёт keep_room_changed с выбранным id (детская тоже);
 ## выключение шлёт пустое имя; keep_room при открытии включает переключатель и выбирает ту комнату.
 ## Окно студии в этом тесте не показывается и игру не трогает. Меняет только user://room_studio.cfg (последняя комната).
 
@@ -97,7 +97,7 @@ func _ready() -> void:
 		got.clear()
 		list.select(proc_i)
 		list.item_selected.emit(proc_i)
-		check("процедурную тоже можно оставить", got.size() == 1 and got[0] == &"kid_room_10", str(got))
+		check("детскую тоже можно оставить", got.size() == 1 and got[0] == &"kid_room_10", str(got))
 		got.clear()
 		cb.button_pressed = false
 		check("выключение: пустое имя", got.size() == 1 and got[0] == &"", str(got))

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RoomConfig" format=3]
+
+[ext_resource type="Script" uid="uid://cbb2byx0tf34w" path="res://setting/room_config.gd" id="1_cfg"]
+[ext_resource type="PackedScene" path="res://data/models/room_cube/room_cube.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = &"cube"
+title = "Пустой куб"
+tip = "Пустая коробка для текстур и импорта, солнце светит без окна. Заменяет комнату целиком"
+dev_only = true
+scene = ExtResource("2_scene")
+size = Vector3(400, 250, 400)
+window = {}
+door = {}
+daylight = true
+bounds = AABB(-190, 3, -190, 380, 190, 380)

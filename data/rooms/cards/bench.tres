@@ -10,7 +10,6 @@ title = "Стенд (только стол)"
 tip = "Тестовая: только стол 1x2 м, без пола, стен и потолка. Включает оверлей статистики. Заменяет комнату целиком"
 scene = ExtResource("1_3kyds")
 dev_only = true
-furnished = false
 size = Vector3(800, 400, 800)
 window = {}
 door = {}

@@ -504,7 +504,6 @@ func _info_text(e: Dictionary) -> String:
 	lines.append("Размер, см: %.0f × %.0f × %.0f" % [cfg.size.x, cfg.size.y, cfg.size.z])
 	lines.append("Уровень пола (floor_y): %.0f" % cfg.floor_y)
 	lines.append("Форма: %s" % cfg.shape)
-	lines.append("Мебель: %s" % ("да" if cfg.furnished else "нет"))
 	lines.append("Дневной свет: %s" % ("да" if cfg.daylight else "нет"))
 	lines.append("Ambient ×: %.2f" % cfg.ambient_mul)
 	lines.append("Столешница, см: %.0f × %.0f" % [cfg.table_top.x, cfg.table_top.y])

@@ -4,8 +4,8 @@ extends Node
 ## ATTN_23 T0: паспорт подмакетника, LYM и сейв. Запуск: открыть tests/table_layout_test.tscn и нажать F6.
 ## Результат в Output: во всех строках должно быть OK, в конце ИТОГ: OK.
 ## Проверяет: LayoutConfig пишет и читает состояние и держит пределы; LYM.table_rect() равен прежнему значению
-## (200 x 100 с центром в нуле) и совпадает с TGM.table_rect(); SavedGame хранит layout, room_variants, room_id;
-## сейв без этих полей читается как «до подмакетника»; RoomBuilder.set_variants меняет варианты комнаты.
+## (200 x 100 с центром в нуле) и совпадает с TGM.table_rect(); SavedGame хранит layout, room_id; поле room_variants устарело (RM9b), но старый сейв с ним читается;
+## сейв без этих полей читается как «до подмакетника».
 ## Блок «метрика до» печатает высоту верха стола (луч по слою ground) в точках стола и за его краем.
 ## Сохраните эти числа: после T1 (секция как Entity) они должны совпасть.
 
@@ -64,11 +64,11 @@ func _ready() -> void:
 	check("сейв записан", err == OK, "код %d" % err)
 	var loaded := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as SavedGame
 	check("layout прочитан", loaded != null and loaded.layout.get("height") == 80.0 and loaded.layout.get("version") == LayoutConfig.VERSION)
-	check("room_variants прочитаны", loaded != null and loaded.room_variants.get("wall") == "cream" and loaded.room_variants.get("bedding") == "blue")
+	check("room_variants старого сейва читаются (игра их не использует)", loaded != null and loaded.room_variants.get("wall") == "cream" and loaded.room_variants.get("bedding") == "blue")
 	check("room_id прочитан", loaded != null and loaded.room_id == &"kid_room_10")
 	DirAccess.remove_absolute(path)
 
-	print("== 4. Комната: set_variants и метрика «до»")
+	print("== 4. Комната и метрика «до»")
 	if Global.fast_debug:
 		print("  пропуск: Global.fast_debug = true, комнату и стол не строим (WoodFloor)")
 		print("ИТОГ: ", "OK" if _bad == 0 else "ОШИБОК %d" % _bad)
@@ -82,10 +82,12 @@ func _ready() -> void:
 	check("стартовая секция создана", sec != null and LYM.get_sections().size() == 1)
 	check("комната построена", rb.table != null and rb.is_in_group(&"room_root"))
 	check("table_rect по паспорту комнаты", LYM.table_rect() == Rect2(-100.0, -50.0, 200.0, 100.0))
-	rb.set_variants({"wall": "cream"})
-	check("set_variants заменил варианты", rb.config.variants == {"wall": "cream"}, str(rb.config.variants))
+	var old_save := SavedGame.new()
+	old_save.room_variants = {"wall": "cream"}
+	old_save.room_id = &"kid_room_10"
+	check("комната старого сейва ставится, варианты игнорируются", rb.request_room(old_save.room_id, RoomBuilder.SRC_LOAD) and rb.get_room_id() == &"kid_room_10")
 	await get_tree().physics_frame
-	check("стол цел после пересборки комнаты", rb.table != null and is_instance_valid(rb.table))
+	check("стол цел", rb.table != null and is_instance_valid(rb.table))
 
 	var space := get_viewport().world_3d.direct_space_state
 	var mask := Global.active_layers(['ground'])

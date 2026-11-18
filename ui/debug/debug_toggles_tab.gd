@@ -46,15 +46,6 @@ func _init() -> void:
 				var r := _room()
 				if r:
 					r.set_ceiling_visible(on))
-	if OS.has_feature("editor"):
-		var to_scene := Button.new()
-		to_scene.text = "Комнату в сцену"
-		to_scene.tooltip_text = "Только из редактора. Записывает текущую процедурную комнату: сцена в data/models/room_<id>/, карточка в data/rooms/cards/. Со следующего запуска комната берётся из сцены. Уйдёт в Room Studio (ATTN_25 RM4)"
-		to_scene.pressed.connect(func() -> void:
-			var r := _room()
-			if r:
-				r.save_room_scene())
-		add_child(to_scene)
 	add_child(make_header("Маркеры и рельсы"))
 	_add_toggle("Маркеры (куб над Entity, сокеты)", "Рисуются у объектов, созданных после включения", "Global.debug_markers",
 			func() -> bool: return Global.debug_markers,
