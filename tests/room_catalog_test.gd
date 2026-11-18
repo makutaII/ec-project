@@ -90,7 +90,7 @@ func _ready() -> void:
 	var wrong_path := RoomConfig.new()
 	wrong_path.id = &"baz"
 	wrong_path.title = "Baz"
-	wrong_path.scene = load("res://data/scenes/gimbal.tscn") as PackedScene   # сцена вне data/models/room_*
+	wrong_path.scene = load("res://core/camera/gimbal.tscn") as PackedScene   # сцена вне data/models/room_*
 	written.append(_save(wrong_path, dir + "/baz.tres"))
 	var dup := RoomConfig.new()
 	dup.id = &"baz"

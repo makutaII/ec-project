@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://csy3eqxdwo2lo"]
 
 [ext_resource type="Material" uid="uid://dtmyvnyxkv0un" path="res://data/terrain/floor_material.tres" id="1_4pdep"]
-[ext_resource type="Script" uid="uid://dbs7x4aakehwa" path="res://data/scenes/game_root.gd" id="1_6mh03"]
-[ext_resource type="PackedScene" uid="uid://jwoxul3ecvua" path="res://data/scenes/gimbal.tscn" id="2_7cj6n"]
-[ext_resource type="Script" uid="uid://r8v81rh8g8w8" path="res://data/scenes/camera_bounds.gd" id="2_35vuu"]
+[ext_resource type="Script" uid="uid://dbs7x4aakehwa" path="res://core/game/game_root.gd" id="1_6mh03"]
+[ext_resource type="PackedScene" uid="uid://jwoxul3ecvua" path="res://core/camera/gimbal.tscn" id="2_7cj6n"]
+[ext_resource type="Script" uid="uid://r8v81rh8g8w8" path="res://core/camera/camera_bounds.gd" id="2_35vuu"]
 [ext_resource type="Script" uid="uid://bpk2bogjsoe30" path="res://core/controllers/tool_controller.gd" id="6_4pdep"]
 [ext_resource type="Script" uid="uid://hgj4x5huj448" path="res://core/controllers/drag_tool.gd" id="7_7cj6n"]
 [ext_resource type="Script" uid="uid://dfop7bhf2teoc" path="res://core/entity_factory.gd" id="7_jy1t0"]
@@ -14,7 +14,7 @@
 [ext_resource type="PackedScene" uid="uid://57xnplsftgls" path="res://ui/ui.tscn" id="9_jy1t0"]
 [ext_resource type="Script" uid="uid://bcb1ssgahu3n4" path="res://core/graphics/environment_root.gd" id="15_35vuu"]
 [ext_resource type="Script" uid="uid://ctds4lgyuysse" path="res://core/room/room_builder.gd" id="16_5q6to"]
-[ext_resource type="Script" uid="uid://n5h0jtq1feyq" path="res://core/controllers/observe_camera_rig.gd" id="17_camrig"]
+[ext_resource type="Script" uid="uid://n5h0jtq1feyq" path="res://core/camera/observe_camera_rig.gd" id="17_camrig"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_igrpr"]
 

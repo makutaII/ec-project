@@ -92,17 +92,16 @@ core/library/room_studio/                # Room Studio (инструмент Lib
 
 Каталог читает **только** `data/rooms/cards/*.tres`, без рекурсии, как каталог объектов читает `data/<категория>/objects/` (папки не сканируются). Карточки `attic` и `bench` перенесены из `data/rooms/<id>/` в `data/rooms/cards/` (RM3), а их сцены в `data/models/room_attic/` и `data/models/room_bench/`, скрипты комнаты из `data/scenes/` и `data/rooms/` в `core/room/` (RM3b, `git mv`, `uid` сохранены). Старое место и лишние файлы в `data/rooms/` проверяет `RoomCatalog.validate()`.
 
-**Остальные скрипты в `data/` (предложение, не сделано, ждёт решения автора).** В RM3b вынесен только код комнаты. Что осталось и куда можно:
+**Остальные скрипты в `data/` (сделано после RM9b по решению автора).** В RM3b вынесен только код комнаты, затем остальное:
 
-| Сейчас | Что это | Предложение |
-|---|---|---|
-| `data/scenes/gimbal.gd`, `gimbal.tscn`, `gimbal_0.gd`, `camera_bounds.gd`, `core/controllers/observe_camera_rig.gd`, `data/trains/wagon_camera.gd` (+`.tscn`) | камеры | `core/camera/`: все скрипты камер в одном месте; сцены `gimbal.tscn` и `wagon_camera.tscn` там же, пока они без `.glb` |
-| `data/scenes/game_root.gd`, `game_root.tscn` | корень игровой сцены (главная сцена), собирает комнату, камеру, UI | `core/game/` (после вынесения камеры и комнаты `data/scenes/` пустеет и удаляется) |
-| `data/scenes/gimbal_guide.gd.old`, `gimbal_guide.tscn.old` | старый код | удалить |
-| `data/tracks/ghost_node.gd` | весь файл закомментирован, на него нет ссылок | удалить |
-| `data/tools/speedometer.gd` (+3 сцены `.tscn`, `rulette.tscn`, картинки) | измерительные инструменты | скрипт в `core/tools/`, сцены и картинки остаются в `data/tools/` |
+| Было | Стало |
+|---|---|
+| `data/scenes/gimbal.gd`, `gimbal.tscn`, `gimbal_0.gd`, `camera_bounds.gd`, `core/controllers/observe_camera_rig.gd`, `data/trains/wagon_camera.gd` и `.tscn` | `core/camera/` (все камеры вместе; сцены `gimbal.tscn` и `wagon_camera.tscn` там же, пока они без `.glb`) |
+| `data/scenes/game_root.gd`, `game_root.tscn` | `core/game/` (главная сцена, `run/main_scene` по uid; `data/scenes/` удалена) |
+| `data/scenes/gimbal_guide.gd.old`, `gimbal_guide.tscn.old`, `data/tracks/ghost_node.gd` | удалены |
+| `data/tools/speedometer.gd` | `core/tools/` (сцены `speedometer_h`, `speedometer_v`, `rulette.tscn` и картинки остаются в `data/tools/`) |
 
-Лишние переезды (`gimbal.tscn`, `game_root.tscn`) трогают главную сцену и `uid`, поэтому они идут отдельным патчем после проверки RM3b. Room Studio остаётся в `core/library/room_studio/`: это один из инструментов Library, как `track_studio` и `icon_studio`, а не часть кода самой комнаты.
+Переезд сцен трогает главную сцену и `uid`: файлы перенесены целиком с `.uid`, пути в `ext_resource` и `preload` исправлены, ссылки по uid не менялись. Room Studio остаётся в `core/library/room_studio/`: это один из инструментов Library, как `track_studio` и `icon_studio`, а не часть кода самой комнаты.
 
 **Поля `RoomConfig` после перехода на сцены** (процедурные поля убраны в RM9b):
 

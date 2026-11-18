@@ -22,7 +22,7 @@
 
 | Что | Где | Состояние |
 |---|---|---|
-| Игровая сцена | `data/scenes/game_root.tscn` (`GameRoot`, uid `csy3eqxdwo2lo`) | главная сцена проекта (`run/main_scene`), запуск сразу в игру |
+| Игровая сцена | `core/game/game_root.tscn` (`GameRoot`, uid `csy3eqxdwo2lo`) | главная сцена проекта (`run/main_scene`), запуск сразу в игру |
 | Режимы игры | `ModeController` (`ui/mode_controller.gd`): Build, Operate, Observe, Sections, Library | работают; Library это готовый экран-оверлей, не заглушка (ниже) |
 | Library | `core/library/library_screen.tscn`, открывает `ModeController._open_library` | оверлей на `CanvasLayer` 50: `tree.paused = true`, `Viewport.disable_3d = true`, возврат прежних значений при закрытии; внутри Model Studio, Track Studio, Icon Studio, Room Studio |
 | Сохранение | `SaveManager` (узел внутри `GameRoot`, не автолоад), ресурс `SavedGame` | формат `.tres` в `user://saves/`; слоты `autosave`, `savegame`; названия макета, даты и снимка нет |

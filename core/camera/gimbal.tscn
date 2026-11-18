@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://jwoxul3ecvua"]
 
-[ext_resource type="Script" uid="uid://db5b61jgxpcam" path="res://data/scenes/gimbal.gd" id="1_qjih2"]
+[ext_resource type="Script" uid="uid://db5b61jgxpcam" path="res://core/camera/gimbal.gd" id="1_qjih2"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_5lg0j"]
 radius = 0.05

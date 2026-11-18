@@ -33,7 +33,7 @@
 | `core/controllers/table_tool.gd` (`TableTool`) | постановка секций: призрак, прилипание, проверка, Q/E, Ctrl+Z |
 | `core/components/table/c_table_section.gd` | плита по `C_Contour`, коллизия на `ground`, ховер и выделение |
 | `core/room/table_supports.gd` (`TableSupports`) | детали опор по контуру стола |
-| `core/room/room_builder.gd`, `data/scenes/camera_bounds.gd`, `data/scenes/gimbal.gd` | пол смещается на высоту стола, границы камеры (`Gimbal.update_bounds`) |
+| `core/room/room_builder.gd`, `core/camera/camera_bounds.gd`, `core/camera/gimbal.gd` | пол смещается на высоту стола, границы камеры (`Gimbal.update_bounds`) |
 | `ui/panels/info/table_tab.gd` (`InfoTableTab`) | вкладка «Стол» в InfoPanel |
 | `core/controllers/select_tool.gd`, `tool_controller.gd`, `ui/mode_controller.gd`, `ui/panels/mode_panel.gd` | режим `sections`, изоляция выбора, запрет стройки без секций |
 | `core/controllers/save_manager.gd` | `SavedGame.layout`, стартовая секция, миграция |

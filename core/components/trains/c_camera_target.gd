@@ -7,7 +7,7 @@ class_name C_CameraTarget extends Component
 # Логика: При добавлении в дерево регистрирует себя в контроллере и инициирует пересчет контуров дороги.
 # Визуал: добавляет сцену коробочки клеммы с индикацией текущего напряжения и id контура
 
-var wagon_camera_scene: PackedScene = preload("res://data/trains/wagon_camera.tscn")
+var wagon_camera_scene: PackedScene = preload("res://core/camera/wagon_camera.tscn")
 
 var camera_instance: Node3D = null
 var previous_camera: Camera3D = null

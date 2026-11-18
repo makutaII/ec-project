@@ -621,7 +621,7 @@ Godot импортирует CSV сам при открытии проекта �
 
 **Цель:** один владелец файла настроек.
 
-**Файлы:** новый `core/settings.gd` (автолоад `Settings`), `core/controllers/hint_manager.gd`, `core/graphics/graphics_manager.gd`, `core/controllers/observe_camera_rig.gd`, `project.godot`.
+**Файлы:** новый `core/settings.gd` (автолоад `Settings`), `core/controllers/hint_manager.gd`, `core/graphics/graphics_manager.gd`, `core/camera/observe_camera_rig.gd` (раньше `core/controllers/`), `project.godot`.
 
 - [x] `Settings.get_value(section, key, default)`, `set_value(...)`, сигнал `changed(section, key, value)`.
 - [x] Запись отложенная (одно сохранение через 0.5 с после последнего изменения и при выходе), а не на каждое изменение.
@@ -1085,7 +1085,7 @@ Godot импортирует CSV сам при открытии проекта �
 
 **Цель:** убрать абсолютные offset, ввести слоты, зафиксировать базовое разрешение.
 
-**Файлы:** `ui/ui.tscn`, `ui/hud.tscn` (новая), `project.godot` (режим растяжения), `core/controllers/observe_camera_rig.gd`, `tests/ui_layout_test.tscn`.
+**Файлы:** `ui/ui.tscn`, `ui/hud.tscn` (новая), `project.godot` (режим растяжения), `core/camera/observe_camera_rig.gd` (раньше `core/controllers/`), `tests/ui_layout_test.tscn`.
 
 - [x] Слои: HUD, Windows, Toasts (§17.3.1). Сделано 13.11.2026: `ui/ui.gd` (`set_hud_visible`, `is_hud_visible`), в `ui.tscn` Control `HUD` (на весь экран, `mouse_filter` игнорировать) с перенесёнными `ModePanel`, `MainControl`, `ModeLabel`, `InfoPanel`, `DCControlPanel`, `TopPanel`; пустые `Windows` (layer 20) и `Toasts` (layer 30); контроллеры остались прямыми детьми `UI`. `ObserveCameraRig` и `look_lab.gd` прячут через `set_hud_visible` (путь `/root/GameRoot/UI` тот же, но скрывается только HUD, окна и тосты остаются). Отдельная сцена `ui/hud.tscn` появится в U9 вместе с `TopBar`.
 - [ ] (частично: старые панели уже на якорях и теперь внутри `HUD`; `DockRow` приходит в игру со шагами каталога U13–U14, до них старые `DockObjects` и `DockCategories` остаются) Якоря и контейнеры вместо offset у `ToolDock`, `InfoPanel`, `DC`, `ModePanel`, `TopPanel` по раскладке §17.4 (U7a). Нижний ряд как в шаблоне B: `DockRow` (`CategoriesPanel` и `DockColumn` с ручкой и `ToolDock`), высота `ToolDock` задаётся его `custom_minimum_size`, панель категорий от неё не зависит.
@@ -1241,7 +1241,7 @@ Godot импортирует CSV сам при открытии проекта �
 
 **Цель:** вынести отладку и тюнинг физики из панели игрока. Главное в панели: настройка вагонов (вкладка Tuning).
 
-**Файлы:** `ui/debug/debug_panel.tscn` и `.gd`, `ui/debug/debug_*_tab.gd`, `ui/debug/wagon_tuning.gd`, `data/scenes/game_root.gd` и `.tscn`, `project.godot` (действие `debug_panel_toggle`), `ui/panels/info/info_tab.gd`; на третьем этапе `transform_tab.gd`, `debug_tab.gd`, `info_panel.tscn`.
+**Файлы:** `ui/debug/debug_panel.tscn` и `.gd`, `ui/debug/debug_*_tab.gd`, `ui/debug/wagon_tuning.gd`, `core/game/game_root.gd` и `.tscn` (раньше `data/scenes/`), `project.godot` (действие `debug_panel_toggle`), `ui/panels/info/info_tab.gd`; на третьем этапе `transform_tab.gd`, `debug_tab.gd`, `info_panel.tscn`.
 
 **Этапы** (можно проверять вместе):
 
@@ -1727,7 +1727,7 @@ Godot импортирует CSV сам при открытии проекта �
 
 ### 17.12.10. Спидометр, линейка и вспомогательные инструменты
 
-**Сейчас.** `Speedometer` (`data/tools/speedometer.gd`, сцены `speedometer_h` и `speedometer_v`) это `Node3D` в `World`, не `Entity`, `controller` берёт как `%ToolController`; включается галочкой во вкладке «Положение» InfoPanel через сигнал `s_select_entity`, измерение привязано к выбранному вагону. Линейка (`rulette.tscn`) стоит в `World/Environment` как декор.
+**Сейчас.** `Speedometer` (`core/tools/speedometer.gd`, сцены `speedometer_h` и `speedometer_v`) это `Node3D` в `World`, не `Entity`, `controller` берёт как `%ToolController`; включается галочкой во вкладке «Положение» InfoPanel через сигнал `s_select_entity`, измерение привязано к выбранному вагону. Линейка (`rulette.tscn`) стоит в `World/Environment` как декор.
 
 **Решение [решено]:** спидометр переписывается заново с нуля (по этой схеме), плавающий виджет показаний принят.
 

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://drqoh3hkkucgt"]
 
-[ext_resource type="Script" uid="uid://ch67r47go8gq7" path="res://data/trains/wagon_camera.gd" id="1_q27sr"]
+[ext_resource type="Script" uid="uid://ch67r47go8gq7" path="res://core/camera/wagon_camera.gd" id="1_q27sr"]
 
 [node name="WagonCamera" type="Node3D" unique_id=1952798983]
 transform = Transform3D(0.55919284, 0, -0.8290375, 0, 1, 0, 0.8290375, 0, 0.55919284, 0, 0, 0)

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://0gxfmn122rg4"]
 
-[ext_resource type="Script" uid="uid://bf4f4q60ao3aj" path="res://data/tools/speedometer.gd" id="1_y8htd"]
+[ext_resource type="Script" uid="uid://bf4f4q60ao3aj" path="res://core/tools/speedometer.gd" id="1_y8htd"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_44cwi"]
 size = Vector3(8.004028, 4, 1)
