@@ -31,6 +31,9 @@ func _on_instance_ready() -> void:
 	rb = instance as RigidBody3D
 	# Вагон видит комнату (пол, стены) независимо от того, что стоит в маске сцены
 	rb.collision_mask |= Global.active_layers(['room', 'supports'])   # XX claude-terra 13.1.5: сход на эстакаде, и вагон из сейва
+	# Слой коллизии задаёт код, а не сцена: у сцены-обёртки из .glb слой по умолчанию 1 (земля), и луч курсора отбрасывал боковые
+	# грани вагона как «бок земли» (ховер был только по крыше, пока вагон не выбрали и не сняли выбор). Дальше слой переключает выбор
+	on_select_layer({"enabled": false})
 	_collect_collision_nodes()
 	_build_bogies()          # твой нынешний цикл по bogie_configs
 	
