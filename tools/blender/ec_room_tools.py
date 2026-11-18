@@ -63,6 +63,7 @@ ROLE_COUNT = {
 CTL_KINDS = ("toggle", "slider", "mech")
 CTL_SCOPES = ("observe", "studio")
 LIGHT_KINDS = ("spot", "omni")
+GFX_LAMP = "gfx_lamp"   # bulb_of: колба светится вместе с лампой над столом (GFX.lamp_changed), а не с управлением комнаты
 MAT_PREFIXES = ("paint_", "wood_", "fabric_", "metal_", "plastic_", "paper_", "glass_", "emit_")
 
 TRI_WARN, TRI_ERROR = 80000, 120000
@@ -436,8 +437,8 @@ def check_room(snap):
         bo = n["props"].get("bulb_of")
         if not isinstance(bo, str) or bo == "":
             add("ERROR", "Колба '%s' (role = bulb) без bulb_of: с какой лампой она светится?" % n["name"], n["id"])
-        elif bo not in light_keys:
-            add("ERROR", "Колба '%s': bulb_of = '%s', лампы с таким ctl_id или ctl_group нет." % (n["name"], bo), n["id"])
+        elif bo not in light_keys and bo != GFX_LAMP:
+            add("ERROR", "Колба '%s': bulb_of = '%s', лампы с таким ctl_id или ctl_group нет (или gfx_lamp: лампа над столом)." % (n["name"], bo), n["id"])
 
     # ---- механизмы ----
     acts = snap.get("actions", [])

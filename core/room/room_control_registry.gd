@@ -110,6 +110,8 @@ func _add_glb(n: Node, ex: Dictionary, owner_name: String, root: Node) -> void:
 func _bind_bulbs(glb: RoomGlb) -> void:
 	for b in glb.bulbs:
 		var key: StringName = b["of"]
+		if key == RoomGlb.GFX_LAMP:
+			continue   # светится с лампой над столом, это делает RoomRoot.set_lamp_glow
 		if key == &"":
 			warnings.append("лампочка '%s' без bulb_of: не светится" % (b["node"] as Node).name)
 			continue

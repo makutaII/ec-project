@@ -147,6 +147,11 @@ def _no_bulb_of(sc):
     del _find(sc, "bulb_lamp_a")["extras"]["bulb_of"]
 
 
+def _bulb_gfx_lamp(sc):
+    "колба с лампой над столом (bulb_of = gfx_lamp): допустимо, лампы комнаты не нужны"
+    _find(sc, "bulb_lamp_a")["extras"]["bulb_of"] = "gfx_lamp"
+
+
 def _bulb_of_bad(sc):
     _find(sc, "bulb_lamp_a")["extras"]["bulb_of"] = "lamp_zzz"
 
@@ -288,6 +293,7 @@ BROKEN = {
     "scale": (_scale, "ERROR", "масштаб"),
     "proxy_rot": (_proxy_rot, "ERROR", "Коробка без поворота"),
     "no_bulb_of": (_no_bulb_of, "ERROR", "без bulb_of"),
+    "bulb_gfx_lamp": (_bulb_gfx_lamp, "OK", ""),
     "bulb_of_bad": (_bulb_of_bad, "ERROR", "лампы с таким ctl_id"),
     "no_anim": (_no_anim, "ERROR", "действия mech_curtain нет"),
     "anim_orphan": (_anim_orphan, "ERROR", "нет объекта с ctl = mech и ctl_id = 'curtain'"),
@@ -378,13 +384,24 @@ def to_glb(sc):
         return len(accs) - 1
 
     mat_index, materials = {}, []
+    mat_defs = sc.get("mat_defs", {})
+    unlit = False
     for nd in sc["nodes"]:
         m = nd.get("mat")
         if m and m not in mat_index:
             mat_index[m] = len(materials)
-            mt = {"name": m, "pbrMetallicRoughness": {"baseColorFactor": [0.8, 0.8, 0.8, 1.0], "metallicFactor": 0.0, "roughnessFactor": 0.9}}
-            if m.startswith("glass_"):
+            d = mat_defs.get(m, {})
+            mt = {"name": m, "pbrMetallicRoughness": {"baseColorFactor": list(d.get("color", [0.8, 0.8, 0.8, 1.0])),
+                  "metallicFactor": d.get("metallic", 0.0), "roughnessFactor": d.get("roughness", 0.9)}}
+            if m.startswith("glass_") or d.get("blend"):
                 mt["alphaMode"] = "BLEND"
+            if d.get("emissive"):
+                mt["emissiveFactor"] = list(d["emissive"])
+            if d.get("unlit"):
+                mt["extensions"] = {"KHR_materials_unlit": {}}
+                unlit = True
+            if d.get("double_sided"):
+                mt["doubleSided"] = True
             materials.append(mt)
     meshes = []
     mesh_of = {}
@@ -399,17 +416,26 @@ def to_glb(sc):
             g["scale"] = [float(c) for c in nd["scale"]]
         if nd["extras"]:
             g["extras"] = dict(nd["extras"])
-        if nd.get("box"):
-            pos, nor, uv, idx = _box_geometry(tuple(c * GLB_SCALE for c in nd["box"]))
+        if nd.get("box") or nd.get("geom"):
+            col = None
+            if nd.get("geom"):
+                pos, nor, uv, idx = (nd["geom"][k] for k in ("pos", "nor", "uv", "idx"))
+                col = nd["geom"].get("col")
+                pos = [tuple(c * GLB_SCALE for c in p) for p in pos]
+            else:
+                pos, nor, uv, idx = _box_geometry(tuple(c * GLB_SCALE for c in nd["box"]))
             pb = b"".join(struct.pack("<3f", *p) for p in pos)
             nb = b"".join(struct.pack("<3f", *p) for p in nor)
             ub = b"".join(struct.pack("<2f", *p) for p in uv)
             ib = b"".join(struct.pack("<H", k) for k in idx)
+            cb = b"".join(struct.pack("<4f", *c) for c in col) if col else None
             mn = [min(p[k] for p in pos) for k in range(3)]
             mx = [max(p[k] for p in pos) for k in range(3)]
             attrs = {"POSITION": add_acc(add_view(pb, 34962), 5126, len(pos), "VEC3", mn, mx),
                      "NORMAL": add_acc(add_view(nb, 34962), 5126, len(pos), "VEC3"),
                      "TEXCOORD_0": add_acc(add_view(ub, 34962), 5126, len(pos), "VEC2")}
+            if cb:
+                attrs["COLOR_0"] = add_acc(add_view(cb, 34962), 5126, len(pos), "VEC4")
             prims = [{"attributes": attrs, "indices": add_acc(add_view(ib, 34963), 5123, len(idx), "SCALAR"), "mode": 4}]
             if nd.get("mat"):
                 prims[0]["material"] = mat_index[nd["mat"]]
@@ -461,6 +487,8 @@ def to_glb(sc):
         g["textures"] = [{"source": i} for i in range(len(images))]
     if sc.get("cameras"):
         g["cameras"] = [{"type": "perspective", "perspective": {"yfov": 0.8, "znear": 0.1}}]
+    if unlit:
+        g["extensionsUsed"] = ["KHR_materials_unlit"]
     if sc.get("punctual"):
         g["extensionsUsed"] = ["KHR_lights_punctual"]
         g["extensions"] = {"KHR_lights_punctual": {"lights": [{"type": "point", "intensity": 100}]}}

@@ -65,6 +65,27 @@ static func mesh_aabb(mi: MeshInstance3D, root: Node) -> AABB:
 	return rel_transform(mi, root) * mi.get_aabb()
 
 
+## Лампа над столом (GFX.lamp_changed): значение bulb_of колбы, которая светится вместе с ней, а не с управлением комнаты
+const GFX_LAMP := &"gfx_lamp"
+
+
+## Материал «неба» за окном: вертикальный градиент без освещения. Цвета меняет GFX (материал лежит в material_override, градиент в albedo_texture)
+static func sky_material() -> StandardMaterial3D:
+	var g := Gradient.new()
+	g.set_color(0, Color(0.45, 0.68, 0.95))
+	g.set_color(1, Color(0.82, 0.92, 1.0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.fill_from = Vector2(0.0, 0.0)
+	tex.fill_to = Vector2(0.0, 1.0)
+	tex.width = 8
+	tex.height = 128
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = tex
+	return m
+
+
 ## Свечение лампочки: пока лампа включена, emission включён (если цвета эмиссии нет, берётся цвет материала)
 static func set_glow(n: Node, on: bool) -> void:
 	if not is_instance_valid(n):
@@ -98,7 +119,14 @@ func run(root: Node3D) -> void:
 	_lights(root, found)
 	_bulbs(found)
 	for n in found.get(&"sky_card", []):
-		(n as Node).add_to_group(&"gfx_sky")
+		var sky := n as MeshInstance3D
+		if sky == null:
+			warnings.append("sky_card '%s' не меш" % n.name)
+			continue
+		# GFX красит небо через material_override с GradientTexture2D: материал из .glb заменяется на него
+		sky.material_override = sky_material()
+		sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		sky.add_to_group(&"gfx_sky")
 	# Проксям больше не нужны меши: числа прочитаны выше
 	for r in [&"window", &"door", &"camera_bounds", &"room_volume"]:
 		for n in found.get(r, []):

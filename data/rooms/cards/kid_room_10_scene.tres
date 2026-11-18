@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="RoomConfig" format=3]
+
+[ext_resource type="Script" uid="uid://cbb2byx0tf34w" path="res://setting/room_config.gd" id="1_cfg"]
+[ext_resource type="PackedScene" path="res://data/models/room_kid_room_10_scene/room_kid_room_10_scene.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_cfg")
+id = &"kid_room_10_scene"
+title = "Детская (из .glb)"
+tip = "Заготовка детской для Blender: геометрия процедурной детской с ролями. Заменяет комнату целиком"
+dev_only = true
+scene = ExtResource("2_scene")
+size = Vector3(480, 250, 380)
+floor_y = -50.0
+window = {
+"h": 140.0,
+"sill": 80.0,
+"w": 170.0,
+"x": 0.0
+}
+door = {
+"h": 200.0,
+"sill": 0.0,
+"w": 80.0,
+"x": 100.0
+}
+daylight = true
+bounds = AABB(-230, 3, -180, 460, 190, 360)

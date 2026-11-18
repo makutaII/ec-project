@@ -113,18 +113,7 @@ func build(parent: Node3D) -> void:
 ## «Небо» за окном: плоскость (лицом на +Z) с вертикальным градиентом, без освещения. Цвета меняет GFX (группа gfx_sky).
 ## Поворот и положение задаёт вызывающий
 static func make_sky_card(size: Vector2, vis_layer: int) -> MeshInstance3D:
-	var g := Gradient.new()
-	g.set_color(0, Color(0.45, 0.68, 0.95))
-	g.set_color(1, Color(0.82, 0.92, 1.0))
-	var tex := GradientTexture2D.new()
-	tex.gradient = g
-	tex.fill_from = Vector2(0.0, 0.0)
-	tex.fill_to = Vector2(0.0, 1.0)
-	tex.width = 8
-	tex.height = 128
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_texture = tex
+	var m := RoomGlb.sky_material()
 	var q := QuadMesh.new()
 	q.size = size
 	var mi := MeshInstance3D.new()

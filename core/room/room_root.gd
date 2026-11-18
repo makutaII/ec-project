@@ -149,8 +149,12 @@ func set_detail(lod: int) -> void:
 		(n as Node3D).visible = lod >= 2
 
 
-## Лампочки (меши Bulb*) светятся, когда лампа включена (GFX.lamp_changed)
+## Лампочки (меши Bulb* и колбы .glb с bulb_of = gfx_lamp) светятся, когда лампа над столом включена (GFX.lamp_changed)
 func set_lamp_glow(on: bool) -> void:
+	import_glb()
+	for b in glb.bulbs:
+		if b["of"] == RoomGlb.GFX_LAMP:
+			RoomGlb.set_glow(b["node"], on)
 	for n in _all_nodes(self):
 		if n is MeshInstance3D and String(n.name).begins_with("Bulb"):
 			var m := (n as MeshInstance3D).material_override as StandardMaterial3D
