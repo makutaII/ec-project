@@ -1,12 +1,12 @@
 extends Node3D
 
-# XX claude-terra 13.14 H0 (новый файл)
+# XX claude-terra 13.14 H0, H0b (новый файл)
 ########################
 ## H0. Спайк поля высот (ATTN_13 §13.14). Не часть игры: замер и проверка рисков до основной работы
 ########################
 ## Запуск: открыть tests/field_spike/field_spike.tscn и нажать F6.
-## Что внутри: поле высот 400 x 200 ячеек (стол 200 x 100 ю, ячейка 0,5 ю) в чанках, живой меш, кисть «площадка + склон»,
-## тип поверхности отдельным каналом, коллизия по отпусканию.
+## Что внутри: поле высот 400 x 200 ячеек (стол 200 x 100 ю, ячейка 0,5 ю) в чанках, два способа показа (клавиша M): чанковый меш
+## на CPU и текстура высот с шейдером на GPU (H0b), кисть «площадка + склон», тип поверхности отдельным каналом, коллизия по отпусканию.
 ## Поле здесь плотное (один массив), в H1 оно станет разреженным по чанкам; для замера меша и коллизии это не важно.
 ## Что печатает в Output (строки «H0»): автопроверки «H0: проверок n/m», время сборки мира, итоги замера по клавише B.
 ## Что смотреть глазами: рельеф без швов на границах чанков, кольца кисти идут по поверхности, шарик (G) катится по рельефу
@@ -23,8 +23,14 @@ extends Node3D
 ##   [ ]           угол склона     T тип поверхности (гладкая / каменистая / скалистая), сбрасывает угол типа
 ##   - =           сила ЛКМ        9 0 минимум площадки      7 8 допуск
 ##   ПКМ вращать, СКМ сдвиг, колесо зум
-##   C тип коллизии (нет / HeightMapShape3D / trimesh)   K размер чанка 8 / 16 / 32
+##   C тип коллизии (нет / HeightMapShape3D / trimesh, trimesh только при отрисовке CPU)   K размер чанка 8 / 16 / 32
 ##   B замер: 100 штрихов (подъём и выравнивание ЛКМ) с печатью итогов   G шарик под курсор   R сброс поля
+##   M отрисовка: чанковый меш на CPU / текстура высот и шейдер на GPU (H0b)
+##   N полный замер: чанк 8/16/32 x радиус 5/15/30 (CPU) и GPU, строки «H0: |» в Output; окно замирает на минуту
+##
+## H0b (режим GPU): высоты, типы и шум лежат в текстурах, сетка одна и не пересобирается, смещение вершин, нормали и цвет
+## считает вершинный шейдер. Штрих тогда стоит данные (CPU) плюс загрузка текстур. Коллизия остаётся по данным (HeightMapShape3D),
+## trimesh в режиме GPU недоступен (меша на CPU нет).
 
 const STEP := 0.5                     ## ячейка поля, ю (terrain_grid_step * 0,5)
 const W := 400                        ## ячеек по X
@@ -55,6 +61,78 @@ const COL_BARE := Color(0.42, 0.33, 0.24)
 const COL_ROCK := Color(0.46, 0.44, 0.42)
 const COL_STONY := Color(0.52, 0.5, 0.34)
 const COL_ROCKY := Color(0.58, 0.56, 0.53)
+const RENDER_NAMES: Array[String] = ["чанковый меш (CPU)", "текстура высот + шейдер (GPU)"]
+const BENCH_COUNT := 60               ## штрихов на строку полного замера (N)
+const BENCH_RADII: Array[float] = [5.0, 15.0, 30.0]
+## Шейдер режима GPU: те же формулы, что в _dh, _build_chunk и _color_for. Вершина сетки это узел поля (x / STEP, z / STEP)
+const SHADER_CODE := """
+shader_type spatial;
+render_mode cull_disabled;
+
+uniform sampler2D hmap : filter_nearest, repeat_disable;
+uniform sampler2D tmap : filter_nearest, repeat_disable;
+uniform sampler2D nmap : filter_nearest, repeat_disable;
+uniform float step_len = 0.5;
+uniform ivec2 dims = ivec2(400, 200);
+uniform float max_h = 16.0;
+uniform vec3 noise_amp = vec3(0.0, 0.12, 0.35);
+uniform float rock0 = 40.0;
+uniform float rock1 = 55.0;
+
+varying vec3 v_col;
+
+float amp_of(int t) {
+	if (t == 1) {
+		return noise_amp.y;
+	}
+	if (t == 2) {
+		return noise_amp.z;
+	}
+	return noise_amp.x;
+}
+
+int type_at(ivec2 g) {
+	return int(texelFetch(tmap, g, 0).r * 255.0 + 0.5);
+}
+
+float height_at(ivec2 g) {
+	ivec2 q = clamp(g, ivec2(0), dims);
+	return texelFetch(hmap, q, 0).r + amp_of(type_at(q)) * texelFetch(nmap, q, 0).r;
+}
+
+void vertex() {
+	ivec2 g = ivec2(VERTEX.xz / step_len + vec2(0.5));
+	g = clamp(g, ivec2(0), dims);
+	int xl = max(g.x - 1, 0);
+	int xr = min(g.x + 1, dims.x);
+	int zu = max(g.y - 1, 0);
+	int zd = min(g.y + 1, dims.y);
+	float h = height_at(g);
+	float dhx = (height_at(ivec2(xr, g.y)) - height_at(ivec2(xl, g.y))) / (float(xr - xl) * step_len);
+	float dhz = (height_at(ivec2(g.x, zd)) - height_at(ivec2(g.x, zu))) / (float(zd - zu) * step_len);
+	vec3 n = normalize(vec3(-dhx, 1.0, -dhz));
+	VERTEX.y = h;
+	NORMAL = n;
+	int t = type_at(g);
+	vec3 base = vec3(0.58, 0.56, 0.53);
+	if (t == 0) {
+		base = mix(vec3(0.33, 0.58, 0.22), vec3(0.62, 0.61, 0.58), clamp(h / (max_h * 0.6), 0.0, 1.0));
+	} else if (t == 1) {
+		base = vec3(0.52, 0.5, 0.34);
+	}
+	float ang = degrees(acos(clamp(n.y, -1.0, 1.0)));
+	base = mix(base, vec3(0.46, 0.44, 0.42), smoothstep(rock0, rock1, ang));
+	if (h < 0.02 && t == 0) {
+		base = vec3(0.42, 0.33, 0.24);
+	}
+	v_col = base;
+}
+
+void fragment() {
+	ALBEDO = v_col;
+	ROUGHNESS = 0.95;
+}
+"""
 
 var _h := PackedFloat32Array()        ## гладкие высоты узлов, индекс iz * _stride + ix
 var _tp := PackedByteArray()          ## тип поверхности узла (индекс в TYPE_NAMES)
@@ -109,6 +187,19 @@ var _coll_ms := 0.0
 var _coll_n := 0
 var _ck_ok := 0
 var _ck_n := 0
+var _render := 0                      ## 0 чанковый меш на CPU, 1 текстура высот и шейдер
+var _gpu_mi: MeshInstance3D = null
+var _gpu_mat: ShaderMaterial = null
+var _tex_h: ImageTexture = null
+var _tex_t: ImageTexture = null
+var _tex_n: ImageTexture = null
+var _img_h: Image = null              ## изображения, из которых обновляются текстуры (формат RF и R8, 401 x 201)
+var _img_t: Image = null
+var _h_dirty := false                 ## высоты или типы изменились после последней загрузки в текстуру
+var _tp_dirty := false
+var _gpu_ms := 0.0                    ## последняя загрузка текстур, мс
+var _acc_arr := 0                     ## сумма времени сборки массивов вершин, мкс (для замера)
+var _acc_surf := 0                    ## сумма времени загрузки поверхности в видеопамять, мкс
 
 
 func _ready() -> void:
@@ -118,9 +209,11 @@ func _ready() -> void:
 	_build_noise()
 	_reset_field()
 	_build_chunks()
+	_build_gpu()
 	_self_test()
 	_reset_field()
 	_rebuild_all()
+	_gpu_sync()
 	_reset_stats()
 	_collision_all()
 	_update_camera()
@@ -214,6 +307,8 @@ func _reset_field() -> void:
 	_h.fill(BASE_H)
 	_tp.resize(_stride * (D + 1))
 	_tp.fill(0)
+	_h_dirty = true
+	_tp_dirty = true
 	_ver += 1
 
 
@@ -326,6 +421,8 @@ func _apply_plan(c: Vector3, pl: Dictionary, mode: int, kk: float) -> Rect2i:
 	var maxx := -1
 	var minz := D + 1
 	var maxz := -1
+	var hch := false
+	var tch := false
 	for iz in range(rect.position.y, rect.end.y):
 		var dz := float(iz) - cz
 		var row := iz * _stride
@@ -356,8 +453,10 @@ func _apply_plan(c: Vector3, pl: Dictionary, mode: int, kk: float) -> Rect2i:
 			var changed := absf(nh - hh) > 0.00005
 			if changed:
 				_h[k] = nh
+				hch = true
 			if (changed or mode == 0) and _tp[k] != tp:
 				_tp[k] = tp
+				tch = true
 				changed = true
 			if changed:
 				minx = mini(minx, ix)
@@ -366,6 +465,10 @@ func _apply_plan(c: Vector3, pl: Dictionary, mode: int, kk: float) -> Rect2i:
 				maxz = maxi(maxz, iz)
 	if maxx < 0:
 		return Rect2i()
+	if hch:
+		_h_dirty = true
+	if tch:
+		_tp_dirty = true
 	_ver += 1
 	return Rect2i(minx, minz, maxx - minx + 1, maxz - minz + 1)
 
@@ -397,6 +500,7 @@ func _build_chunks() -> void:
 		remove_child(_world)
 		_world.queue_free()
 	_world = Node3D.new()
+	_world.visible = (_render == 0)
 	add_child(_world)
 	_ncx = ceili(float(W) / float(_chunk))
 	_ncz = ceili(float(D) / float(_chunk))
@@ -463,6 +567,7 @@ func _color_for(h: float, ny: float, tp: int) -> Color:
 
 ## Меш одного чанка. Нормали считаются по общему полю (с шумом), поэтому на границах чанков швов нет
 func _build_chunk(cx: int, cz: int) -> void:
+	var ta := Time.get_ticks_usec()
 	var gx0 := cx * _chunk
 	var gz0 := cz * _chunk
 	var cw := mini(_chunk, W - gx0)
@@ -501,10 +606,13 @@ func _build_chunk(cx: int, cz: int) -> void:
 	arrays[Mesh.ARRAY_NORMAL] = norms
 	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_INDEX] = _idx_full if (cw == _chunk and cd == _chunk) else _make_indices(cw, cd)
+	var ts := Time.get_ticks_usec()
+	_acc_arr += ts - ta
 	var mi := _chunks[cz * _ncx + cx] as MeshInstance3D
 	var m := mi.mesh as ArrayMesh
 	m.clear_surfaces()
 	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_acc_surf += Time.get_ticks_usec() - ts
 
 
 ## Пересобрать чанки, затронутые изменением узлов в rect (узел и его соседи входят в нормали). Возвращает число чанков
@@ -524,6 +632,121 @@ func _rebuild_region(rect: Rect2i) -> int:
 			_coll_dirty[cz * _ncx + cx] = true
 			n += 1
 	return n
+
+
+# ==========================================
+# РЕЖИМ GPU (H0b): ТЕКСТУРЫ ВЫСОТ И ШЕЙДЕР
+# ==========================================
+
+## Плоская сетка cw x cd ячеек: вершины в плоскости y = 0, высоту им даёт шейдер
+func _make_grid_mesh(cw: int, cd: int) -> ArrayMesh:
+	var vw := cw + 1
+	var vd := cd + 1
+	var verts := PackedVector3Array()
+	verts.resize(vw * vd)
+	var k := 0
+	for iz in range(vd):
+		for ix in range(vw):
+			verts[k] = Vector3(float(ix) * STEP, 0.0, float(iz) * STEP)
+			k += 1
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_INDEX] = _make_indices(cw, cd)
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return m
+
+
+## Один раз: текстуры высот, типа и шума (узел поля это пиксель 401 x 201), материал с шейдером и сетка на всё поле
+func _build_gpu() -> void:
+	var tw := _stride
+	var th := D + 1
+	_img_h = Image.create_from_data(tw, th, false, Image.FORMAT_RF, _h.to_byte_array())
+	_img_t = Image.create_from_data(tw, th, false, Image.FORMAT_R8, _tp)
+	var img_n := Image.create_from_data(tw, th, false, Image.FORMAT_RF, _nz.to_byte_array())
+	_tex_h = ImageTexture.create_from_image(_img_h)
+	_tex_t = ImageTexture.create_from_image(_img_t)
+	_tex_n = ImageTexture.create_from_image(img_n)
+	_h_dirty = false
+	_tp_dirty = false
+	var sh := Shader.new()
+	sh.code = SHADER_CODE
+	_gpu_mat = ShaderMaterial.new()
+	_gpu_mat.shader = sh
+	_gpu_mat.set_shader_parameter("hmap", _tex_h)
+	_gpu_mat.set_shader_parameter("tmap", _tex_t)
+	_gpu_mat.set_shader_parameter("nmap", _tex_n)
+	_gpu_mat.set_shader_parameter("step_len", STEP)
+	_gpu_mat.set_shader_parameter("dims", Vector2i(W, D))
+	_gpu_mat.set_shader_parameter("max_h", MAX_H)
+	_gpu_mat.set_shader_parameter("noise_amp", Vector3(TYPE_NOISE[0], TYPE_NOISE[1], TYPE_NOISE[2]))
+	_gpu_mat.set_shader_parameter("rock0", SLOPE_ROCK0)
+	_gpu_mat.set_shader_parameter("rock1", SLOPE_ROCK1)
+	_gpu_mi = MeshInstance3D.new()
+	_gpu_mi.mesh = _make_grid_mesh(W, D)
+	_gpu_mi.material_override = _gpu_mat
+	# сетка плоская, поэтому границы для отсечения по камере задаём вручную
+	_gpu_mi.custom_aabb = AABB(Vector3(0.0, -1.0, 0.0), Vector3(W * STEP, MAX_H + 2.0, D * STEP))
+	_gpu_mi.visible = (_render == 1)
+	add_child(_gpu_mi)
+
+
+## Загрузить в видеопамять то, что изменилось: высоты (320 КБ) и типы (80 КБ) целиком, без пересборки меша
+func _gpu_sync() -> void:
+	var t0 := Time.get_ticks_usec()
+	if _h_dirty:
+		_img_h.set_data(_stride, D + 1, false, Image.FORMAT_RF, _h.to_byte_array())
+		_tex_h.update(_img_h)
+		_h_dirty = false
+	if _tp_dirty:
+		_img_t.set_data(_stride, D + 1, false, Image.FORMAT_R8, _tp)
+		_tex_t.update(_img_t)
+		_tp_dirty = false
+	_gpu_ms = float(Time.get_ticks_usec() - t0) / 1000.0
+
+
+## Переключить отрисовку (клавиша M). После переключения изображение той стороны, что была скрыта, приводится к текущим данным
+func _set_render(r: int) -> void:
+	_render = r
+	_world.visible = (r == 0)
+	_gpu_mi.visible = (r == 1)
+	if r == 1:
+		if _coll_mode == 2:
+			_coll_mode = 1
+			_collision_all()
+		_h_dirty = true
+		_tp_dirty = true
+		_gpu_sync()
+	else:
+		_rebuild_all()
+	_reset_stats()
+	print("H0: отрисовка: %s" % RENDER_NAMES[r])
+
+
+## Пометить на обновление коллизии чанки, чьи карты высот (узлы чанка и следующий за ним) затронул штрих. Возвращает число чанков
+func _mark_dirty(rect: Rect2i) -> int:
+	if rect.size.x <= 0:
+		return 0
+	var cx0 := clampi(floori(float(rect.position.x - 1) / float(_chunk)), 0, _ncx - 1)
+	var cx1 := clampi(floori(float(rect.end.x - 1) / float(_chunk)), 0, _ncx - 1)
+	var cz0 := clampi(floori(float(rect.position.y - 1) / float(_chunk)), 0, _ncz - 1)
+	var cz1 := clampi(floori(float(rect.end.y - 1) / float(_chunk)), 0, _ncz - 1)
+	var n := 0
+	for cz in range(cz0, cz1 + 1):
+		for cx in range(cx0, cx1 + 1):
+			_coll_dirty[cz * _ncx + cx] = true
+			n += 1
+	return n
+
+
+## Показать результат штриха: CPU пересобирает затронутые чанки меша, GPU загружает текстуры. Возвращает число чанков
+## (меша в режиме CPU, коллизии в режиме GPU)
+func _refresh(rect: Rect2i) -> int:
+	if _render == 1:
+		_gpu_sync()
+		return _mark_dirty(rect)
+	return _rebuild_region(rect)
 
 
 # ==========================================
@@ -697,13 +920,18 @@ func _reset_stats() -> void:
 	_prev_key = []
 
 
-func _record(kind: String, t_data: int, t_mesh: int, chunks: int) -> void:
-	var total := float(t_data + t_mesh) / 1000.0
-	_last = {"kind": kind, "data": float(t_data) / 1000.0, "mesh": float(t_mesh) / 1000.0, "chunks": chunks}
+func _record(kind: String, t_data: int, t_view: int, chunks: int) -> void:
+	var total := float(t_data + t_view) / 1000.0
+	_last = {"kind": kind, "data": float(t_data) / 1000.0, "view": float(t_view) / 1000.0, "chunks": chunks}
 	_stat_n += 1
 	_stat_sum += total
 	_stat_max = maxf(_stat_max, total)
 	_idle = 0.0
+
+
+## Название второй части штриха: в режиме CPU это пересборка меша, в режиме GPU загрузка текстур
+func _view_name() -> String:
+	return "меш" if _render == 0 else "текстуры"
 
 
 func _raise_at_cursor(dir_: float, whole: bool) -> void:
@@ -718,12 +946,12 @@ func _raise_at_cursor(dir_: float, whole: bool) -> void:
 	var t1 := Time.get_ticks_usec()
 	var n := 0
 	if rect.size.x > 0:
-		n = _rebuild_region(rect)
+		n = _refresh(rect)
 	var t2 := Time.get_ticks_usec()
 	_record("подъём" if dir_ > 0.0 else "яма", t1 - t0, t2 - t1, n)
 
 
-## Один кадр ЛКМ: подтянуть поле под площадкой к высоте якоря. Если ничего не изменилось, меш не трогаем
+## Один кадр ЛКМ: подтянуть поле под площадкой к высоте якоря. Если ничего не изменилось, изображение не трогаем
 func _level_at_cursor(delta: float) -> void:
 	var kk := 1.0 - exp(-PULL_RATE * _strength * delta)
 	var t0 := Time.get_ticks_usec()
@@ -731,16 +959,16 @@ func _level_at_cursor(delta: float) -> void:
 	var t1 := Time.get_ticks_usec()
 	if rect.size.x <= 0:
 		return
-	var n := _rebuild_region(rect)
+	var n := _refresh(rect)
 	var t2 := Time.get_ticks_usec()
 	_record("выравнивание", t1 - t0, t2 - t1, n)
 
 
-## 100 штрихов в случайных местах (50 подъём на щелчок, 50 кадров выравнивания ЛКМ) с текущими радиусом, углом, размером чанка и типом коллизии
-func _benchmark() -> void:
+## count штрихов в случайных местах: чётные это подъём на щелчок, нечётные кадр ЛКМ-выравнивания (60 кадров/с). Радиус, угол, тип,
+## размер чанка и режим отрисовки текущие. Возвращает суммы по двум видам штриха: d данные, m показ (меш или текстуры), max, c чанки, n число
+func _bench_run(count: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
-	var names := ["подъём", "выравнивание ЛКМ"]
 	var sum_d := [0.0, 0.0]
 	var sum_m := [0.0, 0.0]
 	var max_t := [0.0, 0.0]
@@ -749,7 +977,9 @@ func _benchmark() -> void:
 	var r := _radius * 1.3 + 1.0
 	var kk := 1.0 - exp(-PULL_RATE * _strength / 60.0)
 	_coll_dirty.clear()
-	for s in range(100):
+	_acc_arr = 0
+	_acc_surf = 0
+	for s in range(count):
 		var kind := s % 2
 		var c := Vector3(rng.randf_range(r, W * STEP - r), 0.0, rng.randf_range(r, D * STEP - r))
 		var t0 := Time.get_ticks_usec()
@@ -762,7 +992,7 @@ func _benchmark() -> void:
 		var t1 := Time.get_ticks_usec()
 		var n := 0
 		if rect.size.x > 0:
-			n = _rebuild_region(rect)
+			n = _refresh(rect)
 		var t2 := Time.get_ticks_usec()
 		var td := float(t1 - t0) / 1000.0
 		var tm := float(t2 - t1) / 1000.0
@@ -771,17 +1001,93 @@ func _benchmark() -> void:
 		max_t[kind] = maxf(max_t[kind], td + tm)
 		sum_c[kind] += n
 		cnt[kind] += 1
-	print("H0: замер: чанк %d, радиус %.1f ю, угол %.0f°, тип «%s», 100 штрихов" % [_chunk, _radius, _angle, TYPE_NAMES[_type]])
+	return {"d": sum_d, "m": sum_m, "max": max_t, "c": sum_c, "n": cnt}
+
+
+## 100 штрихов (клавиша B) с текущими радиусом, углом, размером чанка, типом коллизии и режимом отрисовки
+func _benchmark() -> void:
+	var st := _bench_run(100)
+	var names := ["подъём", "выравнивание ЛКМ"]
+	var view := _view_name()
+	print("H0: замер: отрисовка «%s», чанк %d, радиус %.1f ю, угол %.0f°, тип «%s», 100 штрихов" % [
+		RENDER_NAMES[_render], _chunk, _radius, _angle, TYPE_NAMES[_type]])
 	for kind in range(2):
-		var nn: float = float(cnt[kind])
-		print("H0:   %s: данные %.2f мс, меш %.2f мс, всего среднее %.2f мс, макс %.2f мс, чанков за штрих %.1f" % [
-			names[kind], float(sum_d[kind]) / nn, float(sum_m[kind]) / nn, (float(sum_d[kind]) + float(sum_m[kind])) / nn,
-			float(max_t[kind]), float(sum_c[kind]) / nn])
+		var nn: float = float(st["n"][kind])
+		var sd: float = st["d"][kind]
+		var sm: float = st["m"][kind]
+		var mx: float = st["max"][kind]
+		var sc: float = float(st["c"][kind])
+		print("H0:   %s: данные %.2f мс, %s %.2f мс, всего среднее %.2f мс, макс %.2f мс, %s за штрих %.1f" % [
+			names[kind], sd / nn, view, sm / nn, (sd + sm) / nn, mx, "чанков меша" if _render == 0 else "чанков коллизии", sc / nn])
+	if _render == 1:
+		print("H0:   в режиме GPU видеокарта дорисовывает позже загрузки: смотри fps в HUD при ЛКМ-драге и Ctrl+колесе")
 	var dirty := _coll_dirty.size()
 	_update_collision()
 	print("H0:   коллизия «%s» по отпусканию: %d из %d чанков, %.1f мс (%.2f мс на чанк)" % [
 		COLL_NAMES[_coll_mode], _coll_n, dirty, _coll_ms, _coll_ms / maxf(float(_coll_n), 1.0)])
-	print("H0:   цель H0: штрих до 10 мс на кадр (данные плюс меш), решение по чанку и коллизии принимаем по этим цифрам")
+	print("H0:   цель H0: штрих до 10 мс на кадр (данные плюс меш или текстуры), решение по чанку и коллизии принимаем по этим цифрам")
+
+
+## Полный замер (клавиша N): CPU на чанках 8, 16, 32 и GPU, радиусы 5, 15, 30 ю, BENCH_COUNT штрихов на строку, угол 45°, гладкая.
+## Окно на время замера не отвечает (около минуты). Строки «H0: |» одной формы, их удобно скопировать в таблицу
+func _bench_matrix() -> void:
+	var s_render := _render
+	var s_chunk_i := _chunk_i
+	var s_radius := _radius
+	var s_angle := _angle
+	var s_type := _type
+	_angle = 45.0
+	_type = 0
+	print("H0: полный замер: %d штрихов на строку (подъём и ЛКМ поровну), угол 45°, тип «гладкая»" % BENCH_COUNT)
+	print("H0: | отрисовка | чанк | R, ю | подъём ср/макс, мс | ЛКМ ср/макс, мс | данные ср, мс | показ ср, мс | массивы / поверхность на чанк, мс |")
+	for mode in range(2):
+		var variants: int = CHUNK_SIZES.size() if mode == 0 else 1
+		for vi in range(variants):
+			_render = mode
+			if mode == 0:
+				_chunk_i = vi
+				_chunk = CHUNK_SIZES[vi]
+				_build_chunks()
+			for rr in BENCH_RADII:
+				_radius = rr
+				_reset_field()
+				if mode == 0:
+					_rebuild_all()
+				else:
+					_gpu_sync()
+				var st := _bench_run(BENCH_COUNT)
+				var n0: float = maxf(float(st["n"][0]), 1.0)
+				var n1: float = maxf(float(st["n"][1]), 1.0)
+				var d0: float = st["d"][0]
+				var d1: float = st["d"][1]
+				var m0: float = st["m"][0]
+				var m1: float = st["m"][1]
+				var x0: float = st["max"][0]
+				var x1: float = st["max"][1]
+				var nch: float = maxf(float(st["c"][0]) + float(st["c"][1]), 1.0)
+				var arr_ms: float = 0.0
+				var surf_ms: float = 0.0
+				if mode == 0:
+					arr_ms = float(_acc_arr) / 1000.0 / nch
+					surf_ms = float(_acc_surf) / 1000.0 / nch
+				print("H0: | %s | %s | %.0f | %.2f / %.2f | %.2f / %.2f | %.2f | %.2f | %.2f / %.2f |" % [
+					"CPU меш" if mode == 0 else "GPU текстуры", str(_chunk) if mode == 0 else "-", _radius,
+					(d0 + m0) / n0, x0, (d1 + m1) / n1, x1, (d0 + d1) / (n0 + n1), (m0 + m1) / (n0 + n1), arr_ms, surf_ms])
+	_render = s_render
+	_chunk_i = s_chunk_i
+	_chunk = CHUNK_SIZES[s_chunk_i]
+	_build_chunks()
+	_radius = s_radius
+	_angle = s_angle
+	_type = s_type
+	_reset_field()
+	if _render == 0:
+		_rebuild_all()
+	else:
+		_gpu_sync()
+	_collision_all()
+	_reset_stats()
+	print("H0: полный замер закончен")
 
 
 # ==========================================
@@ -906,6 +1212,20 @@ func _self_test() -> void:
 	_check("чанки: шов сходится с данными", is_equal_approx(y0, y1) and is_equal_approx(y0, _h[gz * _stride + _chunk]) and y0 > BASE_H + 0.1)
 	var inner := Vector3(float(half) * STEP, 0.0, float(3 * _chunk + half) * STEP)
 	_check("чанки: штрих в середине чанка пересобирает один", _rebuild_region(_stroke(inner, BASE_H + 0.5, 1, 1.0)) == 1)
+	# режим GPU: коллизия по чанкам (карта чанка включает узлы следующего за ним) и текстуры совпадают с полем
+	_reset_field()
+	_check("GPU: штрих на границе чанков помечает коллизию не меньше 2 чанков", _mark_dirty(_stroke(border, BASE_H + 0.5, 1, 1.0)) >= 2)
+	_check("GPU: штрих в середине чанка помечает один", _mark_dirty(_stroke(inner, BASE_H + 0.5, 1, 1.0)) == 1)
+	_check("GPU: пустой прямоугольник ничего не помечает", _mark_dirty(Rect2i()) == 0)
+	_reset_field()
+	_radius = 5.0
+	_type = 2
+	_stroke(c, BASE_H + 0.25, 1, 1.0)
+	_gpu_sync()
+	_check("GPU: текстура высот совпадает с полем", is_equal_approx(_img_h.get_pixel(100, 50).r, _h[ck]) and is_equal_approx(_img_h.get_pixel(100, 50).r, BASE_H + 0.25))
+	_check("GPU: текстура типа совпадает с полем", int(_img_t.get_pixel(100, 50).r * 255.0 + 0.5) == 2 and int(_img_t.get_pixel(111, 50).r * 255.0 + 0.5) == 0)
+	_check("GPU: после загрузки грязных флагов нет", not _h_dirty and not _tp_dirty)
+	_type = 0
 	# выбор точки: луч сверху на ровном поле попадает в базовый слой, луч вверх мимо
 	_reset_field()
 	var hit: Variant = _pick_ray(Vector3(25.0, 40.0, 12.5), Vector3.DOWN)
@@ -1014,7 +1334,13 @@ func _on_key(key: Key) -> void:
 			_tol_frac = clampf(_tol_frac + 0.05, 0.0, 0.5)
 		KEY_C:
 			_coll_mode = (_coll_mode + 1) % COLL_NAMES.size()
+			if _render == 1 and _coll_mode == 2:
+				_coll_mode = 0
 			_collision_all()
+		KEY_M:
+			_set_render(1 - _render)
+		KEY_N:
+			_bench_matrix()
 		KEY_K:
 			_chunk_i = (_chunk_i + 1) % CHUNK_SIZES.size()
 			_chunk = CHUNK_SIZES[_chunk_i]
@@ -1026,7 +1352,10 @@ func _on_key(key: Key) -> void:
 			_benchmark()
 		KEY_R:
 			_reset_field()
-			_rebuild_all()
+			if _render == 0:
+				_rebuild_all()
+			else:
+				_gpu_sync()
 			_coll_dirty.clear()
 			for ci in range(_chunks.size()):
 				_coll_dirty[ci] = true
@@ -1068,10 +1397,10 @@ func _limit_text(pl: Dictionary) -> String:
 
 func _update_hud() -> void:
 	var lines := PackedStringArray()
-	lines.append("H0 спайк поля высот  |  %dx%d ячеек по %.1f ю, стол %.0fx%.0f ю  |  чанк %d (%d шт.), сборка мира %.0f мс  |  коллизия: %s" % [
-		W, D, STEP, W * STEP, D * STEP, _chunk, _chunks.size(), _build_ms, COLL_NAMES[_coll_mode]])
+	lines.append("H0 спайк поля высот  |  %dx%d ячеек по %.1f ю, стол %.0fx%.0f ю  |  чанк %d (%d шт.), сборка мира %.0f мс  |  отрисовка: %s  |  коллизия: %s" % [
+		W, D, STEP, W * STEP, D * STEP, _chunk, _chunks.size(), _build_ms, RENDER_NAMES[_render], COLL_NAMES[_coll_mode]])
 	lines.append("Ctrl+колесо подъём/яма (с Shift до целого слоя), Alt+колесо радиус, ЛКМ-драг выровнять по высоте в точке нажатия, [ ] угол, T тип, ПКМ вращать, СКМ сдвиг, колесо зум")
-	lines.append("C коллизия | K размер чанка | B замер 100 штрихов | G шарик | R сброс | - = сила | 9 0 площадка | 7 8 допуск | , . радиус")
+	lines.append("M отрисовка CPU/GPU | N полный замер (минута) | C коллизия | K размер чанка | B замер 100 штрихов | G шарик | R сброс | - = сила | 9 0 площадка | 7 8 допуск | , . радиус")
 	lines.append("кисть: радиус %.1f ю | угол %.0f° | тип «%s» | сила ЛКМ %.1f | мин. площадка %.1f ю | допуск %.0f%% (не больше %.1f ю)" % [
 		_radius, _angle, TYPE_NAMES[_type], _strength, _plateau_min, _tol_frac * 100.0, _tol_max])
 	if _hover_ok:
@@ -1085,7 +1414,7 @@ func _update_hud() -> void:
 		lines.append("штрих: пока не было")
 	else:
 		var avg := _stat_sum / maxf(float(_stat_n), 1.0)
-		lines.append("штрих «%s»: данные %.2f мс + меш %.2f мс (%d чанков) | среднее %.2f, макс %.2f мс, штрихов %d" % [
-			_last["kind"], _last["data"], _last["mesh"], _last["chunks"], avg, _stat_max, _stat_n])
+		lines.append("штрих «%s»: данные %.2f мс + %s %.2f мс (%d чанков) | среднее %.2f, макс %.2f мс, штрихов %d" % [
+			_last["kind"], _last["data"], _view_name(), _last["view"], _last["chunks"], avg, _stat_max, _stat_n])
 	lines.append("коллизия: обновлено %d чанков за %.1f мс | ждёт обновления: %d чанков" % [_coll_n, _coll_ms, _coll_dirty.size()])
 	_hud.text = "\n".join(lines)
