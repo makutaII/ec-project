@@ -90,38 +90,55 @@ func _set_baked(baked: bool) -> void:
 		l.light_bake_mode = Light3D.BAKE_STATIC if baked else Light3D.BAKE_DYNAMIC
 
 
+## Один замер: режим и масштаб 3D-рендера (2.0 даёт 4x пикселей: так разница по GPU видна и на сильной видеокарте).
+## fps считается по времени кадров, а не по Engine.get_frames_per_second (тот обновляется раз в секунду и после загрузки показывает 1)
+func _measure(vp: RID, baked: bool, scale: float) -> Dictionary:
+	get_viewport().scaling_3d_scale = scale
+	_set_baked(baked)
+	for i in WARMUP:
+		await get_tree().process_frame
+	var tex := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)
+	var cpu := 0.0
+	var gpu := 0.0
+	var t0 := Time.get_ticks_usec()
+	for i in SAMPLES:
+		await get_tree().process_frame
+		cpu += RenderingServer.viewport_get_measured_render_time_cpu(vp)
+		gpu += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+	var secs := (Time.get_ticks_usec() - t0) / 1000000.0
+	return {"fps": SAMPLES / secs, "gpu": gpu / SAMPLES, "cpu": cpu / SAMPLES, "tex": tex / 1048576.0}
+
+
 func _run_all() -> void:
 	var vp := get_viewport().get_viewport_rid()
 	var vsync_was := DisplayServer.window_get_vsync_mode()
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	RenderingServer.viewport_set_measure_render_time(vp, true)
-	print("== D2: пробный bake света (%d кадров прогрева, %d замеров)" % [WARMUP, SAMPLES])
+	print("== D2: пробный bake света (прогрев %d кадров, %d замеров, режимы по кругу, считается второй круг)" % [WARMUP, SAMPLES])
 	print("lightmap: %s" % [_gi.light_data.resource_path if _gi.light_data.resource_path != "" else "встроен в сцену"])
+	# Первый круг: шейдеры, загрузка текстур и теней проходят до замеров, иначе первый режим выглядит хуже
+	for i in 120:
+		await get_tree().process_frame
 	var rows := []
-	for baked in [false, true]:
-		var tex0 := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)
-		_set_baked(baked)
-		for i in WARMUP:
-			await get_tree().process_frame
-		var cpu := 0.0
-		var gpu := 0.0
-		var fps := 0.0
-		for i in SAMPLES:
-			await get_tree().process_frame
-			cpu += RenderingServer.viewport_get_measured_render_time_cpu(vp)
-			gpu += RenderingServer.viewport_get_measured_render_time_gpu(vp)
-			fps += Engine.get_frames_per_second()
-		var mode := "baked" if baked else "dynamic"
-		var tex_mb := (Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) - tex0) / 1048576.0
-		rows.append({"mode": mode, "fps": fps / SAMPLES, "gpu": gpu / SAMPLES, "cpu": cpu / SAMPLES, "tex": tex_mb})
-		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path(SHOT_DIR + mode + ".png"))
+	for scale in [1.0, 2.0]:
+		for pass_i in 2:
+			for baked in [false, true]:
+				var r := await _measure(vp, baked, scale)
+				if pass_i == 1:
+					r["mode"] = "baked" if baked else "dynamic"
+					r["scale"] = scale
+					rows.append(r)
+					if scale == 1.0:
+						await RenderingServer.frame_post_draw
+						get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path(SHOT_DIR + r.mode + ".png"))
+	get_viewport().scaling_3d_scale = 1.0
 	RenderingServer.viewport_set_measure_render_time(vp, false)
 	DisplayServer.window_set_vsync_mode(vsync_was)
-	print("%-9s %8s %9s %9s %12s" % ["режим", "fps", "GPU, мс", "CPU, мс", "текстуры, МБ"])
+	print("%-8s %6s %8s %9s %9s %10s" % ["режим", "3D", "fps", "GPU, мс", "CPU, мс", "текст., МБ"])
 	for r in rows:
-		print("%-9s %8.1f %9.2f %9.2f %12.1f" % [r.mode, r.fps, r.gpu, r.cpu, r.tex])
-	var d: Dictionary = rows[0]
-	var b: Dictionary = rows[1]
-	print("baked против dynamic: GPU %+.1f%%, fps %+.1f%%" % [(b.gpu / maxf(d.gpu, 0.001) - 1.0) * 100.0, (b.fps / maxf(d.fps, 0.001) - 1.0) * 100.0])
+		print("%-8s %6.1f %8.1f %9.3f %9.3f %10.1f" % [r.mode, r.scale, r.fps, r.gpu, r.cpu, r.tex])
+	for i in range(0, rows.size(), 2):
+		var d: Dictionary = rows[i]
+		var b: Dictionary = rows[i + 1]
+		print("3D x%.1f: baked против dynamic: GPU %+.1f%%, fps %+.1f%%, текстуры %+.1f МБ" % [d.scale, (b.gpu / maxf(d.gpu, 0.001) - 1.0) * 100.0, (b.fps / maxf(d.fps, 0.001) - 1.0) * 100.0, b.tex - d.tex])
 	print("кадры: %s" % ProjectSettings.globalize_path(SHOT_DIR))
