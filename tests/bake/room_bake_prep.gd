@@ -4,7 +4,8 @@ extends EditorScript
 ## ATTN_14 D2: пробный bake света комнаты (одно состояние: ночь + лампа над столом, directional lightmap со specular, Godot 4.8).
 ## Готовит сцену для bake из детской kid_room_10 и ничего в проекте не меняет, кроме папки tests/bake/out/ (она в .gitignore).
 ## Запуск: открыть файл в редакторе скриптов, File, Run (Ctrl+Shift+X). Дальше:
-##   1. Сцена tests/bake/out/room_bake_trial.scn откроется сама. Выберите узел LightmapGI, нажмите «Bake Lightmaps» в верхней панели.
+##   1. Сцена tests/bake/out/room_bake_trial.scn откроется сама. Выберите узел LightmapGI, нажмите «Bake Lightmaps» в верхней панели,
+##      после bake сохраните сцену (Ctrl+S): иначе ссылка на данные lightmap в неё не попадёт.
 ##   2. Когда bake закончится, откройте tests/bake/room_bake_run.tscn и нажмите F6: прогон «динамический свет» против «запечённый».
 ## Что делает скрипт: берёт сцену детской, убирает служебные боксы ролей (коллайдеры, окно, дверь, границы, объём, стрелка солнца),
 ## строит вторую развёртку (UV2, lightmap_unwrap) у видимых мешей и включает им GI Static (небо и ложный AO без GI), ставит лампу и луну ночного
@@ -62,7 +63,7 @@ func _run() -> void:
 		return
 	print("room_bake_prep: записано %s. Мешей с UV2: %d, без GI: %d, не развёрнуто: %d" % [OUT_SCENE, counts.uv2, counts.no_gi, counts.failed])
 	EditorInterface.open_scene_from_path(OUT_SCENE)
-	print("room_bake_prep: дальше выберите узел LightmapGI и нажмите «Bake Lightmaps», потом F6 на tests/bake/room_bake_run.tscn")
+	print("room_bake_prep: дальше выберите узел LightmapGI и нажмите «Bake Lightmaps», сохраните сцену (Ctrl+S), потом F6 на tests/bake/room_bake_run.tscn")
 
 
 static func _role(n: Node) -> String:

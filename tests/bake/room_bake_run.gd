@@ -7,6 +7,7 @@ extends Node3D
 ## Решение по D2 (брать ли bake в игру) принимаем по таблице: ATTN_14 D2.
 
 const SCENE := "res://tests/bake/out/room_bake_trial.scn"
+const OUT_DIR := "res://tests/bake/out"
 const SHOT_DIR := "user://bake_trial/"
 const WARMUP := 45
 const SAMPLES := 240
@@ -14,26 +15,55 @@ const SAMPLES := 240
 var _room: Node3D
 var _gi: LightmapGI
 var _lights: Array[Light3D] = []
+var _label: Label
 
 
 func _ready() -> void:
+	_setup_view()
+	_say("D2: пробный bake света. Подготовка…")
 	if not ResourceLoader.exists(SCENE):
-		print("[BakeRun] нет %s: запустите tests/bake/room_bake_prep.gd" % SCENE)
-		get_tree().quit()
+		_fail("Нет %s. Запустите tests/bake/room_bake_prep.gd (File, Run)." % SCENE)
 		return
 	_room = (load(SCENE) as PackedScene).instantiate() as Node3D
 	add_child(_room)
 	_gi = _room.get_node_or_null("LightmapGI") as LightmapGI
+	if _gi == null:
+		_fail("В сцене нет узла LightmapGI: пересоздайте её через room_bake_prep.gd.")
+		return
+	if _gi.light_data == null:
+		# bake записал .lmbake, но сцену после bake не сохранили: ссылка на данные не попала в .scn
+		for f in DirAccess.get_files_at(OUT_DIR):
+			if f.get_extension() == "lmbake":
+				_gi.light_data = load(OUT_DIR + "/" + f) as LightmapGIData
+				print("[BakeRun] данные lightmap подхвачены из %s (сцену после bake лучше сохранить: Ctrl+S)" % f)
+				break
+	if _gi.light_data == null:
+		_fail("Lightmap не запечён или сцена не сохранена после bake. Откройте tests/bake/out/room_bake_trial.scn, выберите LightmapGI, Bake Lightmaps, затем Ctrl+S, и снова F6.")
+		return
 	for n in _room.find_children("Bake*", "Light3D", false, false):
 		_lights.append(n as Light3D)
-	if _gi == null or _gi.light_data == null:
-		print("[BakeRun] lightmap не запечён: откройте сцену из tests/bake/out/, выберите LightmapGI и нажмите «Bake Lightmaps», затем снова F6")
-		get_tree().quit()
-		return
-	_setup_view()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SHOT_DIR))
 	await _run_all()
-	get_tree().quit()
+	_say("Готово. Таблица в Output, кадры: %s. Окно можно закрыть." % ProjectSettings.globalize_path(SHOT_DIR))
+
+
+## Сообщение в Output и на экране (окно остаётся открытым, чтобы его было видно)
+func _say(text: String) -> void:
+	print("[BakeRun] " + text)
+	if _label == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 10
+		add_child(layer)
+		_label = Label.new()
+		_label.position = Vector2(16.0, 16.0)
+		_label.add_theme_font_size_override("font_size", 20)
+		layer.add_child(_label)
+	_label.text = text
+
+
+func _fail(text: String) -> void:
+	push_warning("[BakeRun] " + text)
+	_say(text)
 
 
 func _setup_view() -> void:
