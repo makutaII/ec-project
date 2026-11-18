@@ -13,16 +13,19 @@ class_name PaintBrushes extends RefCounted
 ##   box: полуразмеры конца (вдоль штриха, поперёк) в долях радиуса; rotate: "none", "stroke" (по направлению мазка),
 ##   "random" (случайный угол на каждый штамп), "fixed" (по оси Y модели); scatter: разброс центра штампа в долях радиуса;
 ##   jitter: случайность размера и угла 0..1; spacing: шаг штампов вдоль мазка, пиксели экрана;
-##   dry: сила сухой кисти 0..1 (0 выключена); dry_len: сколько пикселей мазка хватает запаса краски;
+##   relief: 1 красить только по рельефу, выступы и светлые кромки (сухая кисть), -1 только впадины и тёмные тени (смывка),
+##   0 без рельефа; relief_sens: чувствительность к рельефу; relief_width: ширина перехода в пикселях слоя;
+##   dry: сила «сухой щетины» 0..1 по запасу краски (0 выключена; пресеты не используют); dry_len: длина запаса, пиксели;
 ##   sample: образец из PaintSamples ("" плоский цвет; с образцом цвет берётся из него); sample_size: размер повтора
 ##   образца в долях наибольшего габарита модели;
 ##   level: с какого уровня правил (paint.level) инструмент доступен.
 
-const ORDER := ["brush", "airbrush", "eraser", "flat", "dry", "sponge", "splatter", "square"]
+const ORDER := ["brush", "airbrush", "eraser", "flat", "dry", "wash", "sponge", "splatter", "square"]
 const DEFAULTS := {
 	"name": "", "size": 0.04, "hardness": 0.8, "flow": 1.0, "accumulate": false, "erase": false,
 	"tip": "", "shape": "round", "box": Vector2(1.0, 1.0), "rotate": "none", "scatter": 0.0, "jitter": 0.0,
-	"spacing": 6.0, "dry": 0.0, "dry_len": 300.0, "sample": "", "sample_size": 0.25, "level": 2,
+	"spacing": 6.0, "dry": 0.0, "dry_len": 300.0, "relief": 0.0, "relief_sens": 1.0, "relief_width": 3.0,
+	"sample": "", "sample_size": 0.25, "level": 2,
 }
 const PRESETS := {
 	"brush": {"name": "Кисть", "size": 0.04, "hardness": 0.8, "flow": 1.0},
@@ -30,8 +33,8 @@ const PRESETS := {
 	"eraser": {"name": "Ластик", "size": 0.06, "hardness": 0.5, "flow": 1.0, "erase": true},
 	"flat": {"name": "Щётка", "size": 0.06, "hardness": 0.6, "flow": 1.0, "tip": "bristle", "shape": "box",
 		"box": Vector2(0.35, 1.0), "rotate": "stroke", "spacing": 5.0, "level": 3},
-	"dry": {"name": "Сухая кисть", "size": 0.05, "hardness": 0.5, "flow": 1.0, "tip": "bristle", "rotate": "stroke",
-		"spacing": 4.0, "dry": 0.9, "dry_len": 260.0, "level": 3},
+	"dry": {"name": "Сухая кисть", "size": 0.05, "hardness": 0.6, "flow": 0.9, "relief": 1.0, "spacing": 5.0, "level": 3},
+	"wash": {"name": "Смывка", "size": 0.06, "hardness": 0.6, "flow": 0.6, "relief": -1.0, "spacing": 6.0, "level": 3},
 	"sponge": {"name": "Губка", "size": 0.06, "hardness": 0.6, "flow": 0.9, "tip": "sponge", "rotate": "random",
 		"jitter": 0.25, "spacing": 12.0, "level": 3},
 	"splatter": {"name": "Брызги", "size": 0.1, "hardness": 0.9, "flow": 1.0, "tip": "splatter", "rotate": "random",
@@ -54,6 +57,7 @@ static func stamp_opts(p: Dictionary, tangent_dir: Vector3, reserve: float) -> D
 		"tip": str(p.get("tip", "")), "shape": str(p.get("shape", "round")), "box": p.get("box", Vector2.ONE),
 		"tan": tangent_dir, "load": reserve, "dry": float(p.get("dry", 0.0)),
 		"sample": str(p.get("sample", "")), "sample_size": float(p.get("sample_size", 0.25)),
+		"relief": float(p.get("relief", 0.0)), "relief_sens": float(p.get("relief_sens", 1.0)),
 	}
 
 

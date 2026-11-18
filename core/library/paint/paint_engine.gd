@@ -19,6 +19,7 @@ signal changed          ## слой изменился (штамп, отмена
 const MAX_STAMPS := 32
 const HISTORY_LIMIT := 30
 const DEFAULT_RES := 1024
+const RELIEF_SHADER := preload("res://core/library/paint/relief_bake.gdshader")
 const BLOCK_EPS := 0.0001          ## закрывающий меш должен быть ближе красимого хотя бы на столько (мир)
 const STAMP_SHADER := preload("res://core/library/paint/stamp.gdshader")
 const ERASE_SHADER := preload("res://core/library/paint/stamp_erase.gdshader")
@@ -44,6 +45,11 @@ var _rect: ColorRect
 var _stamp_mat: ShaderMaterial
 var _erase_mat: ShaderMaterial
 var _copy_mat: ShaderMaterial
+## Карта рельефа для сухой кисти и смывки (строится по требованию, build_relief): готова ли и на какой ширине перехода
+var relief_ready := false
+var relief_width := 0.0
+var _relief_vp: SubViewport
+var _relief_src: Array = []         # красимые поверхности: [{uv2, uv1, idx, texture, scale, offset}]
 var _entries: Array = []            # [{surfaces, verts, xform}] по кандидатам, только на время запекания
 var _parts: Array = []              # красимые: [{mi, tri, to_root}]
 var _blockers: Array = []           # не красимые: [{mi, tri}]
@@ -120,6 +126,7 @@ func _collect_parts(list: Array[MeshInstance3D], entries: Array, root: MeshInsta
 	target = root
 	meshes.clear()
 	skipped.clear()
+	_relief_src.clear()
 	_parts.clear()
 	_blockers.clear()
 	var included: PackedInt32Array = bake_info.get("included", PackedInt32Array())
@@ -130,6 +137,13 @@ func _collect_parts(list: Array[MeshInstance3D], entries: Array, root: MeshInsta
 		var mi := list[i]
 		var xf: Transform3D = entries[i]["xform"]
 		meshes.append(mi)
+		for surf in entries[i]["surfaces"]:
+			var uv1: PackedVector2Array = surf.get("uv1", PackedVector2Array())
+			if uv1.size() != (surf["uv2"] as PackedVector2Array).size():
+				continue
+			var info := PaintBake.albedo_info(mi.get_active_material(int(surf["surface"])))
+			_relief_src.append({"uv2": surf["uv2"], "uv1": uv1, "idx": surf["idx"], "texture": info["texture"],
+				"scale": info["scale"], "offset": info["offset"]})
 		var tri := mi.mesh.generate_triangle_mesh()
 		if tri != null:
 			_parts.append({"mi": mi, "tri": tri, "to_root": xf})
@@ -150,6 +164,50 @@ func _collect_parts(list: Array[MeshInstance3D], entries: Array, root: MeshInsta
 		var tri := (m as MeshInstance3D).mesh.generate_triangle_mesh()
 		if tri != null:
 			_blockers.append({"mi": m, "tri": tri})
+
+
+## Строит карту рельефа (контраст яркости базовой текстуры с окружением, радиус width_px пикселей слоя) и ждёт кадры.
+## Повторный вызов с другой шириной перестраивает карту. Без текстуры у материалов карта нулевая (красить нечем)
+func build_relief(width_px: float) -> void:
+	if not is_built:
+		return
+	relief_ready = false
+	if _relief_vp != null:
+		_relief_vp.queue_free()
+	_relief_vp = SubViewport.new()
+	_relief_vp.size = Vector2i(res, res)
+	_relief_vp.transparent_bg = true
+	_relief_vp.disable_3d = true
+	_relief_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(_relief_vp)
+	for src in _relief_src:
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		var v2 := PackedVector2Array()
+		for uv in (src["uv2"] as PackedVector2Array):
+			v2.append(uv * float(res))
+		arrays[Mesh.ARRAY_VERTEX] = v2
+		arrays[Mesh.ARRAY_TEX_UV] = src["uv1"]
+		if not (src["idx"] as PackedInt32Array).is_empty():
+			arrays[Mesh.ARRAY_INDEX] = src["idx"]
+		var mesh := ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var mat := ShaderMaterial.new()
+		mat.shader = RELIEF_SHADER
+		var tex: Texture2D = src["texture"]
+		mat.set_shader_parameter("has_tex", tex != null)
+		mat.set_shader_parameter("albedo_tex", tex)
+		mat.set_shader_parameter("uv_scale", src["scale"])
+		mat.set_shader_parameter("uv_offset", src["offset"])
+		mat.set_shader_parameter("width", maxf(width_px, 0.5))
+		var node := MeshInstance2D.new()
+		node.mesh = mesh
+		node.material = mat
+		_relief_vp.add_child(node)
+	await _settle()
+	await get_tree().process_frame
+	relief_width = width_px
+	relief_ready = true
 
 
 ## Имена красимых мешей (по ним слой привязывается к мешам исполнения)
@@ -275,9 +333,14 @@ func end_stroke() -> void:
 ## Поставить штамп в очередь (рисуется в ближайшем кадре, до 32 штампов с одинаковыми параметрами за проход).
 ## opts (PaintBrushes.stamp_opts): tip (id текстуры конца или ""), shape ("round" или "box"), box (Vector2, полуразмеры конца
 ## в долях радиуса), tan (направление конца в касательной плоскости), load (запас краски 0..1), dry (сила сухой кисти),
-## sample (id образца из PaintSamples или ""), sample_size (повтор образца в долях габарита группы мешей)
+## sample (id образца из PaintSamples или ""), sample_size (повтор образца в долях габарита группы мешей),
+## relief (0 нет, 1 красить выступы и светлые кромки, -1 впадины и тёмные тени), relief_sens (чувствительность);
+## со relief не равным 0 штампы игнорируются, пока карта рельефа не построена (build_relief)
 func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Color, flow: float, hardness: float, erase := false, opts: Dictionary = {}) -> void:
 	if not is_built:
+		return
+	var relief_dir := signf(float(opts.get("relief", 0.0)))
+	if relief_dir != 0.0 and not relief_ready:
 		return
 	var n := local_normal.normalized()
 	var tan_dir: Vector3 = opts.get("tan", Vector3.ZERO)
@@ -293,6 +356,7 @@ func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Colo
 		"tip": str(opts.get("tip", "")), "shape": 1 if str(opts.get("shape", "round")) == "box" else 0,
 		"box": opts.get("box", Vector2.ONE), "dry": float(opts.get("dry", 0.0)),
 		"sample": str(opts.get("sample", "")), "ssize": float(opts.get("sample_size", 0.25)),
+		"relief": relief_dir, "rsens": float(opts.get("relief_sens", 1.0)),
 	})
 
 
@@ -349,6 +413,12 @@ func _flush() -> void:
 		mat.set_shader_parameter("sample_on", PaintSamples.has(sample_id))
 		mat.set_shader_parameter("sample_tex", PaintSamples.texture(sample_id))
 		mat.set_shader_parameter("sample_scale", 1.0 / maxf(size_ref * float(first["ssize"]), 0.0001))
+		var on: bool = float(first["relief"]) != 0.0 and relief_ready and _relief_vp != null
+		mat.set_shader_parameter("relief_on", on)
+		if on:
+			mat.set_shader_parameter("relief_tex", _relief_vp.get_texture())
+			mat.set_shader_parameter("relief_dir", first["relief"])
+			mat.set_shader_parameter("relief_sens", first["rsens"])
 	mat.set_shader_parameter("brush_color", first["color"])
 	mat.set_shader_parameter("flow", first["flow"])
 	mat.set_shader_parameter("hardness", first["hardness"])
@@ -363,7 +433,7 @@ func _flush() -> void:
 func _same_params(a: Dictionary, b: Dictionary) -> bool:
 	return a["erase"] == b["erase"] and a["flow"] == b["flow"] and a["hardness"] == b["hardness"] and a["color"] == b["color"] \
 		and a["tip"] == b["tip"] and a["shape"] == b["shape"] and a["box"] == b["box"] and a["dry"] == b["dry"] \
-		and a["sample"] == b["sample"] and a["ssize"] == b["ssize"]
+		and a["sample"] == b["sample"] and a["ssize"] == b["ssize"] and a["relief"] == b["relief"] and a["rsens"] == b["rsens"]
 
 
 # ==========================================

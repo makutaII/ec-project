@@ -35,8 +35,24 @@ static func collect(mesh: Mesh) -> Array:
 		var iv: Variant = arrays[Mesh.ARRAY_INDEX]
 		if iv is PackedInt32Array:
 			idx = iv
-		out.append({"verts": verts, "uv2": uv2, "norms": norms, "idx": idx})
+		var uv1 := PackedVector2Array()
+		var u1: Variant = arrays[Mesh.ARRAY_TEX_UV]
+		if u1 is PackedVector2Array:
+			uv1 = u1
+		out.append({"verts": verts, "uv2": uv2, "norms": norms, "idx": idx, "uv1": uv1, "surface": si})
 	return out
+
+
+## Параметры базовой текстуры материала для запекания рельефа: {texture, scale, offset}. Без текстуры texture = null.
+## Берётся albedo StandardMaterial3D (после перекраски зон материал это копия с той же текстурой)
+static func albedo_info(mat: Material) -> Dictionary:
+	var info := {"texture": null, "scale": Vector2.ONE, "offset": Vector2.ZERO}
+	if mat is BaseMaterial3D:
+		var bm := mat as BaseMaterial3D
+		info["texture"] = bm.albedo_texture
+		info["scale"] = Vector2(bm.uv1_scale.x, bm.uv1_scale.y)
+		info["offset"] = Vector2(bm.uv1_offset.x, bm.uv1_offset.y)
+	return info
 
 
 ## true, если у каждой поверхности меша есть UV2
@@ -160,7 +176,7 @@ static func transformed(surfaces: Array, xf: Transform3D) -> Array:
 			n2.resize(ns.size())
 			for i in ns.size():
 				n2[i] = (nb * ns[i]).normalized()
-		out.append({"verts": v2, "uv2": surf["uv2"], "norms": n2, "idx": surf["idx"]})
+		out.append({"verts": v2, "uv2": surf["uv2"], "norms": n2, "idx": surf["idx"], "uv1": surf.get("uv1", PackedVector2Array()), "surface": surf.get("surface", 0)})
 	return out
 
 

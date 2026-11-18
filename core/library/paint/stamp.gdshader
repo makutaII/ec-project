@@ -4,6 +4,8 @@
 // форма штампа (круг, прямоугольник, текстурный конец, сухая кисть) считается в stamp_common.gdshaderinc.
 // Образец (C2.3): вместо плоского цвета берётся цвет и пятнистость текстуры образца по позиции текселя на модели
 // (triplanar: три проекции по осям, смесь по нормали), поэтому рисунок не рвётся на швах UV2.
+// Рельеф (C2.2a): сухая кисть и смывка красят только там, где карта рельефа (relief_bake.gdshader) даёт контраст яркости
+// текстуры нужного знака; на ровной поверхности не красят совсем.
 // Накопление: render_target_clear_mode = ONCE и blend_mix, кадр дорисовывается поверх прежнего (проверено прототипом C2.0).
 // Слой хранится в 16 битах (SubViewport.use_hdr_2d): при 8 битах краска при малом потоке «залипала» и темнела на мягком крае.
 shader_type canvas_item;
@@ -15,6 +17,31 @@ uniform vec4 brush_color = vec4(1.0, 0.0, 0.0, 1.0);
 uniform bool sample_on = false;
 uniform sampler2D sample_tex : filter_linear, repeat_enable, hint_default_white;
 uniform float sample_scale = 1.0;       // повторов текстуры на единицу длины опорного меша
+uniform bool relief_on = false;         // сухая кисть и смывка: красить только по рельефу
+uniform sampler2D relief_tex : filter_nearest, repeat_disable;   // R: 0.5 + контраст яркости, G: тексель покрыт
+uniform float relief_dir = 1.0;         // 1 выступы и светлые кромки, -1 впадины и тёмные тени
+uniform float relief_sens = 1.0;        // чувствительность: во сколько раз усиливается контраст
+
+// Вес рельефа в текселе: 0 на ровном, до 1 на кромке нужной стороны. Тексель за краем острова берёт ближайший покрытый
+float relief_weight(vec2 uv) {
+	vec4 r = texture(relief_tex, uv);
+	if (r.g < 0.5) {
+		vec2 px = 1.0 / vec2(textureSize(relief_tex, 0));
+		for (int k = 0; k < 8; k++) {
+			float a = float(k) * 0.785398;
+			vec4 q = texture(relief_tex, uv + vec2(cos(a), sin(a)) * px * 1.5);
+			if (q.g > 0.5) {
+				r = q;
+				break;
+			}
+		}
+		if (r.g < 0.5) {
+			return 0.0;
+		}
+	}
+	float m = relief_dir * (r.r - 0.5) * 2.0 * relief_sens;
+	return smoothstep(0.04, 0.16, m);
+}
 
 // Образец по позиции: проекции на плоскости YZ, XZ и XY (v вдоль вертикали модели на боковых гранях), вес по нормали
 vec4 sample_triplanar(vec3 p, vec3 n) {
@@ -33,6 +60,9 @@ void fragment() {
 	}
 	vec3 n = normalize(texture(nrm_tex, UV).xyz);
 	float a = stamp_coverage(p.xyz, n);
+	if (relief_on) {
+		a *= relief_weight(UV);
+	}
 	vec3 col = brush_color.rgb;
 	if (sample_on) {
 		vec4 s = sample_triplanar(p.xyz, n);
