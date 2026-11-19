@@ -7,7 +7,8 @@ class_name PaintCursor extends Node3D
 ## Контур это декали, проецируемые на модель под курсором, поэтому он огибает кривизну и не зависит от вида:
 ##   внешнее кольцо: размер штампа (круг или прямоугольник конца кисти, развёрнутый по направлению мазка);
 ##   внутреннее кольцо: граница полной плотности (жёсткость); у мягких кистей (аэрограф) его нет;
-##   тонкое круглое кольцо: область разброса штампов (брызги).
+##   тонкое круглое кольцо: область разброса штампов (брызги);
+##   предпросмотр декали: сама картинка декали полупрозрачно (p["decal_tex"], цвет p["decal_color"]).
 ## Кольцо светлое с тёмной обводкой: видно на любой поверхности и с любым цветом краски; у ластика красноватое.
 ## Узел стоит в World3D студии (дочерний узел StudioWorld). Позиции и направления в мировых координатах.
 
@@ -21,6 +22,7 @@ static var _textures := {}          # "round" / "box" -> ImageTexture
 var outer: Decal
 var inner: Decal
 var scatter_ring: Decal
+var preview: Decal
 var _shape := ""
 
 
@@ -29,6 +31,7 @@ func _init() -> void:
 	outer = _make_decal()
 	inner = _make_decal()
 	scatter_ring = _make_decal()
+	preview = _make_decal()
 	hide_cursor()
 
 
@@ -105,6 +108,14 @@ func show_at(pos: Vector3, normal: Vector3, tangent: Vector3, radius: float, p: 
 	_place(inner, Vector3(2.0 * r * box.x * hardness, depth, 2.0 * r * box.y * hardness), tint, 0.55, ring)
 	var wide := 2.0 * r * (1.0 + scatter)
 	_place(scatter_ring, Vector3(wide, depth, wide), tint, 0.4, scatter > 0.0)
+	var dtex: Texture2D = p.get("decal_tex")
+	if dtex != null:
+		preview.texture_albedo = dtex
+		preview.texture_emission = null
+		var dc: Color = p.get("decal_color", Color.WHITE)
+		_place(preview, Vector3(2.0 * r * box.x, depth, 2.0 * r * box.y), dc, 0.7, true)
+	else:
+		preview.visible = false
 	visible = true
 
 

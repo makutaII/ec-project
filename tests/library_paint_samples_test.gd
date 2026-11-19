@@ -70,6 +70,7 @@ func _test_files() -> void:
 	img.fill(Color(0.8, 0.2, 0.1, 0.5))
 	img.save_png(tmp + "/ржавые_подтёки.png")
 	img.save_png(tmp + "/b_plain.png")
+	img.save_png(tmp + "/decal_star.png")       # файл на «decal» это декаль, в образцы не попадает
 	var note := FileAccess.open(tmp + "/notes.txt", FileAccess.WRITE)
 	note.store_string("не картинка")
 	note.close()
@@ -85,6 +86,8 @@ func _test_files() -> void:
 	DirAccess.remove_absolute(tmp + "/b_plain.png")
 	PaintSamples.refresh()
 	_check("файлы: убранный файл пропадает из списка после refresh", not PaintSamples.has("f:b_plain") and PaintSamples.has("f:ржавые_подтёки"))
+	_check("файлы: decal_* не попадает в образцы", not PaintSamples.has("f:decal_star"))
+	DirAccess.remove_absolute(tmp + "/decal_star.png")
 	DirAccess.remove_absolute(tmp + "/ржавые_подтёки.png")
 	DirAccess.remove_absolute(tmp + "/notes.txt")
 	DirAccess.remove_absolute(tmp)
