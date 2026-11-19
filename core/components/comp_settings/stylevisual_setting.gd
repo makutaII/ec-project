@@ -59,7 +59,10 @@ func _create_scene_visual(entity: Entity) -> Component:
 
 
 func _add_path(entity: Entity) -> void:
-	var path := C_Path.new()
+	# XX claude-coaster C4: паспорт может подменить компонент пути (TrackConfig.create_path)
+	var idc := entity.get_comp(C_Identity) as C_Identity
+	var cfg := idc.object_config as TrackConfig if idc else null
+	var path: C_Path = cfg.create_path() if cfg else C_Path.new()
 	PathSetting.apply_passport(path, entity)   # radius, deg, rise, height, allow_underground из паспорта
 	path.centered = true   # как у обычных жёстких траков: origin в середине кривой
 	path.name = 'C_Path'

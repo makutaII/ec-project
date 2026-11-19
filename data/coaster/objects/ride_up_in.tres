@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" path="res://core/coaster/ride_track_config.gd" id="2_tc"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" path="res://core/components/comp_settings/stylevisual_setting.gd" id="4_sv"]
+[ext_resource type="Resource" path="res://data/tracks/styles/wood.tres" id="5_wood"]
+[ext_resource type="Script" uid="uid://b1jwuxb32so7e" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="7_dr"]
+[ext_resource type="Script" uid="uid://djbifkyei01t7" path="res://core/components/comp_settings/pivot_setting.gd" id="8_pv"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="9_hv"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="10_sl"]
+[ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="11_bl"]
+[ext_resource type="Script" uid="uid://bv065wdiw674c" path="res://core/components/comp_settings/socked_setting.gd" id="12_sk"]
+[ext_resource type="Script" uid="uid://cs257ge2f37bu" path="res://core/components/comp_settings/tracksupport_setting.gd" id="14_su"]
+[ext_resource type="Texture2D" uid="uid://c8tndy1lksot8" path="res://ui/icons/transport/rail-road.svg" id="15_ic"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="16_es"]
+
+[sub_resource type="Resource" id="Resource_cfg"]
+script = ExtResource("2_tc")
+length = 12.0
+pitch_start_deg = 0.0
+pitch_end_deg = 15.0
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_id")
+object_config = SubResource("Resource_cfg")
+
+[sub_resource type="Resource" id="Resource_vis"]
+script = ExtResource("4_sv")
+style = ExtResource("5_wood")
+
+[sub_resource type="Resource" id="Resource_drag"]
+script = ExtResource("7_dr")
+
+[sub_resource type="Resource" id="Resource_piv"]
+script = ExtResource("8_pv")
+
+[sub_resource type="Resource" id="Resource_hov"]
+script = ExtResource("9_hv")
+
+[sub_resource type="Resource" id="Resource_sel"]
+script = ExtResource("10_sl")
+
+[sub_resource type="Resource" id="Resource_blk"]
+script = ExtResource("11_bl")
+
+[sub_resource type="Resource" id="Resource_sock"]
+script = ExtResource("12_sk")
+
+[sub_resource type="Resource" id="Resource_sup"]
+script = ExtResource("14_su")
+
+[resource]
+script = ExtResource("16_es")
+key = &"coaster_track.slope.ride_up_in"
+name = "Въезд на подъём 15°"
+description = "Дуга вверх: от ровного до уклона 15°, длина 12. Вертикальный радиус около 46. Конец стыкуется с «Подъём 15°»"
+category = &"coaster_track"
+tag = &"slope"
+sort_order = 10
+pick_layers = Array[StringName]([&"ground"])
+icon = ExtResource("15_ic")
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_vis"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock"), SubResource("Resource_sup")])
+metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

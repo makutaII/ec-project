@@ -27,6 +27,12 @@ class_name TrackConfig extends ObjectConfig
 #@export var align_ends := false # Выравнивание торцов коллизий
 
 
+## Каким компонентом строится путь трака. XX claude-coaster C4: по умолчанию обычный C_Path, траки с особой формой
+## (RideTrackConfig) подменяют. Спрашивает StyleVisualSetting
+func create_path() -> C_Path:
+	return C_Path.new()
+
+
 ## Ширина коллизии основания из паспорта трака, ю (0 = не задана или у сущности нет паспорта TrackConfig)
 static func collision_width_of(entity: Entity) -> float:
 	var idc := entity.get_comp(C_Identity) as C_Identity
