@@ -13,7 +13,7 @@ signal opened
 signal closed
 
 ## SIDEDOCK_AUTOHIDE_SEC из плана
-const AUTOHIDE_SEC := 5.0
+const AUTOHIDE_SEC := 3.0
 const SLIDE_TIME := 0.18
 
 var is_open := false

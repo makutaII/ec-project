@@ -13,13 +13,26 @@ const KEY_H := "tool_dock_h"
 const MIN_H := 138.0
 const MAX_FRAC := 0.45
 
+## ⚡Изменилась высота, которую нижний ряд занимает у левого края (показан или спрятан ряд,
+## открыта или закрыта категория, растягивание, размер окна). DC-панель стоит над этой высотой
+signal occupied_changed
+
 var _drag := false
 var _start_h := 0.0
 var _start_mouse := 0.0
+var _occupied_queued := false
+
+
+## Группа нужна раньше, чем у соседей по сцене UI отработает _ready (DC-панель стоит в дереве выше
+## ряда и готова раньше него), поэтому вступление в группу здесь, а не в _ready
+func _enter_tree() -> void:
+	add_to_group(&"tool_dock_view")   # по группе его находит DC-панель (стоит над ним)
 
 
 func _ready() -> void:
-	add_to_group(&"tool_dock_view")   # по группе его находит DC-панель (стоит над ним)
+	for c: Control in [self, %CategoriesPanel, %DockColumn]:
+		c.resized.connect(_queue_occupied)
+		c.visibility_changed.connect(_queue_occupied)
 	var grip := %ResizeGrip as Control
 	grip.gui_input.connect(_on_grip_input)
 	var saved := float(Settings.get_value(SECTION, KEY_H, 0.0))
@@ -41,6 +54,31 @@ func actions_strip() -> Container: return %ActionsStrip
 func objects_box() -> Container: return %ObjectsBox
 func objects_flow() -> Container: return %ObjectsFlow
 func empty_label() -> Label: return %EmptyObjects
+
+
+## Высота от нижнего края окна до верха того, что стоит у левого края: панель категорий или ToolDock
+## (что выше, только видимое). 0, если ряд спрятан (Observe, фоторежим)
+func occupied_height() -> float:
+	if not is_visible_in_tree():
+		return 0.0
+	var h := 0.0
+	for c: Control in [%CategoriesPanel, %DockColumn]:
+		if c.visible:
+			h = maxf(h, c.size.y)
+	return h
+
+
+## Размеры детей обновляет контейнер позже, чем приходит сигнал: сообщаем один раз после раскладки
+func _queue_occupied() -> void:
+	if _occupied_queued:
+		return
+	_occupied_queued = true
+	_emit_occupied.call_deferred()
+
+
+func _emit_occupied() -> void:
+	_occupied_queued = false
+	occupied_changed.emit()
 
 
 func _viewport_h() -> float:

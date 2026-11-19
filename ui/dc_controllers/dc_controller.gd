@@ -84,11 +84,7 @@ func _ready() -> void:
 	# Открыта или скрыта панель: помним между запусками и сменами дизайна панели (U15)
 	%ShowControllerButton.button_pressed = bool(Settings.get_value("ui", "dc_panel_open", true))
 	_apply_visibility()
-	# Положение над ToolDock следует за его высотой и размером окна
-	get_viewport().size_changed.connect(_apply_visibility)
-	var dock := get_tree().get_first_node_in_group(&"tool_dock_view") as Control
-	if dock != null:
-		dock.resized.connect(_apply_visibility)
+	_follow_tool_dock()
 	
 	# по умолчанию слайдер полярности есть, иначе настраиваем положение ручки
 	if rotation_with_direction :
@@ -364,14 +360,24 @@ func _on_show_controller_button_pressed() -> void:
 	_apply_visibility()
 
 
-## Положение панели: стоит на высоте ToolDock (нижний ряд HUD), открытая или спрятанная за левый край.
+## Положение над нижним рядом следует за его высотой и за размером окна. Зовут _ready базового класса
+## и дизайнов со своим _ready (мини-дизайн базовый _ready не вызывает)
+func _follow_tool_dock() -> void:
+	get_viewport().size_changed.connect(_apply_visibility)
+	var dock := get_tree().get_first_node_in_group(&"tool_dock_view") as ToolDockView
+	if dock != null:
+		dock.occupied_changed.connect(_apply_visibility)
+
+
+## Положение панели: стоит над тем, что занимает нижний ряд у левого края (панель категорий или ToolDock),
+## зазор 8 px; ряд спрятан: отступ от низа окна 12. Открытая или спрятанная за левый край.
 ## Окно индикаторов прячется вместе с панелью (иначе из-за края торчит его правый хвост)
 func _apply_visibility() -> void:
 	var contr_size = $".".size
 	var y_offset := 12.0
-	var dock := get_tree().get_first_node_in_group(&"tool_dock_view") as Control
-	if dock != null and dock.visible:
-		y_offset += dock.size.y
+	var dock := get_tree().get_first_node_in_group(&"tool_dock_view") as ToolDockView
+	if dock != null and dock.occupied_height() > 0.0:
+		y_offset = dock.occupied_height() + 8.0
 	var open: bool = %ShowControllerButton.button_pressed
 	if open:
 		$".".position = Vector2(5, get_viewport().get_visible_rect().size.y - contr_size.y - y_offset)

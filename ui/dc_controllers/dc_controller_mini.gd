@@ -10,10 +10,11 @@ extends DCController
 
 func _ready() -> void:
 	_attach_source()
-	# начальное значение кнопки видимости 
-	%ShowControllerButton.button_pressed = true
-	# реакция на кнопку dc контроллера (в редакторе он виден по умолчанию)
-	_on_show_controller_button_pressed() 
+	# Открыта или спрятана: помним между запусками, как в базовом классе (раньше здесь всегда стояло true
+	# и запись в настройки затирала спрятанное состояние)
+	%ShowControllerButton.button_pressed = bool(Settings.get_value("ui", "dc_panel_open", true))
+	_apply_visibility()
+	_follow_tool_dock()   # базовый _ready не вызывается: положение над ToolDock подключаем сами
 	
 	# Это надо до тех пор, пока при старте сцены UI есть контроллер(для дебага в общем)
 	#object_setting  =load("res://ui/dc_controllers/dc_controller_mini.tres")
