@@ -290,7 +290,7 @@ API: `RoomBuilder.request_room(id, source)`, где `source` это `&"start"`, 
 
 ### 25.7.5. Лимиты
 
-Привязаны к бюджету [ATTN_14](ATTN_14_observe_room.md) §14.7 (комната 50–80 тыс. треугольников на High, 15–25 тыс. на Low). ERROR останавливает экспорт, WARN читают. Длины в таблице в метрах (файл и Blender в сантиметрах, правила переводят сами).
+Привязаны к бюджету [ATTN_14](ATTN_14_observe_room.md) §14.7 (комната 50–80 тыс. треугольников на High, 15–25 тыс. на Low). ERROR и WARN показываются в отчёте; экспорт `.glb` из Blender ERROR не останавливает (файл пишется, в сообщении «С ОШИБКАМИ»), но комнату с ERROR в игру не берём. Длины в таблице в метрах (файл и Blender в сантиметрах, правила переводят сами).
 
 | Что | WARN | ERROR |
 |---|---|---|
@@ -319,7 +319,7 @@ API: `RoomBuilder.request_room(id, source)`, где `source` это `&"start"`, 
 
 ### 25.7.6. Скрипты
 
-- **`tools/blender/ec_room_tools.py`**: панель **EC Room**, по образцу `ec_model_tools.py` ([ATTN_24 §24.9](docs/ATTN_24_model_pipeline.md)). «Проверить комнату» (отчёт в панели, буфере и `EC_report`); блок 1 «Роли и свойства» (`role`, `ctl_*`, `light_*`, `bulb_of`, «Создать якорь света»); блок 2 «Подготовка» (применить трансформы, прокси-коробка по выделенному или по размеру, эталон «стол 200 × 100 и пол −50»); блок 3 «Механизм» (ключи покоя и рабочего положения, имя `mech_<id>`, объекту сами пишутся `ctl = mech` и `ctl_id`); блок 4 «Экспорт» (проверка, glb с настройками комнаты, затем `glb_preflight.py --kind room`). Единицы: Unit Scale 0.01 (иначе ERROR). Командный режим: `blender -b art/blender/room_<имя>.blend -P tools/blender/ec_room_tools.py -- check` (код возврата 1 при ERROR) и `-- export --id room_<имя>`. Ставится одним файлом, живёт рядом с `ec_model_tools.py`.
+- **`tools/blender/ec_room_tools.py`**: панель **EC Room**, по образцу `ec_model_tools.py` ([ATTN_24 §24.9](docs/ATTN_24_model_pipeline.md)). «Проверить комнату» (отчёт в панели, буфере и `EC_report`); блок 1 «Роли и свойства» (`role`, `ctl_*`, `light_*`, `bulb_of`, «Создать якорь света»); блок 2 «Подготовка» (применить трансформы, прокси-коробка по выделенному или по размеру, эталон «стол 200 × 100, пол −50 и вертикальная стенка» (толщина 10 см, высота в поле «Высота стенки, см», по умолчанию 300 см от пола, на северном краю пола)); блок 3 «Механизм» (ключи покоя и рабочего положения, имя `mech_<id>`, объекту сами пишутся `ctl = mech` и `ctl_id`); блок 4 «Экспорт» (проверка, glb с настройками комнаты даже при ERROR, затем `glb_preflight.py --kind room`). Единицы: Unit Scale 0.01 (иначе ERROR). Командный режим: `blender -b art/blender/room_<имя>.blend -P tools/blender/ec_room_tools.py -- check` (код возврата 1 при ERROR) и `-- export --id room_<имя>` (при ERROR файл всё равно пишется, код возврата 0, в выводе «С ОШИБКАМИ»). Ставится одним файлом, живёт рядом с `ec_model_tools.py`.
 - **Правила написаны один раз.** `check_room(snapshot)` работает над «снимком» сцены (словари и числа, без `bpy`); `snapshot(scene)` снимает сцену Blender, `glb_preflight.py --kind room` собирает такой же снимок из готового `.glb`. Правила §25.7.5 одинаковы до экспорта и после. Без Blender файл импортируется, работает только проверка.
 - **`tools/glb_preflight.py --kind room`**: правила на готовом `.glb`, плюс то, что видно только в файле (камеры, `KHR_lights_punctual`, Draco, число корней). Печатает числа для карточки (§25.7.3, в см и осях Godot), список управляемых объектов и заготовки `MechanismConfig` (`actuator = ANIM`, `anim_name`, длительность и вектор хода).
 - **`tools/room_fixture.py`** делает эталонный `.glb` без Blender (`data/models/room_test_01/`) и «испорченные» варианты (`--broken list`: все имена). **`tools/test_room_pipeline.py`** прогоняет правила на 81 проверке (`python tools/test_room_pipeline.py`, нужен только Python).
@@ -348,7 +348,7 @@ API: `RoomBuilder.request_room(id, source)`, где `source` это `&"start"`, 
 
 1. Blender 4.2+: Units Metric, Unit Scale 0.01, Length Centimeters. Загрузите `tools/blender/ec_room_tools.py` (Scripting → Open → Run Script), в боковой панели (N) появится вкладка **EC Room**.
 2. Постройте сцену по §25.7.1 (корень `Room`, группы, прокси, якоря света, подвижные части). Роли и свойства назначает блок 1 панели. Шаблон: «Назначить из шаблона».
-3. «Проверить комнату» до нуля ERROR; WARN прочитайте.
+3. «Проверить комнату» до нуля ERROR; WARN прочитайте. Экспорт при ERROR разрешён (для проверок и черновиков), но комнату с ERROR в `data/models/` не коммитьте.
 4. «Экспорт .glb» кладёт файл в `data/models/room_<имя>/`; ниже появится отчёт `glb_preflight` с числами для карточки.
 5. В Godot: дождитесь импорта (Root Scale 1.0), создайте `room_<имя>.tscn` (корень `RoomRoot`, инстанс `.glb`), карточку `data/rooms/cards/<id>.tres` (`RoomConfig`: `id`, `title`, `tip`, `scene`, при необходимости `dev_only`).
 6. Library → Room Studio → ваша комната → «Обновить паспорт из сцены». Вкладка «Проверка» должна дать «числа сходятся».

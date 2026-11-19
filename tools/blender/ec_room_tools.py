@@ -6,13 +6,13 @@
   2. Без интерфейса (проверка перед коммитом):
         blender -b art/blender/room_test_01.blend -P tools/blender/ec_room_tools.py -- check
         blender -b art/blender/room_test_01.blend -P tools/blender/ec_room_tools.py -- export --id room_test_01
-     Код возврата 1, если проверка нашла ошибки.
+     Код возврата `check`: 1, если проверка нашла ошибки. Экспорт при ошибках всё равно пишет файл (код возврата 0, в выводе строка «С ОШИБКАМИ» и отчёт).
 
 Что делает
   Проверка: берёт корень комнаты (Empty с Custom Property role = room) и всё, что в него вложено, и сверяет с правилами ATTN_25 §25.7.5:
   роли и их число, имена, масштаб и поворот, прокси-коробки, свет якорями, управление (ctl_*), механизмы mech_<id>, материалы, текстуры, треугольники.
-  Помощники: роли и свойства, прокси-коробки, якоря света, применить трансформы, эталон «стол и пол», ключи механизма.
-  Экспорт: glb с настройками комнаты, затем tools/glb_preflight.py --kind room по готовому файлу.
+  Помощники: роли и свойства, прокси-коробки, якоря света, применить трансформы, эталон «стол, пол и стенка», ключи механизма.
+  Экспорт: glb с настройками комнаты, затем tools/glb_preflight.py --kind room по готовому файлу. Ошибки проверки экспорт не останавливают: файл пишется, отчёт показывает ERROR.
 Из Blender ничего не пишется в репозиторий, кроме самого .glb.
 
 Устройство. Правила написаны один раз над «снимком» сцены (обычные словари и числа, без bpy): `snapshot(scene)` снимает сцену Blender,
@@ -576,6 +576,8 @@ def format_report(items):
 
 DEFAULT_MODELS_DIR = r"D:\Godot\ec-project\data\models"
 REF_COLLECTION = "EC_ref"
+REF_WALL_HEIGHT = 300.0   # высота эталонной стенки по умолчанию, см (3 м)
+REF_WALL_THICK = 10.0     # толщина эталонной стенки, см (0,1 м)
 REPORT_TEXT = "EC_report"
 PREFLIGHT_TEXT = "EC_preflight"
 
@@ -978,22 +980,29 @@ def export_params(op, **wanted):
 
 
 def do_export(scene, filepath, run_preflight=True):
-    """Экспорт корня комнаты с потомками (прокси-коробки тоже: игра читает их и удаляет). Возвращает (ok, сообщение, отчёт)"""
+    """Экспорт корня комнаты с потомками (прокси-коробки тоже: игра читает их и удаляет). Ошибки проверки экспорт не останавливают:
+    файл пишется всегда, отчёт содержит ERROR. Если корня комнаты нет (или их несколько), пишутся все объекты сцены кроме эталонов EC_ref.
+    Возвращает (ok, сообщение, отчёт, число ERROR); ok = False только если сам экспорт Blender не удался"""
     items = check(scene)
-    if any(lv == "ERROR" for lv, _, _ in items):
-        return False, "Экспорт остановлен: в проверке есть ERROR.", format_report(items)
+    n_err = sum(1 for lv, _, _ in items if lv == "ERROR")
     root = find_root(scene)
+    if root is not None:
+        take = [root] + list(root.children_recursive)
+    else:
+        take = [o for o in scene.objects if not _in_ref(o)]
+    if not take:
+        return False, "Экспорт не выполнен: в сцене нет объектов.", format_report(items), n_err
     view = bpy.context.view_layer
     prev_sel = [o for o in scene.objects if o.select_get()]
     prev_act = view.objects.active
     for o in scene.objects:
         o.select_set(False)
-    for o in [root] + list(root.children_recursive):
+    for o in take:
         try:
             o.select_set(True)
         except RuntimeError:
             pass
-    view.objects.active = root
+    view.objects.active = root if root is not None else take[0]
     os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
     wanted = dict(
         filepath=filepath, export_format="GLB", use_selection=True, export_apply=True, export_extras=True,
@@ -1022,7 +1031,9 @@ def do_export(scene, filepath, run_preflight=True):
     pre = run_preflight_tool(filepath) if run_preflight else ""
     if pre:
         report += "\n\n=== Проверка готового файла (glb_preflight) ===\n" + pre
-    return True, "Экспортировано: %s" % filepath, report
+    if n_err:
+        return True, "Экспортировано С ОШИБКАМИ (ERROR %d): %s" % (n_err, filepath), report, n_err
+    return True, "Экспортировано: %s" % filepath, report, 0
 
 
 def prepare_transforms(scene):
@@ -1094,17 +1105,24 @@ def make_box(scene, name, center, size, role=None):
     return obj
 
 
-def make_refs(scene):
-    """Эталон: стол 200 x 100 (верх на нуле) и пол на -50, размером с комнату по умолчанию (единицы Blender = см). Коллекция EC_ref, в экспорт не идёт"""
+def make_refs(scene, wall_height=REF_WALL_HEIGHT):
+    """Эталон: стол 200 x 100 (верх на нуле), пол на -50 размером с комнату по умолчанию и вертикальная стенка (единицы Blender = см).
+    Стенка стоит на полу вдоль северного края (+Y), на всю ширину пола, толщина REF_WALL_THICK (10 см), высота wall_height от пола (по умолчанию 300 см).
+    Коллекция EC_ref, в экспорт не идёт"""
     coll = bpy.data.collections.get(REF_COLLECTION)
     if coll is None:
         coll = bpy.data.collections.new(REF_COLLECTION)
         scene.collection.children.link(coll)
-    for nm in ("EC_ref_table", "EC_ref_floor"):
+    for nm in ("EC_ref_table", "EC_ref_floor", "EC_ref_wall"):
         o = bpy.data.objects.get(nm)
         if o is not None:
             bpy.data.objects.remove(o, do_unlink=True)
-    for nm, size, center in (("EC_ref_table", (200.0, 100.0, 5.0), (0.0, 0.0, -2.5)), ("EC_ref_floor", (480.0, 380.0, 2.0), (0.0, 0.0, -51.0))):
+    floor_w, floor_d, floor_top = 480.0, 380.0, -50.0
+    wall_h = max(float(wall_height), 1.0)
+    walls = (("EC_ref_table", (200.0, 100.0, 5.0), (0.0, 0.0, -2.5)),
+             ("EC_ref_floor", (floor_w, floor_d, 2.0), (0.0, 0.0, floor_top - 1.0)),
+             ("EC_ref_wall", (floor_w, REF_WALL_THICK, wall_h), (0.0, floor_d / 2.0 + REF_WALL_THICK / 2.0, floor_top + wall_h / 2.0)))
+    for nm, size, center in walls:
         hx, hy, hz = (c / 2.0 for c in size)
         verts = [(-hx, -hy, -hz), (hx, -hy, -hz), (hx, hy, -hz), (-hx, hy, -hz), (-hx, -hy, hz), (hx, -hy, hz), (hx, hy, hz), (-hx, hy, hz)]
         faces = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
@@ -1161,6 +1179,7 @@ if bpy is not None:
         role_preset: EnumProperty(name="Шаблон", items=ROLE_PRESETS, default="decor_t1")
         role: StringProperty(name="Роль", description="Custom Property role для выделенных объектов", default="")
         proxy_role: EnumProperty(name="Прокси", items=PROXY_PRESETS, default="collider")
+        ref_wall_height: FloatProperty(name="Высота стенки, см", description="Высота эталонной стенки от пола, см (по умолчанию 300 = 3 м). Толщина 10 см", default=REF_WALL_HEIGHT, min=10.0, max=2000.0)
         box_size: FloatVectorProperty(name="Размер, см", description="Размер прокси-коробки в единицах Blender (= см), когда ничего не выделено (центр в 3D-курсоре)", size=3,
                                       default=(100.0, 100.0, 100.0), min=1.0)
         ctl_kind: EnumProperty(name="Вид", items=[("toggle", "toggle: вкл/выкл", ""), ("slider", "slider: 0..1 (свет)", ""), ("mech", "mech: механизм", "")], default="toggle")
@@ -1436,12 +1455,14 @@ if bpy is not None:
 
     class ECR_OT_refs(bpy.types.Operator):
         bl_idname = "ecroom.refs"
-        bl_label = "Эталон: стол и пол"
-        bl_description = "Стол 200 x 100 см (верх на нуле) и пол на -50 (коллекция EC_ref, в экспорт не идёт): сверка размеров мебели и нуля комнаты"
+        bl_label = "Эталон: стол, пол и стенка"
+        bl_description = ("Стол 200 x 100 см (верх на нуле), пол на -50 и вертикальная стенка толщиной 10 см на северном краю пола, высота из поля «Высота стенки» "
+                          "(коллекция EC_ref, в экспорт не идёт): сверка размеров мебели, нуля и высоты комнаты")
 
         def execute(self, context):
-            make_refs(context.scene)
-            self.report({"INFO"}, "Эталон создан (коллекция %s)" % REF_COLLECTION)
+            h = settings(context.scene).ref_wall_height
+            make_refs(context.scene, h)
+            self.report({"INFO"}, "Эталон создан (коллекция %s), стенка %.0f см" % (REF_COLLECTION, h))
             return {"FINISHED"}
 
     class ECR_OT_mech_key(bpy.types.Operator):
@@ -1480,16 +1501,17 @@ if bpy is not None:
     class ECR_OT_export(bpy.types.Operator):
         bl_idname = "ecroom.export"
         bl_label = "Экспорт .glb"
-        bl_description = "Проверка, экспорт корня комнаты с потомками и проверка готового файла (glb_preflight --kind room). Отчёт в панели, буфере обмена и тексте EC_preflight"
+        bl_description = "Проверка, экспорт корня комнаты с потомками (даже если проверка нашла ERROR) и проверка готового файла (glb_preflight --kind room). Отчёт в панели, буфере обмена и тексте EC_preflight"
 
         def execute(self, context):
             s = settings(context.scene)
             path = resolve_export_path(bpy.path.abspath(s.export_path) if s.export_path else "", models_dir_of(s), room_id_of(s))
-            ok, msg, rep = do_export(context.scene, path)
+            ok, msg, rep, n_err = do_export(context.scene, path)
             copied = publish_report("Экспорт: " + msg, (msg + "\n\n" + rep) if rep else msg, PREFLIGHT_TEXT)
             print(msg)
             print(rep)
-            self.report({"INFO"} if ok else {"ERROR"}, msg + (". Отчёт скопирован в буфер обмена" if copied else ""))
+            level = "ERROR" if not ok else ("WARNING" if n_err else "INFO")
+            self.report({level}, msg + (". Отчёт скопирован в буфер обмена" if copied else ""))
             return {"FINISHED"} if ok else {"CANCELLED"}
 
     class ECR_PT_panel(bpy.types.Panel):
@@ -1549,6 +1571,7 @@ if bpy is not None:
             box.prop(s, "proxy_role")
             box.prop(s, "box_size")
             box.operator("ecroom.proxy", icon="MESH_CUBE")
+            box.prop(s, "ref_wall_height")
             box.operator("ecroom.refs", icon="MESH_PLANE")
 
             box = lay.box()
@@ -1615,7 +1638,7 @@ def _cli(argv):
     class _S:  # минимальная замена настроек панели; id по умолчанию берётся из имени файла .blend
         room_id, models_dir = a.id, a.models_dir
     path = resolve_export_path(a.out, models_dir_of(_S), room_id_of(_S))
-    ok, msg, rep = do_export(scene, path)
+    ok, msg, rep, n_err = do_export(scene, path)
     print(msg)
     print(rep)
     return 0 if ok else 1
