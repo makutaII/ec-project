@@ -3,19 +3,20 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://e6521jn8id6b"
-path="res://.godot/imported/Gravel018_1K-WebP_NormalGL.webp-99273a43432b131d98f644d29b126bec.ctex"
+path.s3tc="res://.godot/imported/Gravel018_1K-WebP_NormalGL.webp-99273a43432b131d98f644d29b126bec.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_NormalGL.webp"
-dest_files=["res://.godot/imported/Gravel018_1K-WebP_NormalGL.webp-99273a43432b131d98f644d29b126bec.ctex"]
+dest_files=["res://.godot/imported/Gravel018_1K-WebP_NormalGL.webp-99273a43432b131d98f644d29b126bec.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/high_quality_mode=0
 compress/lossy_quality=0.7
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
