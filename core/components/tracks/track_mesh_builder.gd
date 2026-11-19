@@ -127,7 +127,7 @@ static func frame(curve: Curve3D, s: float, L: float) -> Fr:
 
 
 # ==========================================
-# Меш: балласт (поверхность 0, если есть) и рельсы (rail_surface_index)
+# Меш: балласт (поверхность 0, если есть) и рельсы (style.rail_surface_index(), если включены)
 # ==========================================
 
 static func build_mesh(style: TrackStyle, curve: Curve3D, L: float, preview: bool) -> ArrayMesh:
@@ -155,21 +155,23 @@ static func build_mesh(style: TrackStyle, curve: Curve3D, L: float, preview: boo
 			st.generate_tangents()
 		st.commit(am)
 
-	# Рельсы: поверхность rail_surface_index (1 с балластом, 0 без)
-	var rst := SurfaceTool.new()
-	rst.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rmat: Material = style.rail_material if style.rail_material else _mat_rail
-	rst.set_material(rmat)
-	var base := style.base_height()
-	for sx in [-1.0, 1.0]:
-		var c: float = sx * style.rail_x
-		var chain: Array = []
-		for p in style.rail_profile:
-			chain.append(Vector2(c + p.x, base + p.y))
-		sweep(rst, fr, chain, L, style.rail_x + style.rail_width(), style.rail_uv_tile, style.rail_uv_rotate)
-	if _has_normal_map(rmat):
-		rst.generate_tangents()
-	rst.commit(am)
+	# Рельсы: поверхность style.rail_surface_index() (1 с балластом, 0 без). rail_enabled = false: только визуал,
+	# поверхности нет, а коллизия рельсов (segment_boxes) и высоты берутся из rail_profile как раньше
+	if style.rail_enabled:
+		var rst := SurfaceTool.new()
+		rst.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var rmat: Material = style.rail_material if style.rail_material else _mat_rail
+		rst.set_material(rmat)
+		var base := style.base_height()
+		for sx in [-1.0, 1.0]:
+			var c: float = sx * style.rail_x
+			var chain: Array = []
+			for p in style.rail_profile:
+				chain.append(Vector2(c + p.x, base + p.y))
+			sweep(rst, fr, chain, L, style.rail_x + style.rail_width(), style.rail_uv_tile, style.rail_uv_rotate)
+		if _has_normal_map(rmat):
+			rst.generate_tangents()
+		rst.commit(am)
 	return am
 
 
@@ -265,6 +267,11 @@ static func create_sleepers_node(style: TrackStyle) -> MultiMeshInstance3D:
 ## Шпалы: целое число с равномерным шагом (шаг чуть подстраивается под длину), каждая в центре своей доли.
 ## Две доли по half-step на стыке двух траков дают тот же шаг, что и внутри трака.
 static func place_sleepers(mm: MultiMesh, style: TrackStyle, curve: Curve3D, L: float) -> void:
+	if not style.sleeper_enabled:
+		# Только визуал: размер шпалы по-прежнему задаёт base_height(), но самих шпал нет
+		if mm.instance_count != 0:
+			mm.instance_count = 0
+		return
 	var n := maxi(1, roundi(L / style.sleeper_step()))
 	var step := L / float(n)
 	if mm.instance_count != n:

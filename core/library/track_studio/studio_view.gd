@@ -154,9 +154,12 @@ func set_rails_visible(on: bool) -> void:
 	rebuild()
 
 
-## Копия меша без поверхности рельсов (1 при балласте, иначе 0): так видно профиль балласта и шпалы отдельно
+## Копия меша без поверхности рельсов (style.rail_surface_index()): так видно профиль балласта и шпалы отдельно.
+## Рельсы выключены в стиле: поверхности уже нет, меш возвращается как есть
 func _without_rails(am: ArrayMesh) -> ArrayMesh:
-	var rail_idx := 1 if _style.ballast_enabled else 0
+	var rail_idx := _style.rail_surface_index()
+	if rail_idx < 0:
+		return am
 	var out := ArrayMesh.new()
 	for i in am.get_surface_count():
 		if i == rail_idx:

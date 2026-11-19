@@ -32,6 +32,7 @@ const RELIEF_SPINS := [
 
 var studio                      # track_studio.gd: get_style(), set_field(), say()
 
+var _part_note: Label
 var _profile_opt: OptionButton
 var _spin := {}                 # ключ спецификации -> SpinBox
 var _pads_chk: CheckBox
@@ -77,6 +78,12 @@ func _build() -> void:
 	_timer.wait_time = LIVE_DELAY
 	_timer.timeout.connect(func(): _on_generate(false))
 	add_child(_timer)
+
+	_part_note = Label.new()
+	_part_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_part_note.modulate = Color(1.0, 0.85, 0.5)
+	_part_note.visible = false
+	v.add_child(_part_note)
 
 	# --- Генератор ---
 	_title(v, "Генератор: корпус")
@@ -244,7 +251,17 @@ func _button(parent: Control, text: String, cb: Callable) -> Button:
 
 ## Студия вызывает при открытии стиля. Меш, собранный генератором, возвращает свои параметры (метаданные track_spec);
 ## иначе размеры берутся из sleeper_size, центр площадок из rail_x стиля
+## Студия вызывает при смене флагов частей: подпись, если шпалы выключены в стиле
+func update_parts() -> void:
+	if _part_note == null or studio == null:
+		return
+	var note := TrackStyleValidator.part_note(studio.get_style(), "sleeper")
+	_part_note.text = note
+	_part_note.visible = not note.is_empty()
+
+
 func refresh_from_style() -> void:
+	update_parts()
 	var style: TrackStyle = studio.get_style() if studio else null
 	_live_active = false
 	_gen_mesh = null

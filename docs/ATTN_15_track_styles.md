@@ -108,7 +108,7 @@ head_height = ballast_height + (sleeper_height - sleeper_embed) + rail_height
 
 ### 2.6. Устройство стиля в коде [решено, в коде для flex]
 
-- `TrackStyle` (`Resource`): профиль рельса, меш и размеры шпалы, шаг, профиль балласта, материалы, флаг `ballast_enabled`, `collision_width`. Производные: `head_height()`, `base_height()`, `rail_height()`, `rail_width()`, `ballast_height()`, `sleeper_bottom()`, `sleeper_step()`.
+- `TrackStyle` (`Resource`): профиль рельса, меш и размеры шпалы, шаг, профиль балласта, материалы, флаги `ballast_enabled`, `sleeper_enabled`, `rail_enabled` (последние два только визуал: коллизия и высота не меняются; хотя бы один флаг включён), `collision_width`. Производные: `head_height()`, `base_height()`, `rail_height()`, `rail_width()`, `ballast_height()`, `sleeper_bottom()`, `sleeper_step()`, `rail_surface_index()` (-1, если рельсы выключены), `has_any_part()`.
 - Профили задаются ломаной в осях (x, y), **слева направо поверх по часовой стрелке**, днище не задаётся. Профиль балласта: x от оси трака, y от origin пути. Профиль рельса: x от оси рельса, y от подошвы рельса.
 - Меш шпалы (свой): origin в центре площади опоры, низ на `y = 0`, длина вдоль Z, ширина вдоль X. Без своего меша шпала это `BoxMesh` из `sleeper_size`.
 - **Один компонент визуала, без разбиения на `C_Rails` / `C_Sleepers` / `C_Roadbed`.** Рельсы и балласт строятся свипом профиля по кривой, шпалы это один `MultiMesh`. Число компонентов и нод на сущность не растёт (это принципиально, см. §2.9).

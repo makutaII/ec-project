@@ -32,7 +32,7 @@ var head: StaticBody3D
 func on_added() -> void:
 	if style == null:
 		style = TrackStyle.new()
-	rail_surface_index = 1 if style.ballast_enabled else 0
+	rail_surface_index = style.rail_surface_index()
 
 	var sk := TrackMeshBuilder.build_skeleton(style, "StyleTrack")
 	mesh_node = sk.mesh_node

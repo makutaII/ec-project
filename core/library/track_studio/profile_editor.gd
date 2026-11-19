@@ -26,6 +26,7 @@ const COLOR_RAIL := Color(0.75, 0.78, 0.85, 0.55)
 const COLOR_EDIT := Color(0.35, 0.8, 1.0)
 const COLOR_BAD := Color(1.0, 0.35, 0.35)
 const COLOR_DIM := Color(1.0, 0.85, 0.4, 0.9)
+const COLOR_HIDDEN := Color(1, 1, 1, 0.3)   # часть выключена в стиле: только контур (коллизия и высота остаются)
 
 var style: TrackStyle
 var target: int = Target.RAIL
@@ -285,15 +286,23 @@ func _draw_context() -> void:
 	var dims := style.sleeper_dims()
 	var sb := style.sleeper_bottom()
 	var r := Rect2(_w2s(Vector2(-dims.x * 0.5, sb + dims.y)), Vector2(dims.x, dims.y) * _scale)
-	draw_rect(r, COLOR_SLEEPER)
-	draw_rect(r, Color(1, 1, 1, 0.25), false, 1.0)
+	if style.sleeper_enabled:
+		draw_rect(r, COLOR_SLEEPER)
+		draw_rect(r, Color(1, 1, 1, 0.25), false, 1.0)
+	else:
+		draw_rect(r, COLOR_HIDDEN, false, 1.0)
 	# Рельсы: оба на одной высоте, один профиль
 	var base := style.base_height()
 	for sx in [-1.0, 1.0]:
 		var pts := PackedVector2Array()
 		for p in rail:
 			pts.append(_w2s(Vector2(sx * style.rail_x + p.x, base + p.y)))
-		if pts.size() >= 3 and Geometry2D.triangulate_polygon(pts).size() > 0:
+		if not style.rail_enabled:
+			if pts.size() >= 2:
+				var loop := pts.duplicate()
+				loop.append(pts[0])
+				draw_polyline(loop, COLOR_HIDDEN, 1.0)
+		elif pts.size() >= 3 and Geometry2D.triangulate_polygon(pts).size() > 0:
 			draw_colored_polygon(pts, COLOR_RAIL)
 	if show_dims:
 		_draw_dims(ballast, rail)

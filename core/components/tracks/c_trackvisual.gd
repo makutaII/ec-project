@@ -21,6 +21,7 @@ var static_node: StaticBody3D
 var is_power_view_active: bool = false
 #var power_shader: Shader = preload("res://core/visual/materials/shader_power_track.gdshader") 
 # Индекс слота металла. Обычно это 0 или 1, в зависимости от порядка материалов в Blender.
+## Индекс поверхности рельсов в меше (TrackStyle.rail_surface_index()); -1 = рельсы выключены в стиле, слой питания их не красит
 var rail_surface_index :int = 1
 # Кэш материалов: ключ "<цепь>_<полярность>_<масштаб полос>", значение - ShaderMaterial
 static var power_materials_cache: Dictionary = {}
@@ -174,7 +175,7 @@ func _set_power_view():
 	
 	for mesh in mesh_nodes:
 	# Проверяем, есть ли у ноды сам ресурс mesh и хватает ли в нем слотов
-		if mesh.mesh and mesh.mesh.get_surface_count() > rail_surface_index:
+		if rail_surface_index >= 0 and mesh.mesh and mesh.mesh.get_surface_count() > rail_surface_index:
 			# Накладываем шейдер ТОЛЬКО на нужный слот (рельсы)
 			mesh.set_surface_override_material(rail_surface_index, mat)
 		
@@ -184,7 +185,7 @@ func _set_power_view():
 func _reset_power_view():
 	for mesh in mesh_nodes:
 		# Такая же защита при сбросе
-		if mesh.mesh and mesh.mesh.get_surface_count() > rail_surface_index:
+		if rail_surface_index >= 0 and mesh.mesh and mesh.mesh.get_surface_count() > rail_surface_index:
 			mesh.set_surface_override_material(rail_surface_index, null)	
 
 

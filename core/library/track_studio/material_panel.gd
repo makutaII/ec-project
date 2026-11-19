@@ -28,6 +28,7 @@ var studio                     # track_studio.gd: get_style(), set_field(), say(
 
 var _role_opt: OptionButton
 var _set_opt: OptionButton
+var _part_note: Label
 var _info: RichTextLabel
 var _convert_btn: Button
 var _proj_opt: OptionButton
@@ -81,6 +82,12 @@ func _build() -> void:
 		_role_opt.add_item(r[0])
 	_role_opt.item_selected.connect(_on_role_changed)
 	r1.add_child(_role_opt)
+
+	_part_note = Label.new()
+	_part_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_part_note.modulate = Color(1.0, 0.85, 0.5)
+	_part_note.visible = false
+	v.add_child(_part_note)
 
 	var r2 := _row(v, "Набор текстур")
 	_set_opt = OptionButton.new()
@@ -304,6 +311,17 @@ func refresh_from_style() -> void:
 	_on_role_changed(_role_opt.selected)
 
 
+## Студия вызывает при смене флагов частей: предупреждение, если материал выбранной роли сейчас не виден
+func update_parts() -> void:
+	if _part_note == null or studio == null:
+		return
+	var note := TrackStyleValidator.part_note(studio.get_style(), String(_role()[1]))
+	if not note.is_empty():
+		note += " Материал сохранится в стиле, но на экране не виден."
+	_part_note.text = note
+	_part_note.visible = not note.is_empty()
+
+
 func _on_role_changed(_i: int) -> void:
 	var role: String = _role()[1]
 	var mat: Material = null
@@ -322,6 +340,7 @@ func _on_role_changed(_i: int) -> void:
 			if t.x > 0.0 and t.y > 0.0:
 				_params["tile"] = t
 	_proj_opt.disabled = role != "sleeper"
+	update_parts()
 	_on_set_changed(false)
 
 

@@ -20,6 +20,8 @@ const DEFAULT_HEAD_PLAIN := 0.45
 static func can_build(style: TrackStyle) -> bool:
 	if style == null:
 		return false
+	if not style.has_any_part():
+		return false
 	if style.rail_profile.size() < 2:
 		return false
 	if style.ballast_enabled and style.ballast_profile.size() < 2:
@@ -33,6 +35,14 @@ static func validate(style: TrackStyle) -> Array[Dictionary]:
 	if style == null:
 		_add(r, Level.ERROR, "Стиль не загружен")
 		return r
+
+	# --- части трака ---
+	if not style.has_any_part():
+		_add(r, Level.ERROR, "Не включена ни одна часть трака: нужен хотя бы балласт, шпалы или рельсы")
+	if not style.rail_enabled:
+		_add(r, Level.INFO, "Рельс выключен: только визуал. Профиль рельса, колея и коллизия головки работают как раньше, высота трака не меняется")
+	if not style.sleeper_enabled:
+		_add(r, Level.INFO, "Шпала выключена: только визуал. Размер шпалы по-прежнему задаёт высоту постели рельса и высоту трака")
 
 	# --- профили ---
 	_check_profile(r, "Профиль рельса", style.rail_profile, 3)
@@ -55,13 +65,13 @@ static func validate(style: TrackStyle) -> Array[Dictionary]:
 	var dims := style.sleeper_dims()
 	if dims.x <= 0.0 or dims.y <= 0.0 or dims.z <= 0.0:
 		_add(r, Level.ERROR, "Размер шпалы нулевой: %s" % _v3(dims))
-	if style.sleeper_gap < 0.0:
+	if style.sleeper_enabled and style.sleeper_gap < 0.0:
 		_add(r, Level.ERROR, "sleeper_gap меньше 0: шпалы наезжают друг на друга")
 	if style.ballast_enabled and (style.sleeper_embed < 0.0 or style.sleeper_embed > dims.y):
 		_add(r, Level.WARN, "sleeper_embed %s вне диапазона 0..%s (высота шпалы)" % [_f(style.sleeper_embed), _f(dims.y)])
-	if dims.x * 0.5 < style.rail_x + rail_hi:
+	if style.sleeper_enabled and dims.x * 0.5 < style.rail_x + rail_hi:
 		_add(r, Level.ERROR, "Шпала уже колеи: полуширина шпалы %s, внешний край рельса %s" % [_f(dims.x * 0.5), _f(style.rail_x + rail_hi)])
-	if style.sleeper_mesh:
+	if style.sleeper_enabled and style.sleeper_mesh:
 		_check_sleeper_mesh(r, style)
 
 	# --- балласт и коллизия ---
@@ -76,19 +86,19 @@ static func validate(style: TrackStyle) -> Array[Dictionary]:
 		_add(r, Level.WARN, "collision_width %s не совпадает с шириной основания %s: коллизия не по видимой форме" % [_f(style.collision_width), _f(need)])
 
 	# --- UV ---
-	if style.rail_uv_tile.x < 0.0 or style.rail_uv_tile.y < 0.0:
+	if style.rail_enabled and (style.rail_uv_tile.x < 0.0 or style.rail_uv_tile.y < 0.0):
 		_add(r, Level.ERROR, "rail_uv_tile не может быть отрицательным")
 	if style.ballast_uv_tile.x < 0.0 or style.ballast_uv_tile.y < 0.0:
 		_add(r, Level.ERROR, "ballast_uv_tile не может быть отрицательным")
 
 	# --- материалы ---
-	if style.rail_material == null:
+	if style.rail_enabled and style.rail_material == null:
 		_add(r, Level.INFO, "rail_material пуст: общий серый материал рельсов")
 	if style.ballast_enabled and style.ballast_material == null:
 		_add(r, Level.INFO, "ballast_material пуст: общий серый материал балласта")
-	if style.sleeper_material == null and style.sleeper_mesh == null:
+	if style.sleeper_enabled and style.sleeper_material == null and style.sleeper_mesh == null:
 		_add(r, Level.INFO, "sleeper_material пуст: общий коричневый материал шпал")
-	if style.sleeper_mesh and style.sleeper_material and style.sleeper_mesh.get_surface_count() > 1:
+	if style.sleeper_enabled and style.sleeper_mesh and style.sleeper_material and style.sleeper_mesh.get_surface_count() > 1:
 		_add(r, Level.WARN, "sleeper_material перекрывает материалы всех %d поверхностей меша шпалы; чтобы сохранить их, оставьте sleeper_material пустым" % style.sleeper_mesh.get_surface_count())
 
 	# --- высота ---
@@ -113,6 +123,14 @@ static func numbers(style: TrackStyle) -> Array:
 		return out
 	var dims := style.sleeper_dims()
 	var step := style.sleeper_step()
+	var parts: PackedStringArray = []
+	if style.ballast_enabled:
+		parts.append("балласт")
+	if style.sleeper_enabled:
+		parts.append("шпалы")
+	if style.rail_enabled:
+		parts.append("рельсы")
+	out.append(["Части трака", ", ".join(parts) if not parts.is_empty() else "нет"])
 	out.append(["Поверхность катания (head_height)", _f(style.head_height())])
 	out.append(["Низ рельса (base_height)", _f(style.base_height())])
 	out.append(["Низ шпалы над origin", _f(style.sleeper_bottom())])
@@ -122,7 +140,7 @@ static func numbers(style: TrackStyle) -> Array:
 	out.append(["Колея (между осями рельсов)", _f(style.rail_x * 2.0)])
 	out.append(["Шпала, размер", _v3(dims)])
 	out.append(["Шаг шпал", _f(step)])
-	out.append(["Шпал на 10 ю", "%.1f" % (10.0 / step) if step > 0.0 else "-"])
+	out.append(["Шпал на 10 ю", "0 (выключены)" if not style.sleeper_enabled else ("%.1f" % (10.0 / step) if step > 0.0 else "-")])
 	if style.sleeper_mesh:
 		out.append(["Треугольников на шпалу", str(_tris(style.sleeper_mesh))])
 	else:
@@ -150,9 +168,27 @@ static func budget(style: TrackStyle) -> Dictionary:
 		var idx = arrays[Mesh.ARRAY_INDEX]
 		mesh_tris += (idx.size() if idx != null else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()) / 3
 	var step := style.sleeper_step()
-	var count := int(ceil(10.0 / step)) if step > 0.0 else 0
+	var count := int(ceil(10.0 / step)) if step > 0.0 and style.sleeper_enabled else 0
 	var per := _tris(style.sleeper_mesh) if style.sleeper_mesh else 12
 	return {"mesh": mesh_tris, "sleepers": count * per, "sleeper_count": count, "per_sleeper": per, "total": mesh_tris + count * per}
+
+
+## Пояснение для вкладок студии, когда часть трака выключена в стиле. part: "rail", "sleeper", "ballast".
+## Пустая строка = часть включена
+static func part_note(style: TrackStyle, part: String) -> String:
+	if style == null:
+		return ""
+	match part:
+		"rail":
+			if not style.rail_enabled:
+				return "Рельс выключен в стиле: на экране его нет. Профиль и колея по-прежнему задают коллизию и высоту трака, поэтому правятся как обычно."
+		"sleeper":
+			if not style.sleeper_enabled:
+				return "Шпалы выключены в стиле: на экране их нет. Размер шпалы по-прежнему задаёт высоту постели рельса и высоту трака."
+		"ballast":
+			if not style.ballast_enabled:
+				return "Балласт выключен в стиле: профиль и материал балласта не используются."
+	return ""
 
 
 # ==========================================

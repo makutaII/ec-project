@@ -48,7 +48,7 @@ var _flash_tween: Tween
 func on_added() -> void:
 	if style == null:
 		style = TrackStyle.new()
-	rail_surface_index = 1 if style.ballast_enabled else 0
+	rail_surface_index = style.rail_surface_index()
 	instance = _build_instance()
 	entity.add_child(instance)
 	parts = PartRegistry.build(instance)
@@ -276,7 +276,7 @@ func _set_power_view():
 	var active := path.active_route if path else 0
 	for i in _meshes.size():
 		var m := _meshes[i]
-		if not (m.mesh and m.mesh.get_surface_count() > rail_surface_index):
+		if not (rail_surface_index >= 0 and m.mesh and m.mesh.get_surface_count() > rail_surface_index):
 			continue
 		if routed and i != active:
 			m.set_surface_override_material(rail_surface_index, null)   # мертвая ветка

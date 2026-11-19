@@ -38,6 +38,7 @@ var _px: SpinBox
 var _py: SpinBox
 var _pt_label: Label
 var _status: Label
+var _part_note: Label
 var _rail_gen: VBoxContainer
 var _ballast_gen: VBoxContainer
 var _spins := {}                # "rail:height" -> SpinBox
@@ -78,6 +79,12 @@ func _build() -> void:
 	_target_opt.add_item("Балласт")
 	_target_opt.item_selected.connect(func(_i: int): _load_target())
 	r1.add_child(_target_opt)
+
+	_part_note = Label.new()
+	_part_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_part_note.modulate = Color(1.0, 0.85, 0.5)
+	_part_note.visible = false
+	v.add_child(_part_note)
 
 	_editor = ProfileEditor.new()
 	_editor.custom_minimum_size = Vector2(0, 320)
@@ -253,6 +260,17 @@ func refresh_from_style() -> void:
 	_load_target()
 
 
+## Студия вызывает при смене флагов частей: подпись над редактором и перерисовка сечения
+func update_parts() -> void:
+	if _part_note == null or studio == null:
+		return
+	var note := TrackStyleValidator.part_note(studio.get_style(), _kind())
+	_part_note.text = note
+	_part_note.visible = not note.is_empty()
+	if _editor:
+		_editor.queue_redraw()
+
+
 func _on_visibility() -> void:
 	# Контекст (колея, шпала, второй профиль) мог измениться на других вкладках
 	if not is_visible_in_tree() or studio == null or studio.get_style() == null:
@@ -280,6 +298,7 @@ func _load_target() -> void:
 		_editor.set_mirror(true)   # при асимметрии станет симметричным и сам сообщит об изменении
 	_update_state()
 	_on_selection(-1)
+	update_parts()
 	if _text_chk.button_pressed:
 		_fill_text()
 

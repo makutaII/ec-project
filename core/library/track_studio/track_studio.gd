@@ -23,37 +23,46 @@ const COLOR_OK := "#7bd88f"
 
 # Описание полей стиля. kind: float, bool, vec2, vec3, res (base: Material или Mesh)
 const PROPS := [
+	{"sec": "Части трака"},
+	{"key": "ballast_enabled", "kind": "bool", "label": "Балласт включён",
+		"tip": "Балласт входит в высоту трака: без него поверхность катания ниже (head_height). Нужна хотя бы одна часть"},
+	{"key": "sleeper_enabled", "kind": "bool", "label": "Шпала включена",
+		"tip": "Только визуал: без шпал размер шпалы всё равно задаёт высоту постели рельса. Нужна хотя бы одна часть"},
+	{"key": "rail_enabled", "kind": "bool", "label": "Рельс включён",
+		"tip": "Только визуал: без рельсов профиль рельса, колея, коллизия и высота трака остаются. Нужна хотя бы одна часть"},
 	{"sec": "Рельсы"},
 	{"key": "rail_x", "kind": "float", "label": "Половина колеи (rail_x)", "min": 0.1, "max": 5.0,
 		"tip": "Расстояние от оси трака до оси рельса, ю"},
-	{"key": "rail_material", "kind": "res", "base": "Material", "label": "Материал рельса",
+	{"key": "rail_material", "kind": "res", "base": "Material", "label": "Материал рельса", "part": "rail",
 		"tip": "Пусто = общий серый материал"},
-	{"key": "rail_uv_tile", "kind": "vec2", "label": "Тайл текстуры, ю", "min": 0.0, "max": 100.0,
+	{"key": "rail_uv_tile", "kind": "vec2", "label": "Тайл текстуры, ю", "min": 0.0, "max": 100.0, "part": "rail",
 		"tip": "x вдоль пути, y поперек (по длине ломаной профиля). 0 = как раньше (для атласов)"},
-	{"key": "rail_uv_rotate", "kind": "bool", "label": "Повернуть текстуру на 90°",
+	{"key": "rail_uv_rotate", "kind": "bool", "label": "Повернуть текстуру на 90°", "part": "rail",
 		"tip": "Оси UV меняются местами. Слой питания учитывает поворот"},
 	{"sec": "Шпалы"},
 	{"key": "sleeper_mesh", "kind": "res", "base": "Mesh", "label": "Меш шпалы",
 		"tip": "Пусто = BoxMesh размера sleeper_size. Контракт меша: origin в центре площади опоры, низ на y = 0, длинная сторона по X"},
 	{"key": "sleeper_size", "kind": "vec3", "label": "Размер (X, Y, Z)", "min": 0.01, "max": 20.0,
-		"tip": "Только для BoxMesh (если меша нет): ширина поперёк пути, высота, длина вдоль пути"},
-	{"key": "sleeper_gap", "kind": "float", "label": "Зазор между шпалами", "min": 0.0, "max": 10.0, "tip": "ю"},
-	{"key": "sleeper_embed", "kind": "float", "label": "Вдавлена в балласт", "min": 0.0, "max": 5.0,
+		"tip": "Только для BoxMesh (если меша нет): ширина поперёк пути, высота, длина вдоль пути. Задаёт высоту постели рельса и при выключенных шпалах"},
+	{"key": "sleeper_gap", "kind": "float", "label": "Зазор между шпалами", "min": 0.0, "max": 10.0, "part": "sleeper", "tip": "ю"},
+	{"key": "sleeper_embed", "kind": "float", "label": "Вдавлена в балласт", "min": 0.0, "max": 5.0, "part": "ballast",
 		"tip": "ю, без балласта игнорируется"},
-	{"key": "sleeper_material", "kind": "res", "base": "Material", "label": "Материал шпалы",
+	{"key": "sleeper_material", "kind": "res", "base": "Material", "label": "Материал шпалы", "part": "sleeper",
 		"tip": "Пусто = общий материал (для своего меша: материалы самого меша)"},
 	{"sec": "Балласт"},
-	{"key": "ballast_enabled", "kind": "bool", "label": "Балласт включён"},
-	{"key": "ballast_material", "kind": "res", "base": "Material", "label": "Материал балласта",
+	{"key": "ballast_material", "kind": "res", "base": "Material", "label": "Материал балласта", "part": "ballast",
 		"tip": "Пусто = общий серый материал"},
-	{"key": "ballast_uv_tile", "kind": "vec2", "label": "Тайл текстуры, ю", "min": 0.0, "max": 100.0,
+	{"key": "ballast_uv_tile", "kind": "vec2", "label": "Тайл текстуры, ю", "min": 0.0, "max": 100.0, "part": "ballast",
 		"tip": "x вдоль пути, y поперек (по длине ломаной профиля). 0 = как раньше (для атласов)"},
-	{"key": "ballast_uv_rotate", "kind": "bool", "label": "Повернуть текстуру на 90°",
+	{"key": "ballast_uv_rotate", "kind": "bool", "label": "Повернуть текстуру на 90°", "part": "ballast",
 		"tip": "Оси UV меняются местами"},
 	{"sec": "Коллизия"},
 	{"key": "collision_width", "kind": "float", "label": "Ширина основания", "min": 0.5, "max": 10.0,
 		"tip": "Ширина коллизии основания, ю. Должна совпадать с шириной балласта (или шпалы без балласта)"},
 ]
+
+## Флаги частей трака (вкладка «Параметры»). Хотя бы один должен быть включён
+const PART_KEYS := ["ballast_enabled", "sleeper_enabled", "rail_enabled"]
 
 var settings: StudioSettings
 var view: StudioView
@@ -73,6 +82,7 @@ var _view_area: PanelContainer
 var _pass_nums: RichTextLabel
 var _pass_msgs: RichTextLabel
 var _ctrls := {}                     # ключ поля -> Control или Array[SpinBox] или Dictionary (res)
+var _rows := {}                      # ключ поля -> строка HBoxContainer (для затемнения при выключенной части)
 var _syncing := false
 var _profiles: ProfilePanel
 var _materials: MaterialPanel
@@ -388,6 +398,7 @@ func _build_prop(parent: Control, spec: Dictionary) -> void:
 	var key: String = spec["key"]
 	var row := HBoxContainer.new()
 	parent.add_child(row)
+	_rows[key] = row
 	var l := Label.new()
 	l.text = spec["label"]
 	l.custom_minimum_size = Vector2(150, 0)
@@ -469,18 +480,23 @@ func _build_dialogs() -> void:
 	_saveas_dialog.title = "Сохранить стиль как"
 	_saveas_dialog.ok_button_text = "Сохранить"
 	_saveas_dialog.cancel_button_text = "Отмена"
+	# Размер задан явно, подписи без автопереноса: у Label с автопереносом минимальная высота при первом показе
+	# считается по нулевой ширине, окно получалось выше экрана, и ряд кнопок оказывался за его краем
+	_saveas_dialog.min_size = Vector2i(520, 170)
 	var sv := VBoxContainer.new()
+	sv.custom_minimum_size = Vector2(480, 0)
 	_saveas_dialog.add_child(sv)
 	var sl := Label.new()
-	sl.text = "Идентификатор (латиница в нижнем регистре, цифры, _). Он же имя файла."
+	sl.text = "Идентификатор: латиница в нижнем регистре, цифры, _ (он же имя файла)"
 	sv.add_child(sl)
 	_saveas_edit = LineEdit.new()
-	_saveas_edit.custom_minimum_size = Vector2(380, 0)
-	_saveas_edit.text_changed.connect(func(_t: String): _update_saveas_info())
 	sv.add_child(_saveas_edit)
+	_saveas_edit.text_changed.connect(func(_t: String): _update_saveas_info())
 	_saveas_info = Label.new()
-	_saveas_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_saveas_info.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	sv.add_child(_saveas_info)
+	# Enter в поле = «Сохранить» (запасной способ подтвердить, даже если кнопка не видна)
+	_saveas_dialog.register_text_enter(_saveas_edit)
 	_saveas_dialog.confirmed.connect(_on_saveas_confirmed)
 	add_child(_saveas_dialog)
 
@@ -646,6 +662,7 @@ func _sync_controls() -> void:
 			"res":
 				(c as Label).text = TrackStyleIO.describe(v)
 	_syncing = false
+	_sync_parts()
 
 
 # --- интерфейс для вкладок материалов и шпал ---
@@ -670,10 +687,63 @@ func say(text: String, error := false) -> void:
 func _set_prop(key: String, value: Variant) -> void:
 	if _syncing or _style == null:
 		return
+	if key in PART_KEYS and not value:
+		# Ничего не выбрано быть не может: последнюю включённую часть выключить нельзя
+		var others := 0
+		for k in PART_KEYS:
+			if k != key and _style.get(k):
+				others += 1
+		if others == 0:
+			_syncing = true
+			(_ctrls[key] as CheckBox).set_pressed_no_signal(true)
+			_syncing = false
+			_say("Нужна хотя бы одна часть: балласт, шпалы или рельсы", true)
+			return
 	_style.set(key, value)
 	if _ctrls.get(key) is Label:
 		(_ctrls[key] as Label).text = TrackStyleIO.describe(value)
+	if key in PART_KEYS:
+		_sync_parts()
 	_mark_dirty()
+
+
+## Синхронизация с флагами частей: поля выключенной части затемняются и блокируются, галочки превью и остальные
+## вкладки получают пояснение. Поля, которые остаются контрактом (rail_x, rail_profile, размер шпалы, collision_width),
+## не блокируются: их читают коллизия и высота трака
+func _sync_parts() -> void:
+	if _style == null:
+		return
+	var on := {"rail": _style.rail_enabled, "sleeper": _style.sleeper_enabled, "ballast": _style.ballast_enabled}
+	for spec in PROPS:
+		if not spec.has("part"):
+			continue
+		var row := _rows.get(spec["key"]) as Control
+		if row == null:
+			continue
+		var enabled: bool = on[spec["part"]]
+		row.modulate.a = 1.0 if enabled else 0.45
+		_set_inputs_enabled(row, enabled)
+	if _rails_chk:
+		_rails_chk.disabled = not _style.rail_enabled
+		_rails_chk.tooltip_text = "" if _style.rail_enabled else "Рельс выключен в стиле (Параметры, Части трака)"
+	if _sleepers_chk:
+		_sleepers_chk.disabled = not _style.sleeper_enabled
+		_sleepers_chk.tooltip_text = "" if _style.sleeper_enabled else "Шпала выключена в стиле (Параметры, Части трака)"
+	if _profiles:
+		_profiles.update_parts()
+	if _materials:
+		_materials.update_parts()
+	if _sleepers:
+		_sleepers.update_parts()
+
+
+func _set_inputs_enabled(node: Node, enabled: bool) -> void:
+	for c in node.get_children():
+		if c is SpinBox:
+			(c as SpinBox).editable = enabled
+		elif c is BaseButton:
+			(c as BaseButton).disabled = not enabled
+		_set_inputs_enabled(c, enabled)
 
 
 func _on_vec_changed(key: String, spins: Array) -> void:
@@ -761,7 +831,7 @@ func _open_save_as() -> void:
 		return
 	_saveas_edit.text = String(_style.id)
 	_update_saveas_info()
-	_saveas_dialog.popup_centered()
+	_saveas_dialog.popup_centered(Vector2i(520, 170))
 	_saveas_edit.grab_focus()
 	_saveas_edit.select_all()
 
@@ -787,6 +857,7 @@ func _update_saveas_info() -> void:
 func _on_saveas_confirmed() -> void:
 	var id := _saveas_edit.text.strip_edges()
 	if not TrackStyleIO.is_valid_id(id):
+		_say("Недопустимый идентификатор: латиница в нижнем регистре, цифры, _", true)
 		return
 	_style.id = StringName(id)
 	_write(TrackStyleIO.path_for_id(id))
@@ -853,7 +924,8 @@ func _update_passport() -> void:
 	else:
 		head += "ошибок %d, предупреждений %d\n" % [ne, nw]
 	if not TrackStyleValidator.can_build(_style):
-		head += "[color=%s]Меш не строится: в профиле рельса (или балласта) меньше 2 точек.[/color]\n" % COLOR_ERROR
+		var why := "не включена ни одна часть трака." if not _style.has_any_part() else "в профиле рельса (или балласта) меньше 2 точек."
+		head += "[color=%s]Меш не строится: %s[/color]\n" % [COLOR_ERROR, why]
 	_pass_msgs.text = head + body
 
 

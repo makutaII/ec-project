@@ -26,6 +26,9 @@ const LEGACY_TILE_ALONG := 10.0
 @export var use_scene := false
 
 @export_category("Rails")
+## Показывать рельсы. Только визуал: меш рельсов не строится, но rail_profile, rail_x, коллизия головки
+## (HeadStaticBody3D) и head_height() остаются как есть, поведение игры не меняется
+@export var rail_enabled := true
 ## Половина колеи (до оси рельса), ю
 @export var rail_x := 0.875
 @export var rail_profile := PackedVector2Array([
@@ -41,6 +44,9 @@ const LEGACY_TILE_ALONG := 10.0
 @export var rail_uv_rotate := false
 
 @export_category("Sleepers")
+## Показывать шпалы. Только визуал: шпалы не расставляются, но размер шпалы (sleeper_dims) по-прежнему
+## задаёт base_height() и head_height()
+@export var sleeper_enabled := true
 ## null = BoxMesh размера sleeper_size
 @export var sleeper_mesh: Mesh
 @export var sleeper_size := Vector3(3.0, 0.2, 0.3)   # ширина, высота, длина вдоль пути
@@ -95,6 +101,19 @@ func sleeper_step() -> float:
 
 func ballast_height() -> float:
 	return _max_y(ballast_profile) if ballast_enabled else 0.0
+
+
+## Хотя бы одна часть (балласт, шпалы, рельсы) включена. Стиль, у которого нет ни одной, считается ошибкой
+func has_any_part() -> bool:
+	return ballast_enabled or sleeper_enabled or rail_enabled
+
+
+## Индекс поверхности рельсов в меше TrackMeshBuilder.build_mesh: 1 с балластом, 0 без. -1, если рельсы выключены
+## (поверхности нет). Слой питания и превью берут индекс только отсюда
+func rail_surface_index() -> int:
+	if not rail_enabled:
+		return -1
+	return 1 if ballast_enabled else 0
 
 
 ## Низ шпалы над origin пути

@@ -22,6 +22,7 @@ func _ready() -> void:
 	_test_normalize()
 	_test_style_set_io()
 	_test_budget()
+	_test_parts()
 	print("TrackLib: %d/%d" % [_ok, _all])
 	get_tree().quit(0 if _ok == _all else 1)
 
@@ -277,6 +278,65 @@ func _test_budget() -> void:
 	st.sleeper_mesh = TrackSleeperFactory.generate({})
 	var b2 := TrackStyleValidator.budget(st)
 	_check("бюджет: у меша шпалы 32 треугольника на штуку", b2["per_sleeper"] == 32)
+
+
+## Части трака: rail_enabled и sleeper_enabled только визуал, высота и коллизии те же
+func _test_parts() -> void:
+	var curve := Curve3D.new()
+	curve.add_point(Vector3.ZERO)
+	curve.add_point(Vector3(0.0, 0.0, -10.0))
+	var full := TrackStyle.new()
+	var no_rail := TrackStyle.new()
+	no_rail.rail_enabled = false
+	var no_sleeper := TrackStyle.new()
+	no_sleeper.sleeper_enabled = false
+
+	_check("части: по умолчанию всё включено, индекс рельса 1 (с балластом)", full.has_any_part() and full.rail_surface_index() == 1)
+	_check("части: рельс выключен, индекс поверхности -1", no_rail.rail_surface_index() == -1)
+	var flat := TrackStyle.new()
+	flat.ballast_enabled = false
+	_check("части: без балласта индекс рельса 0", flat.rail_surface_index() == 0)
+
+	_check("части: рельс выключен, меш только балласт (1 поверхность вместо 2)",
+		TrackMeshBuilder.build_mesh(full, curve, 10.0, false).get_surface_count() == 2
+		and TrackMeshBuilder.build_mesh(no_rail, curve, 10.0, false).get_surface_count() == 1)
+	var sleepers_only := TrackStyle.new()
+	sleepers_only.ballast_enabled = false
+	sleepers_only.rail_enabled = false
+	_check("части: без балласта и рельсов меш пустой, но строится", TrackMeshBuilder.build_mesh(sleepers_only, curve, 10.0, false).get_surface_count() == 0)
+
+	_check("части: head_height и base_height не зависят от rail_enabled и sleeper_enabled",
+		is_equal_approx(full.head_height(), no_rail.head_height()) and is_equal_approx(full.head_height(), no_sleeper.head_height())
+		and is_equal_approx(full.base_height(), no_sleeper.base_height()))
+
+	var L := curve.get_baked_length()
+	var a := TrackMeshBuilder.segment_boxes(full, curve, L, 0.0, L)
+	var b := TrackMeshBuilder.segment_boxes(no_rail, curve, L, 0.0, L)
+	var c := TrackMeshBuilder.segment_boxes(no_sleeper, curve, L, 0.0, L)
+	_check("части: коллизия рельсов (боксы) та же при выключенном рельсе",
+		a.rail_size.is_equal_approx(b.rail_size) and a.rail_l_xf.is_equal_approx(b.rail_l_xf) and a.rail_r_xf.is_equal_approx(b.rail_r_xf)
+		and a.ballast_size.is_equal_approx(b.ballast_size) and a.ballast_xf.is_equal_approx(b.ballast_xf))
+	_check("части: коллизия та же при выключенных шпалах",
+		a.rail_size.is_equal_approx(c.rail_size) and a.rail_l_xf.is_equal_approx(c.rail_l_xf) and a.ballast_size.is_equal_approx(c.ballast_size))
+
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	TrackMeshBuilder.place_sleepers(mm, no_sleeper, curve, L)
+	_check("части: шпалы выключены, instance_count = 0", mm.instance_count == 0)
+	TrackMeshBuilder.place_sleepers(mm, full, curve, L)
+	_check("части: шпалы включены, шпалы расставлены", mm.instance_count > 0)
+
+	var none := TrackStyle.new()
+	none.ballast_enabled = false
+	none.sleeper_enabled = false
+	none.rail_enabled = false
+	_check("части: ни одной части = нельзя строить и ошибка проверки",
+		not none.has_any_part() and not TrackStyleValidator.can_build(none)
+		and TrackStyleValidator.validate(none).any(func(e: Dictionary) -> bool: return e.level == TrackStyleValidator.Level.ERROR))
+	_check("части: выключенный рельс не даёт ошибок проверки",
+		not TrackStyleValidator.validate(no_rail).any(func(e: Dictionary) -> bool: return e.level == TrackStyleValidator.Level.ERROR))
+	var bud := TrackStyleValidator.budget(no_sleeper)
+	_check("части: бюджет без шпал не считает шпалы", bud["sleeper_count"] == 0 and bud["sleepers"] == 0)
 
 
 func _near(a: Vector3, b: Vector3) -> bool:

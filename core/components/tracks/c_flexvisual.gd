@@ -41,7 +41,7 @@ func on_added() -> void:
 	
 	if style == null:
 		style = TrackStyle.new()
-	rail_surface_index = 1 if style.ballast_enabled else 0
+	rail_surface_index = style.rail_surface_index()
 	
 	_period_ms = int(Global.settings.flex_rebuild_period * 1000.0)
 	instance = _build_instance()
