@@ -287,11 +287,59 @@ func _get_entity_under_mouse() -> Entity:
 
 ## XX claude-terra 13.4. Луч выбора: как раньше, плюс вода. Трак и вагон выбираются сквозь воду;
 ## воду берём, если она ближе земли (стола, листа) под ней или земли нет
+## Отладка наведения (Global.debug_mode): печатает, во что попал луч курсора и почему ховер есть или нет. Строка выводится
+## только при смене попадания. Второй луч только по слоям вагонов и призраков показывает, не заслоняет ли объект другой
+## коллайдер: если там объект, а в основном луче другой, то ховер перехватил он
+var _dbg_hover_key := ""
+
+
+func _debug_hover(over_ui: bool, result: Dictionary, new_hover) -> void:
+	var trains: Dictionary = {} if over_ui else controller.get_mouse_ray(Global.active_layers(['trains', 'ghost']))
+	var key := "%s|%s|%s|%s" % [over_ui, result.collider.get_instance_id() if result and result.collider else 0,
+			trains.collider.get_instance_id() if trains and trains.collider else 0,
+			new_hover.get_instance_id() if new_hover else 0]
+	if key == _dbg_hover_key:
+		return
+	_dbg_hover_key = key
+	var line := ""
+	if over_ui:
+		line = "курсор над UI"
+	elif result.is_empty():
+		line = "луч ничего не задел"
+	else:
+		line = _describe_hit(result)
+		line += "; ховер=%s" % (str(new_hover.name) if new_hover else "нет")
+		var ent = _find_entity(result.collider)
+		if ent != null and new_hover == null:
+			line += " (IHoverable=%s, выбираем в этом режиме=%s)" % [ent.has_comp(IHoverable), _is_pickable(ent)]
+	line += " | только вагоны и призраки: %s" % (_describe_hit(trains) if not trains.is_empty() else "ничего")
+	print("[Hover] " + line)
+
+
+func _describe_hit(h: Dictionary) -> String:
+	var c = h.collider
+	var ent = _find_entity(c) if c is Node else null
+	var layer: int = (c as CollisionObject3D).collision_layer if c is CollisionObject3D else -1
+	var cam := get_viewport().get_camera_3d()
+	return "%s (%s, слой %d) сущность %s, нормаль %s, расстояние %.1f" % [
+		str((c as Node).name) if c is Node else str(c), c.get_class() if c is Object else "?", layer,
+		str(ent.name) if ent else "нет", (h.normal as Vector3).snapped(Vector3.ONE * 0.1),
+		h.position.distance_to(cam.global_position) if cam else 0.0]
+
+
 func _pick_ray() -> Dictionary:
 	# XX claude-table T1b: в режиме «Секции» смотрим только плиту (вагон или трак на ней не заслоняют её)
 	if Global.current_mode == &'sections':
 		return controller.get_mouse_ray(Global.active_layers(['ground', 'ghost']))
 	var hit: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','trains','ghost','power']))
+	if hit.is_empty():
+		# get_mouse_ray отбрасывает боковые грани слоя ground (бок стола не поверхность для трека). Для выбора и ховера бок
+		# пенопластового блока (C_TerrainLayer) годится: без этого блок наводился только по верхней грани
+		var raw: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','trains','ghost','power']), true)
+		if not raw.is_empty() and raw.collider is Node:
+			var raw_entity = _find_entity(raw.collider)
+			if raw_entity != null and raw_entity.has_comp(C_TerrainLayer):
+				return raw
 	if not hit.is_empty() and hit.collider is CollisionObject3D \
 			and (hit.collider.collision_layer & Global.active_layers(['ground'])) == 0:
 		return hit
@@ -346,7 +394,8 @@ func _update_hover():
 	# Слои земля, трак, вагон
 	# Курсор над панелью UI: объект за ней не подсвечиваем
 	var result = {}
-	if not UIPointer.is_over_ui(get_viewport()):
+	var over_ui := UIPointer.is_over_ui(get_viewport())
+	if not over_ui:
 		result = _pick_ray()
 	var new_hover = null
 	
@@ -357,6 +406,9 @@ func _update_hover():
 		if entity and entity.has_comp(IHoverable) and _is_pickable(entity):
 			new_hover = entity
 			
+	if Global.debug_mode:
+		_debug_hover(over_ui, result, new_hover)
+
 	# Если Новый ховер не такой же как был, то делаем ховером новый
 	if hovered_entity != new_hover:
 		if hovered_entity: 

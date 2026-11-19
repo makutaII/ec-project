@@ -254,7 +254,8 @@ func select_build_object(setting: EntitySetting, variant: Dictionary = {}) -> vo
 
 # 💡 --- Общие хелперы для инструментов ---
 
-func get_mouse_ray(mask: int = -1) -> Dictionary:
+## keep_ground_sides: не отбрасывать боковые грани слоёв ground, water, plaster (нужно выбору и ховеру: бок пенопластового блока наводится)
+func get_mouse_ray(mask: int = -1, keep_ground_sides := false) -> Dictionary:
 	var mouse_pos = get_viewport().get_mouse_position()
 	var camera = get_viewport().get_camera_3d()
 	var from = camera.project_ray_origin(mouse_pos)
@@ -269,7 +270,7 @@ func get_mouse_ray(mask: int = -1) -> Dictionary:
 	# Боковая грань и кромка стола (слой ground) не поверхность: иначе трак или вагон встанет ниже столешницы
 	if not hit.is_empty() and hit.collider is CollisionObject3D \
 			and (hit.collider.collision_layer & Global.active_layers(['ground', 'water', 'plaster'])) != 0 \
-			and hit.normal.y < 0.7:   # XX claude-terra 13.4: бок воды тоже не поверхность
+			and hit.normal.y < 0.7 and not keep_ground_sides:   # XX claude-terra 13.4: бок воды тоже не поверхность
 		return {}
 	return hit
 
