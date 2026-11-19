@@ -325,14 +325,20 @@ static func collision_cuts(curve: Curve3D, L: float, preview: bool, single_if_st
 static func segment_boxes(style: TrackStyle, curve: Curve3D, L: float, s0: float, s1: float) -> Dictionary:
 	var base_h := style.base_height()
 	var rail_h := style.rail_height()
+	var rail_w := style.rail_width()
+	if style.surface_height > 0.0:
+		# XX claude-coaster C4: лоток, коллизия основания до поверхности катания, рельс это крошечный бокс внутри основания
+		base_h = style.surface_height
+		rail_h = 0.01
+		rail_w = 0.01
 	var f := frame(curve, (s0 + s1) * 0.5, L)
 	var chord := curve.sample_baked(s0).distance_to(curve.sample_baked(s1)) + COL_OVERLAP
 	var b := Basis(f.r, f.u, f.r.cross(f.u))
-	var rail_c := f.p + f.u * (base_h + rail_h * 0.5)
+	var rail_c := f.p + f.u * (base_h + rail_h * 0.5) if style.surface_height <= 0.0 else f.p + f.u * (base_h * 0.5)
 	return {
 		"ballast_size": Vector3(style.collision_width, base_h, chord),
 		"ballast_xf": Transform3D(b, f.p + f.u * (base_h * 0.5)),
-		"rail_size": Vector3(style.rail_width(), rail_h, chord),
+		"rail_size": Vector3(rail_w, rail_h, chord),
 		"rail_l_xf": Transform3D(b, rail_c - f.r * style.rail_x),
 		"rail_r_xf": Transform3D(b, rail_c + f.r * style.rail_x),
 	}

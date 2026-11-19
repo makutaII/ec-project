@@ -65,6 +65,13 @@ const LEGACY_TILE_ALONG := 10.0
 ## Ширина коллизии основания (балласт/шпалы), ю
 @export var collision_width := 2.9
 
+@export_category("Surface")
+## XX claude-coaster C4: поверхность катания над origin пути, ю. 0 = как раньше: base_height() + rail_height().
+## Больше нуля: колёса идут на этой высоте, а высота шпал и рельса в расчёт не входят. Нужно лоткам горок:
+## колёса на дне паза, ниже верха бортов ballast_profile. Коллизия основания доходит до этой высоты,
+## коллизии рельса нет (боксы рельса остаются крошечными, внутри основания)
+@export var surface_height := 0.0
+
 
 # ==========================================
 # Производные высоты
@@ -116,6 +123,8 @@ func rail_width() -> float:
 
 ## Поверхность катания над origin пути. Единственный источник высоты для C_Path.head_height()
 func head_height() -> float:
+	if surface_height > 0.0:   # XX claude-coaster C4
+		return surface_height
 	return base_height() + rail_height()
 
 
