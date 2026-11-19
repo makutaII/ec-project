@@ -2,21 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dcqa24oxtfe1x"
-path.s3tc="res://.godot/imported/Gravel024_1K-JPG_Color.jpg-b1926c39fbaa81b419dc4a72744058ed.s3tc.ctex"
+uid="uid://c77xe02ip0pxb"
+path="res://.godot/imported/decal_02.png-a70ed3a006e7c4c2663a17052cbe46b1.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
-source_file="res://data/textures/track/Gravel024_1K-JPG/Gravel024_1K-JPG_Color.jpg"
-dest_files=["res://.godot/imported/Gravel024_1K-JPG_Color.jpg-b1926c39fbaa81b419dc4a72744058ed.s3tc.ctex"]
+source_file="res://data/library/paint_samples/decal_02.png"
+dest_files=["res://.godot/imported/decal_02.png-a70ed3a006e7c4c2663a17052cbe46b1.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/high_quality_mode=0
 compress/lossy_quality=0.7
@@ -25,7 +24,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 mipmaps/preserve_alpha_test_coverage=false
 mipmaps/alpha_test_threshold=0.5
@@ -41,4 +40,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

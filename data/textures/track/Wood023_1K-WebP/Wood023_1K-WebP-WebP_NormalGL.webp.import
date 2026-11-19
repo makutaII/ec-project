@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://htye0evpqoea"
-path="res://.godot/imported/Gravel024.png-c0f0e17c4b3d88c9a01cf94cf14045b4.ctex"
+uid="uid://h8u5fxutrwix"
+path="res://.godot/imported/Wood023_1K-WebP-WebP_NormalGL.webp-7c70cb137a3023228781c8399cb025ab.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://data/textures/track/Gravel024_1K-JPG/Gravel024.png"
-dest_files=["res://.godot/imported/Gravel024.png-c0f0e17c4b3d88c9a01cf94cf14045b4.ctex"]
+source_file="res://data/textures/track/Wood023_1K-WebP/Wood023_1K-WebP-WebP_NormalGL.webp"
+dest_files=["res://.godot/imported/Wood023_1K-WebP-WebP_NormalGL.webp-7c70cb137a3023228781c8399cb025ab.ctex"]
 
 [params]
 

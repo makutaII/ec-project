@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dcu86adxjfvu0"
-path="res://.godot/imported/Gravel024_1K-JPG_NormalDX.jpg-5267cb63a9100aa14e6a0e1df206e429.ctex"
+uid="uid://d3mtafypu1hxl"
+path="res://.godot/imported/Planks023B_1K-WebP_Color.webp-482147913681a2550457b05e6c766ce4.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://data/textures/track/Gravel024_1K-JPG/Gravel024_1K-JPG_NormalDX.jpg"
-dest_files=["res://.godot/imported/Gravel024_1K-JPG_NormalDX.jpg-5267cb63a9100aa14e6a0e1df206e429.ctex"]
+source_file="res://data/textures/track/Planks023B_1K-WebP/Planks023B_1K-WebP_Color.webp"
+dest_files=["res://.godot/imported/Planks023B_1K-WebP_Color.webp-482147913681a2550457b05e6c766ce4.ctex"]
 
 [params]
 
@@ -24,7 +24,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 mipmaps/preserve_alpha_test_coverage=false
 mipmaps/alpha_test_threshold=0.5

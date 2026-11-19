@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c528oniaj6t3p"
-path="res://.godot/imported/Planks023B_1K-JPG_ORM.png-c76ce1f344011f20b6068c1dbeb409cb.ctex"
+uid="uid://covsw6fmctply"
+path="res://.godot/imported/Planks023B_1K-WebP_NormalGL.webp-071a174e0669262e8eb460893484f56e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://data/textures/track/Planks023B_1K-JPG/Planks023B_1K-JPG_ORM.png"
-dest_files=["res://.godot/imported/Planks023B_1K-JPG_ORM.png-c76ce1f344011f20b6068c1dbeb409cb.ctex"]
+source_file="res://data/textures/track/Planks023B_1K-WebP/Planks023B_1K-WebP_NormalGL.webp"
+dest_files=["res://.godot/imported/Planks023B_1K-WebP_NormalGL.webp-071a174e0669262e8eb460893484f56e.ctex"]
 
 [params]
 
@@ -22,7 +22,7 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b28i10lb4enxn"
-path.s3tc="res://.godot/imported/Gravel024_1K-JPG_Roughness.jpg-967da1749207d577f56b34b139ba7646.s3tc.ctex"
+uid="uid://cqgebjundm817"
+path.s3tc="res://.godot/imported/Gravel024_1K-WebP_Color.webp-e8407f3c3997101a50f0d8429eccbd0e.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://data/textures/track/Gravel024_1K-JPG/Gravel024_1K-JPG_Roughness.jpg"
-dest_files=["res://.godot/imported/Gravel024_1K-JPG_Roughness.jpg-967da1749207d577f56b34b139ba7646.s3tc.ctex"]
+source_file="res://data/textures/track/Gravel024_1K-WebP/Gravel024_1K-WebP_Color.webp"
+dest_files=["res://.godot/imported/Gravel024_1K-WebP_Color.webp-e8407f3c3997101a50f0d8429eccbd0e.s3tc.ctex"]
 
 [params]
 

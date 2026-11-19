@@ -1,25 +1,20 @@
 [gd_resource type="Resource" script_class="TrackStyle" format=3]
 
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="1_s841q"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_ORM.webp" id="2_vl25l"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_NormalGL.webp" id="3_rkhsq"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood023_1K-JPG/Wood023_1K-JPG_Color.jpg" id="1_1osul"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood023_1K-JPG/Wood023_1K-JPG_NormalGL.jpg" id="2_t5awl"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood023_1K-JPG/Wood023_1K-JPG_Roughness.jpg" id="3_sueyj"]
 [ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="4_0mx7j"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kjvm8"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s841q"]
 albedo_color = Color(0.92578125, 0.92578125, 0.92578125, 1)
-albedo_texture = ExtResource("1_s841q")
-metallic = 1.0
-metallic_texture = ExtResource("2_vl25l")
-metallic_texture_channel = 2
-roughness_texture = ExtResource("2_vl25l")
-roughness_texture_channel = 1
+albedo_texture = ExtResource("1_1osul")
+roughness_texture = ExtResource("3_sueyj")
+roughness_texture_channel = 4
 normal_enabled = true
-normal_texture = ExtResource("3_rkhsq")
-ao_enabled = true
-ao_texture = ExtResource("2_vl25l")
+normal_texture = ExtResource("2_t5awl")
 texture_filter = 5
 metadata/track_role = "ballast"
-metadata/track_source = "res://data/textures/track/Gravel018_1K-WebP"
+metadata/track_source = "res://data/textures/track/Wood023_1K-JPG"
 metadata/track_params = {
 "ao_light_affect": 0.0,
 "height_scale": 0.05,
@@ -41,5 +36,5 @@ id = &"coaster_01"
 rail_profile = PackedVector2Array(-0.1, 0, -0.0175, 0.048, -0.06, 0.194, -0.06, 0.2325, -0.04, 0.25, 0.04, 0.25, 0.06, 0.2325, 0.06, 0.194, 0.0175, 0.048, 0.1, 0)
 rail_uv_tile = Vector2(10, 10)
 ballast_profile = PackedVector2Array(-1.6, 0, -1.6, 0.525, -1.175, 0.525, -1.175, 0.2, 1.175, 0.2, 1.175, 0.525, 1.6, 0.525, 1.6, 0)
-ballast_material = SubResource("StandardMaterial3D_kjvm8")
+ballast_material = SubResource("StandardMaterial3D_s841q")
 ballast_uv_tile = Vector2(10, 10)

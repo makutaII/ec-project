@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b5yxjt17v5mvy"
-path="res://.godot/imported/decal_02.webp-63b1bf675fc3894d1249b7800e831c44.ctex"
+uid="uid://dtuf36eg6j65x"
+path="res://.godot/imported/decal_01.webp-810f8ebf776494abafb7e04d7923e1e5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://data/library/paint_decals/decal_02.webp"
-dest_files=["res://.godot/imported/decal_02.webp-63b1bf675fc3894d1249b7800e831c44.ctex"]
+source_file="res://data/library/paint_samples/decal_01.webp"
+dest_files=["res://.godot/imported/decal_01.webp-810f8ebf776494abafb7e04d7923e1e5.ctex"]
 
 [params]
 

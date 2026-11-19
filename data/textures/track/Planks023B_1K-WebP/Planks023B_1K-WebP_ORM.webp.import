@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jmb1da2sujvh"
-path="res://.godot/imported/decal_01.webp-bad55862e027863ad93cccbf6eaddf80.ctex"
+uid="uid://0mclth1pyk2n"
+path="res://.godot/imported/Planks023B_1K-WebP_ORM.webp-cc3b4aa5530917a0b9ee4862025e1576.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://data/library/paint_decals/decal_01.webp"
-dest_files=["res://.godot/imported/decal_01.webp-bad55862e027863ad93cccbf6eaddf80.ctex"]
+source_file="res://data/textures/track/Planks023B_1K-WebP/Planks023B_1K-WebP_ORM.webp"
+dest_files=["res://.godot/imported/Planks023B_1K-WebP_ORM.webp-cc3b4aa5530917a0b9ee4862025e1576.ctex"]
 
 [params]
 
@@ -24,7 +24,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 mipmaps/preserve_alpha_test_coverage=false
 mipmaps/alpha_test_threshold=0.5
