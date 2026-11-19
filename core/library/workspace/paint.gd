@@ -57,18 +57,6 @@ var _preview_engine: PaintEngine  # движок, для которого зап
 var _preview_pos := Vector3.ZERO  # последняя точка под курсором на модели (пространство опорного меша)
 var _preview_normal := Vector3.UP
 var _preview_ok := false
-var _busy_box: CenterContainer    # панелька «Построение карты кисти, ждите» поверх вида
-var _busy_label: Label
-var _sample_random_cb: CheckBox
-var _decal_opt: OptionButton
-var _decal_ids: Array[String] = []
-var _decal_angle_slider: HSlider
-var _decal_mirror_cb: CheckBox
-var _decal_tint_cb: CheckBox
-var _plain_rows: Array = []            # строки обычных кистей (у декали скрыты)
-var _decal_rows: Array = []            # строки декали (у остальных скрыты)
-var _sample_shift := Vector2.ZERO # сдвиг образца текущего мазка
-var _relief_note: Label
 var _relief_sens_slider: HSlider
 var _relief_width_slider: HSlider
 var _relief_want := 0.0           # какая ширина перехода нужна карте рельефа
@@ -512,18 +500,10 @@ func _build_brush_box() -> void:
 	_spacing_slider = _add_slider("Шаг, px", 2.0, 60.0, 1.0, "spacing", 1.0)
 	_build_sample_row()
 	_sample_size_slider = _add_slider("Размер образца, %", 5.0, 100.0, 1.0, "sample_size")
-	_relief_note = Label.new()
-	_relief_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_relief_note.text = "Режим работает с текстурой модели: красит только по переходам яркости её базовой текстуры (светлые кромки, тёмные впадины). На модели без текстуры ничего не красит."
-	_relief_note.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
-	_brush_box.add_child(_relief_note)
 	_relief_sens_slider = _add_slider("Чувств. рельефа, %", 20.0, 400.0, 5.0, "relief_sens")
 	_relief_sens_slider.tooltip_text = "Сухая кисть и смывка красят только по рельефу: переходу яркости текстуры. Больше: красит и слабый контраст"
 	_relief_width_slider = _add_slider("Ширина кромки, px", 1.0, 10.0, 1.0, "relief_width", 1.0)
 	_relief_width_slider.tooltip_text = "Радиус перехода в пикселях слоя краски: чем больше, тем шире полоса вдоль кромки"
-	_build_decal_rows()
-	_plain_rows = [_hard_slider.get_parent(), _scatter_slider.get_parent(), _spacing_slider.get_parent(),
-		_sample_opt.get_parent(), _sample_random_cb, _sample_size_slider.get_parent()]
 
 	var row := HBoxContainer.new()
 	_brush_box.add_child(row)
@@ -544,54 +524,6 @@ func _build_brush_box() -> void:
 	_sync_tool_sliders()
 
 
-## Строки инструмента «Декаль»: выбор картинки, поворот, зеркало, цвет палитры. Видны только у него
-func _build_decal_rows() -> void:
-	var row := HBoxContainer.new()
-	_brush_box.add_child(row)
-	var l := Label.new()
-	l.text = "Декаль"
-	l.custom_minimum_size = Vector2(100, 0)
-	row.add_child(l)
-	_decal_opt = OptionButton.new()
-	_decal_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_decal_opt.tooltip_text = "Клик ставит картинку на модель. Свои декали: картинки png, jpg, webp в папке art/paint_decals (форма по альфа-каналу)"
-	_decal_opt.item_selected.connect(func(i: int) -> void:
-		if _silent or i >= _decal_ids.size():
-			return
-		var id := _decal_ids[i]
-		_tool_params[_tool]["decal"] = id
-		_tool_params[_tool]["decal_tint"] = PaintDecals.is_builtin(id)      # белые формы красятся палитрой, свои картинки как есть
-		_sync_tool_sliders())
-	row.add_child(_decal_opt)
-	_decal_angle_slider = _add_slider("Поворот, °", 0.0, 359.0, 1.0, "decal_angle", 1.0)
-	_decal_mirror_cb = CheckBox.new()
-	_decal_mirror_cb.text = "Зеркально"
-	_decal_mirror_cb.toggled.connect(func(on: bool) -> void:
-		if not _silent:
-			_tool_params[_tool]["decal_mirror"] = on)
-	_brush_box.add_child(_decal_mirror_cb)
-	_decal_tint_cb = CheckBox.new()
-	_decal_tint_cb.text = "Цвет из палитры"
-	_decal_tint_cb.tooltip_text = "Включено: картинка красится выбранным цветом (для белых форм). Выключено: цвета самой картинки"
-	_decal_tint_cb.toggled.connect(func(on: bool) -> void:
-		if not _silent:
-			_tool_params[_tool]["decal_tint"] = on)
-	_brush_box.add_child(_decal_tint_cb)
-	_decal_rows = [row, _decal_angle_slider.get_parent(), _decal_mirror_cb, _decal_tint_cb]
-	_fill_decal_options()
-
-
-## Список декалей: встроенные и картинки из папок со своими декалями (перечитываются)
-func _fill_decal_options() -> void:
-	PaintDecals.refresh()
-	_decal_ids = PaintDecals.ids()
-	_decal_opt.clear()
-	for id in _decal_ids:
-		_decal_opt.add_item(PaintDecals.title(id))
-	if _tool_params.has(_tool):
-		_decal_opt.select(maxi(_decal_ids.find(str(_tool_params[_tool]["decal"])), 0))
-
-
 ## Выбор образца: «Без образца» (плоский цвет выбранной краски) и образцы PaintSamples (цвет берётся из образца)
 func _build_sample_row() -> void:
 	var row := HBoxContainer.new()
@@ -608,13 +540,6 @@ func _build_sample_row() -> void:
 			_tool_params[_tool]["sample"] = "" if i == 0 or i > _sample_ids.size() else _sample_ids[i - 1])
 	row.add_child(_sample_opt)
 	_fill_sample_options()
-	_sample_random_cb = CheckBox.new()
-	_sample_random_cb.text = "Случайный рисунок образца"
-	_sample_random_cb.tooltip_text = "Включено: каждый мазок и клик берёт свой участок образца (как грязь). Выключено: образец привязан к модели и мазок «проявляет» один и тот же рисунок"
-	_sample_random_cb.toggled.connect(func(on: bool) -> void:
-		if not _silent:
-			_tool_params[_tool]["sample_random"] = on)
-	_brush_box.add_child(_sample_random_cb)
 
 
 ## Список образцов: «Без образца», встроенные и файлы из папок со своими образцами (перечитываются)
@@ -666,21 +591,6 @@ func _sync_tool_sliders() -> void:
 	var has_relief := float(p["relief"]) != 0.0
 	_relief_sens_slider.get_parent().visible = has_relief
 	_relief_width_slider.get_parent().visible = has_relief
-	_relief_note.visible = has_relief
-	var is_decal := bool(p["decal_tool"])
-	for c in _plain_rows:
-		c.visible = not is_decal
-	for c in _decal_rows:
-		c.visible = is_decal
-	if is_decal:
-		_relief_sens_slider.get_parent().visible = false
-		_relief_width_slider.get_parent().visible = false
-		_relief_note.visible = false
-		_decal_angle_slider.value = float(p["decal_angle"])
-		_decal_mirror_cb.button_pressed = bool(p["decal_mirror"])
-		_decal_tint_cb.button_pressed = bool(p["decal_tint"])
-		_decal_opt.select(maxi(_decal_ids.find(str(p["decal"])), 0))
-	_sample_random_cb.button_pressed = bool(p["sample_random"])
 	_sample_opt.select(_sample_ids.find(str(p["sample"])) + 1)
 	_silent = false
 
@@ -721,14 +631,12 @@ func _request_relief() -> void:
 	if _relief_busy:
 		return
 	_relief_busy = true
-	_show_busy("Построение карты рельефа, ждите...")
 	var shown := _brush_note.text
 	while is_instance_valid(eng) and eng == screen.paint_engine and eng.is_built \
 			and (not eng.relief_ready or not is_equal_approx(eng.relief_width, _relief_want)):
 		_brush_note.text = "Строю карту рельефа..."
 		await eng.build_relief(_relief_want)
 	_relief_busy = false
-	_hide_busy()
 	if _brush_note.text == "Строю карту рельефа...":
 		_brush_note.text = shown
 
@@ -738,8 +646,6 @@ func _set_mode(m: int) -> void:
 		return
 	_mode = m
 	_stroke_end()
-	if m != MODE_BRUSH:
-		_hide_busy()
 	_apply_mode_visibility()
 	if m == MODE_BRUSH:
 		_enter_brush()
@@ -756,16 +662,11 @@ func _apply_mode_visibility() -> void:
 
 ## Строит карту кисти (в потоке) и включает рисование. Если нельзя, возвращает «Заливку зон»
 func _enter_brush() -> void:
-	_fill_sample_options()                     # свои образцы и декали могли появиться в папке
-	_fill_decal_options()
+	_fill_sample_options()                     # свои образцы могли появиться в папке
 	_update_tool_levels(_paint_level())
-	var need_build: bool = screen.paint_engine == null or not screen.paint_engine.is_built
-	if need_build:
-		_show_busy("Построение карты кисти, ждите...")
 	_brush_note.text = "Построение карты кисти..."
 	var ok: bool = await screen.ensure_paint_engine()
 	if _mode != MODE_BRUSH:
-		_hide_busy()
 		return
 	if ok:
 		var eng: PaintEngine = screen.paint_engine
@@ -778,49 +679,16 @@ func _enter_brush() -> void:
 		# ещё не сохранённые в файл, не трогаем. Иначе загрузить слой исполнения (или очистить, если его нет)
 		if screen.paint_engine != _synced_engine or screen.variant != _synced_variant:
 			await _sync_engine_from_variant()
-		_hide_busy()
 		_request_relief()
 	else:
-		_hide_busy()
 		_brush_note.text = "Кисть недоступна для этой модели."
 		_mode_zones_btn.button_pressed = true
 		_set_mode(MODE_ZONES)
 
 
-## Панелька поверх вида на время долгих построений (карта кисти, карта рельефа). Мышь сквозь неё проходит
-func _show_busy(text: String) -> void:
-	if screen == null or screen._view_area == null:
-		return
-	if _busy_box == null or not is_instance_valid(_busy_box):
-		_busy_box = CenterContainer.new()
-		_busy_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var panel := PanelContainer.new()
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var margin := MarginContainer.new()
-		margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		for side in ["margin_left", "margin_right"]:
-			margin.add_theme_constant_override(side, 28)
-		for side in ["margin_top", "margin_bottom"]:
-			margin.add_theme_constant_override(side, 16)
-		_busy_label = Label.new()
-		_busy_label.add_theme_font_size_override("font_size", 20)
-		margin.add_child(_busy_label)
-		panel.add_child(margin)
-		_busy_box.add_child(panel)
-		screen._view_area.add_child(_busy_box)
-	_busy_label.text = text
-	_busy_box.visible = true
-
-
-func _hide_busy() -> void:
-	if _busy_box != null and is_instance_valid(_busy_box):
-		_busy_box.visible = false
-
-
 func exit() -> void:
 	_stroke_end()
 	_free_cursor()
-	_hide_busy()
 
 
 func view_input(event: InputEvent) -> bool:
@@ -903,17 +771,6 @@ func _update_cursor() -> void:
 	# направление конца: у «по мазку» последнее направление мазка, иначе по оси Y модели (случайный угол заранее неизвестен)
 	var mode := "stroke" if str(p["rotate"]) == "stroke" else "fixed"
 	var t_root := PaintBrushes.tangent(_preview_normal, mode, Vector3.ZERO, null, 0.0, _stroke_tan)
-	if bool(p["decal_tool"]):
-		# декаль: рамка по пропорциям картинки, сама картинка полупрозрачно, как ляжет с текущими поворотом и зеркалом
-		var did := str(p["decal"])
-		p = p.duplicate()
-		p["shape"] = "box"
-		p["box"] = PaintDecals.aspect_box(did)
-		p["hardness"] = 0.0
-		p["scatter"] = 0.0
-		p["decal_tex"] = PaintDecals.flipped_texture(did) if bool(p["decal_mirror"]) else PaintDecals.texture(did)
-		p["decal_color"] = _color_btn.color if bool(p["decal_tint"]) else Color.WHITE
-		t_root = PaintBrushes.decal_right(_preview_normal, float(p["decal_angle"]))
 	var sc := xf.basis.get_scale()
 	var radius := eng.radius_for(float(p["size"])) * (sc.x + sc.y + sc.z) / 3.0
 	_cursor.show_at(xf * _preview_pos, (xf.basis.inverse().transposed() * _preview_normal).normalized(),
@@ -951,15 +808,12 @@ func _stroke_begin(pos: Vector2) -> void:
 	_stroke_prev_ok = false
 	_stroke_tan = Vector3.ZERO
 	_rng.randomize()
-	_sample_shift = Vector2(_rng.randf(), _rng.randf()) if bool(_tool_params[_tool]["sample_random"]) else Vector2.ZERO
 	screen.paint_engine.begin_stroke()
 	_stamp_at(pos)
 
 
 ## Штампы вдоль отрезка мыши с шагом spacing инструмента (остаток шага переносится на следующее движение)
 func _stroke_move(pos: Vector2) -> void:
-	if bool(_tool_params[_tool]["single"]):
-		return                                  # декаль: один штамп на нажатие
 	var dist := pos.distance_to(_last_pos)
 	if dist <= 0.0:
 		return
@@ -994,10 +848,6 @@ func _stamp_at(pos: Vector2, step_px := 0.0) -> void:
 	var p: Dictionary = _tool_params[_tool]
 	var n: Vector3 = hit["normal"]
 	var at: Vector3 = hit["position"]
-	if bool(p["decal_tool"]):
-		var d_opts := PaintBrushes.stamp_opts(p, PaintBrushes.decal_right(n, float(p["decal_angle"])), 1.0)
-		eng.stamp(at, n, eng.radius_for(float(p["size"])), _color_btn.color, float(p["flow"]), 1.0, false, d_opts)
-		return
 	var jit := float(p["jitter"])
 	var radius := eng.radius_for(float(p["size"])) * (1.0 + _rng.randf_range(-1.0, 1.0) * jit * 0.5)
 	# направление конца: по мазку (смещение на модели), случайное или по оси Y; без движения прежнее
@@ -1010,7 +860,6 @@ func _stamp_at(pos: Vector2, step_px := 0.0) -> void:
 	var tan_dir := PaintBrushes.jittered(n, base, jit, _rng)
 	var center := at + PaintBrushes.scatter_offset(n, tan_dir, radius, float(p["scatter"]), _rng)
 	var opts := PaintBrushes.stamp_opts(p, tan_dir, PaintBrushes.load_left(p, _travel_px))
-	opts["sample_shift"] = _sample_shift
 	eng.stamp(center, n, radius, _color_btn.color, float(p["flow"]), float(p["hardness"]), bool(p["erase"]), opts)
 
 

@@ -46,8 +46,6 @@ var _stamp_mat: ShaderMaterial
 var _erase_mat: ShaderMaterial
 var _copy_mat: ShaderMaterial
 ## Карта рельефа для сухой кисти и смывки (строится по требованию, build_relief): готова ли и на какой ширине перехода
-## Размер текселя слоя в единицах опорного меша (по площади поверхности и покрытым текселям): нужен декалям для мипмапа
-var texel_world := 0.01
 var relief_ready := false
 var relief_width := 0.0
 var _relief_vp: SubViewport
@@ -155,9 +153,6 @@ func _collect_parts(list: Array[MeshInstance3D], entries: Array, root: MeshInsta
 	size_ref = maxf(box.size.x, maxf(box.size.y, box.size.z))
 	if size_ref <= 0.0:
 		size_ref = 1.0
-	texel_world = sqrt(_surface_area(entries, included) / maxf(float(bake_info.get("covered", 1)), 1.0))
-	if texel_world <= 0.0 or is_nan(texel_world):
-		texel_world = size_ref / float(res)
 	var covers: Array = []
 	for i in skip_idx:
 		skipped.append(list[i])
@@ -213,23 +208,6 @@ func build_relief(width_px: float) -> void:
 	await get_tree().process_frame
 	relief_width = width_px
 	relief_ready = true
-
-
-## Площадь поверхности красимых мешей в единицах опорного меша
-func _surface_area(entries: Array, included: PackedInt32Array) -> float:
-	var area := 0.0
-	for i in included:
-		var xf: Transform3D = entries[i]["xform"]
-		var k := pow(absf(xf.basis.determinant()), 2.0 / 3.0)
-		for surf in entries[i]["surfaces"]:
-			var vs: PackedVector3Array = surf["verts"]
-			var idx: PackedInt32Array = surf["idx"]
-			if idx.is_empty():
-				idx = PackedInt32Array(range(vs.size()))
-			for t in range(0, idx.size() - 2, 3):
-				var a := vs[idx[t]]
-				area += (vs[idx[t + 1]] - a).cross(vs[idx[t + 2]] - a).length() * 0.5 * k
-	return area
 
 
 ## Имена красимых мешей (по ним слой привязывается к мешам исполнения)
@@ -356,10 +334,7 @@ func end_stroke() -> void:
 ## opts (PaintBrushes.stamp_opts): tip (id текстуры конца или ""), shape ("round" или "box"), box (Vector2, полуразмеры конца
 ## в долях радиуса), tan (направление конца в касательной плоскости), load (запас краски 0..1), dry (сила сухой кисти),
 ## sample (id образца из PaintSamples или ""), sample_size (повтор образца в долях габарита группы мешей),
-## sample_shift (Vector2, сдвиг образца в тайлах: свой у каждого мазка),
 ## relief (0 нет, 1 красить выступы и светлые кромки, -1 впадины и тёмные тени), relief_sens (чувствительность);
-## decal (id декали из PaintDecals или ""), decal_mirror, decal_tint (умножать на цвет палитры); у декали tan это
-## направление «вправо» по картинке, radius полуразмер большей стороны, одна декаль на пачку;
 ## со relief не равным 0 штампы игнорируются, пока карта рельефа не построена (build_relief)
 func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Color, flow: float, hardness: float, erase := false, opts: Dictionary = {}) -> void:
 	if not is_built:
@@ -382,9 +357,6 @@ func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Colo
 		"box": opts.get("box", Vector2.ONE), "dry": float(opts.get("dry", 0.0)),
 		"sample": str(opts.get("sample", "")), "ssize": float(opts.get("sample_size", 0.25)),
 		"relief": relief_dir, "rsens": float(opts.get("relief_sens", 1.0)),
-		"sshift": opts.get("sample_shift", Vector2.ZERO),
-		"decal": str(opts.get("decal", "")), "dmirror": bool(opts.get("decal_mirror", false)),
-		"dtint": bool(opts.get("decal_tint", true)),
 	})
 
 
@@ -441,19 +413,6 @@ func _flush() -> void:
 		mat.set_shader_parameter("sample_on", PaintSamples.has(sample_id))
 		mat.set_shader_parameter("sample_tex", PaintSamples.texture(sample_id))
 		mat.set_shader_parameter("sample_scale", 1.0 / maxf(size_ref * float(first["ssize"]), 0.0001))
-		mat.set_shader_parameter("sample_shift", first["sshift"])
-		var decal_id: String = first["decal"]
-		var decal_tex: Texture2D = PaintDecals.texture(decal_id) if decal_id != "" else null
-		mat.set_shader_parameter("decal_on", decal_tex != null)
-		if decal_tex != null:
-			var dbox := PaintDecals.aspect_box(decal_id)
-			var dpx := 2.0 * float((first["p"] as Vector4).w) / maxf(texel_world, 0.000001) * maxf(dbox.x, dbox.y)
-			var big := float(maxi(decal_tex.get_width(), decal_tex.get_height()))
-			mat.set_shader_parameter("decal_tex", decal_tex)
-			mat.set_shader_parameter("decal_box", dbox)
-			mat.set_shader_parameter("decal_mirror", first["dmirror"])
-			mat.set_shader_parameter("decal_tint", first["dtint"])
-			mat.set_shader_parameter("decal_lod", maxf(log(big / maxf(dpx, 1.0)) / log(2.0), 0.0))
 		var on: bool = float(first["relief"]) != 0.0 and relief_ready and _relief_vp != null
 		mat.set_shader_parameter("relief_on", on)
 		if on:
@@ -474,8 +433,7 @@ func _flush() -> void:
 func _same_params(a: Dictionary, b: Dictionary) -> bool:
 	return a["erase"] == b["erase"] and a["flow"] == b["flow"] and a["hardness"] == b["hardness"] and a["color"] == b["color"] \
 		and a["tip"] == b["tip"] and a["shape"] == b["shape"] and a["box"] == b["box"] and a["dry"] == b["dry"] \
-		and a["sample"] == b["sample"] and a["ssize"] == b["ssize"] and a["relief"] == b["relief"] and a["rsens"] == b["rsens"] and a["sshift"] == b["sshift"] \
-		and a["decal"] == "" and b["decal"] == ""
+		and a["sample"] == b["sample"] and a["ssize"] == b["ssize"] and a["relief"] == b["relief"] and a["rsens"] == b["rsens"]
 
 
 # ==========================================

@@ -17,13 +17,6 @@ uniform vec4 brush_color = vec4(1.0, 0.0, 0.0, 1.0);
 uniform bool sample_on = false;
 uniform sampler2D sample_tex : filter_linear, repeat_enable, hint_default_white;
 uniform float sample_scale = 1.0;       // повторов текстуры на единицу длины опорного меша
-uniform vec2 sample_shift = vec2(0.0);  // сдвиг образца в тайлах: у каждого мазка свой, поэтому рисунок не повторяется
-uniform bool decal_on = false;          // декаль: картинка со своим цветом вместо круглого штампа
-uniform sampler2D decal_tex : filter_linear_mipmap, repeat_disable, hint_default_white;
-uniform vec2 decal_box = vec2(1.0, 1.0);   // полуразмеры картинки в долях радиуса (большая сторона 1)
-uniform bool decal_mirror = false;
-uniform bool decal_tint = true;         // умножить цвет картинки на цвет палитры (белые формы)
-uniform float decal_lod = 0.0;          // уровень мипмапа: по размеру декали в текселях слоя (считает движок)
 uniform bool relief_on = false;         // сухая кисть и смывка: красить только по рельефу
 uniform sampler2D relief_tex : filter_nearest, repeat_disable;   // R: 0.5 + контраст яркости, G: тексель покрыт
 uniform float relief_dir = 1.0;         // 1 выступы и светлые кромки, -1 впадины и тёмные тени
@@ -54,29 +47,10 @@ float relief_weight(vec2 uv) {
 vec4 sample_triplanar(vec3 p, vec3 n) {
 	vec3 w = pow(abs(n), vec3(4.0));
 	w /= max(w.x + w.y + w.z, 0.00001);
-	vec4 cx = textureLod(sample_tex, p.zy * sample_scale + sample_shift, 0.0);
-	vec4 cy = textureLod(sample_tex, p.xz * sample_scale + vec2(0.37, 0.11) + sample_shift, 0.0);
-	vec4 cz = textureLod(sample_tex, p.xy * sample_scale + vec2(0.71, 0.53) + sample_shift, 0.0);
+	vec4 cx = textureLod(sample_tex, p.zy * sample_scale, 0.0);
+	vec4 cy = textureLod(sample_tex, p.xz * sample_scale + vec2(0.37, 0.11), 0.0);
+	vec4 cz = textureLod(sample_tex, p.xy * sample_scale + vec2(0.71, 0.53), 0.0);
 	return cx * w.x + cy * w.y + cz * w.z;
-}
-
-// Декаль первого штампа пачки: картинка лежит в касательной плоскости, вправо вдоль stamp_tan, вверх вдоль нормаль x вправо
-vec4 decal_color(vec3 p, vec3 n) {
-	float r = max(stamps[0].w, 0.00001);
-	vec3 q = p - stamps[0].xyz;
-	vec3 sn = normalize(stamp_nrm[0].xyz);
-	vec3 t = stamp_tan[0].xyz;
-	vec3 b = cross(sn, t);
-	vec2 uv = vec2(dot(q, t), dot(q, b)) / r / max(decal_box, vec2(0.0001));
-	if (decal_mirror) {
-		uv.x = -uv.x;
-	}
-	vec2 tuv = vec2(uv.x * 0.5 + 0.5, 0.5 - uv.y * 0.5);
-	bool inside = tuv.x >= 0.0 && tuv.x <= 1.0 && tuv.y >= 0.0 && tuv.y <= 1.0;
-	vec4 c = textureLod(decal_tex, clamp(tuv, vec2(0.0), vec2(1.0)), decal_lod);
-	float slab = abs(dot(q, sn)) <= r ? 1.0 : 0.0;
-	float facing = smoothstep(0.05, 0.35, dot(n, sn));
-	return vec4(c.rgb, inside ? c.a * slab * facing * flow : 0.0);
 }
 
 void fragment() {
@@ -85,11 +59,6 @@ void fragment() {
 		discard;
 	}
 	vec3 n = normalize(texture(nrm_tex, UV).xyz);
-	if (decal_on) {
-		vec4 d = decal_color(p.xyz, n);
-		COLOR = vec4(decal_tint ? d.rgb * brush_color.rgb : d.rgb, d.a);
-		return;
-	}
 	float a = stamp_coverage(p.xyz, n);
 	if (relief_on) {
 		a *= relief_weight(UV);

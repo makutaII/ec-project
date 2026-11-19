@@ -38,7 +38,7 @@ func _test_textures() -> void:
 func _test_placement() -> void:
 	var c := PaintCursor.new()
 	add_child(c)
-	_check("создан скрытым, четыре декали (внешнее, внутреннее, разброс, предпросмотр)", not c.visible and c.get_child_count() == 4 and not c.preview.visible)
+	_check("создан скрытым, три декали", not c.visible and c.get_child_count() == 3)
 
 	# плоская поверхность лицом к +Z; конец вдоль +Y; мягкая кисть без внутреннего кольца
 	c.show_at(Vector3(1, 2, 3), Vector3(0, 0, 1), Vector3(0, 1, 0), 0.5, {"shape": "round", "box": Vector2.ONE, "hardness": 0.0, "scatter": 0.0})
@@ -58,11 +58,6 @@ func _test_placement() -> void:
 	_check("направление вдоль нормали выправляется (результат ортогонален)", absf(c.global_transform.basis.x.dot(c.global_transform.basis.y)) < 0.001 and c.global_transform.basis.x.length() > 0.99)
 	c.show_at(Vector3.ZERO, Vector3(0, 1, 0), Vector3(1, 0, 0), 1.0, {"shape": "round", "hardness": 0.8, "erase": true})
 	_check("ластик: кольцо красноватое", c.outer.modulate.r > c.outer.modulate.g and c.outer.modulate.g < 0.9)
-	var tex := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
-	c.show_at(Vector3.ZERO, Vector3(0, 1, 0), Vector3(1, 0, 0), 1.0, {"shape": "box", "box": Vector2(1.0, 0.25), "hardness": 0.0, "decal_tex": tex, "decal_color": Color(1, 0, 0)})
-	_check("предпросмотр декали: картинка по размеру рамки, цвет и полупрозрачность", c.preview.visible and c.preview.texture_albedo == tex and is_equal_approx(c.preview.size.x, 2.0) and is_equal_approx(c.preview.size.z, 0.5) and c.preview.modulate.r == 1.0 and c.preview.modulate.g == 0.0 and c.preview.modulate.a < 1.0)
-	c.show_at(Vector3.ZERO, Vector3(0, 1, 0), Vector3(1, 0, 0), 1.0, {"shape": "round", "hardness": 0.8})
-	_check("без декали предпросмотр скрыт", not c.preview.visible)
 	c.hide_cursor()
 	_check("hide_cursor скрывает контур", not c.visible)
 	c.queue_free()

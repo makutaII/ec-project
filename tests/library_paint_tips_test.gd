@@ -91,7 +91,7 @@ func _test_presets() -> void:
 		all_ok = all_ok and str(p["name"]) != "" and PaintBrushes.PRESETS.has(id)
 		levels_ok = levels_ok and int(p["level"]) >= 2 and int(p["level"]) <= 3
 		tips_ok = tips_ok and (str(p["tip"]) == "" or PaintTips.has(str(p["tip"]))) and (str(p["shape"]) == "round" or str(p["shape"]) == "box")
-	_check("инструменты по порядку: кисть, аэрограф, ластик, щётка, сухая, смывка, губка, брызги, квадрат, декаль", PaintBrushes.ORDER == ["brush", "airbrush", "eraser", "flat", "dry", "wash", "sponge", "splatter", "square", "decal"])
+	_check("инструменты по порядку: кисть, аэрограф, ластик, щётка, сухая, смывка, губка, брызги, квадрат", PaintBrushes.ORDER == ["brush", "airbrush", "eraser", "flat", "dry", "wash", "sponge", "splatter", "square"])
 	_check("у каждого пресета есть все параметры и имя", all_ok)
 	_check("уровни правил 2..3, тексты концов и форма известны", levels_ok and tips_ok)
 	_check("кисть, аэрограф, ластик и квадрат с уровня 2, остальные с 3", PaintBrushes.preset("brush")["level"] == 2 and PaintBrushes.preset("airbrush")["level"] == 2 and PaintBrushes.preset("eraser")["level"] == 2 and PaintBrushes.preset("square")["level"] == 2 and PaintBrushes.preset("flat")["level"] == 3 and PaintBrushes.preset("dry")["level"] == 3 and PaintBrushes.preset("wash")["level"] == 3)
@@ -152,10 +152,6 @@ func _test_helpers() -> void:
 	_check("запас краски убывает по длине мазка", PaintBrushes.load_left(dry, 0.0) == 1.0 and is_equal_approx(PaintBrushes.load_left(dry, 50.0), 0.5) and PaintBrushes.load_left(dry, 400.0) == 0.0)
 	var o := PaintBrushes.stamp_opts(PaintBrushes.preset("flat"), Vector3(0, 1, 0), 0.7)
 	_check("stamp_opts: текстура, форма, box, направление, запас", o["tip"] == "bristle" and o["shape"] == "box" and o["box"] == Vector2(0.35, 1.0) and o["tan"] == Vector3(0, 1, 0) and is_equal_approx(o["load"], 0.7) and o["dry"] == 0.0 and o["relief"] == 0.0)
-	var dec := PaintBrushes.preset("decal")
-	_check("декаль: инструмент-декаль, один штамп на нажатие, уровень 3, у обычных кистей декалей нет", dec["decal_tool"] == true and dec["single"] == true and dec["level"] == 3 and str(dec["decal"]) == "star" and PaintBrushes.preset("brush")["decal_tool"] == false and PaintBrushes.preset("brush")["single"] == false)
-	var dop := PaintBrushes.stamp_opts(dec, Vector3(1, 0, 0), 1.0)
-	_check("stamp_opts декали: id, зеркало, цвет палитры; у обычной кисти этих полей нет", dop["decal"] == "star" and dop["decal_mirror"] == false and dop["decal_tint"] == true and not PaintBrushes.stamp_opts(PaintBrushes.preset("brush"), Vector3.RIGHT, 1.0).has("decal"))
 	var od := PaintBrushes.stamp_opts(PaintBrushes.preset("wash"), Vector3(0, 1, 0), 1.0)
 	_check("stamp_opts: рельеф и чувствительность смывки", od["relief"] == -1.0 and od["relief_sens"] == 1.0)
 
