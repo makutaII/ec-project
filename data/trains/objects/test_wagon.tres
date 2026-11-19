@@ -21,6 +21,7 @@
 [ext_resource type="Script" uid="uid://mqrnwkjfweqr" path="res://core/components/comp_settings/coupler_setting.gd" id="19_rn5qf"]
 [ext_resource type="Texture2D" uid="uid://4xll1v22v6kp" path="res://ui/icons/check-mark.svg" id="20_0eobx"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="21_epu6x"]
+[ext_resource type="Script" path="res://core/components/comp_settings/sound_setting.gd" id="99_sndst"]
 
 [sub_resource type="Resource" id="Resource_euvxu"]
 script = ExtResource("2_038os")
@@ -93,6 +94,9 @@ metadata/_custom_type_script = "uid://b5kx0oyxhiaux"
 script = ExtResource("19_rn5qf")
 metadata/_custom_type_script = "uid://mqrnwkjfweqr"
 
+[sub_resource type="Resource" id="Resource_snd01"]
+script = ExtResource("99_sndst")
+
 [resource]
 script = ExtResource("21_epu6x")
 key = &"train.boxcar.wagon_test"
@@ -102,5 +106,5 @@ category = &"train"
 tag = &"boxcar"
 icon = ExtResource("20_0eobx")
 build_behavior = 1
-components = Array[ExtResource("1_0eobx")]([SubResource("Resource_lvfb0"), SubResource("Resource_wjam3"), SubResource("Resource_s3hn0"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_mqnqg"), SubResource("Resource_6hxcd"), SubResource("Resource_1pi1k"), SubResource("Resource_3ukh4")])
+components = Array[ExtResource("1_0eobx")]([SubResource("Resource_lvfb0"), SubResource("Resource_wjam3"), SubResource("Resource_s3hn0"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_mqnqg"), SubResource("Resource_6hxcd"), SubResource("Resource_1pi1k"), SubResource("Resource_3ukh4"), SubResource("Resource_snd01")])
 metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

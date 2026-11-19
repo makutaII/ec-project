@@ -51,6 +51,10 @@ class_name WagonConfig extends ObjectConfig
 ## Стопорный ток мотора (полная сила, разгон, затор), А. Выше лимита вывода `multi` (1.0 А): затор при высоком напряжении отключает вывод. Подбирать по ощущению
 @export var motor_current_stall: float = 1.2
 
+@export_category("Sound (Звук)")
+## Профиль звука (ATTN_26). Пусто: по умолчанию (у локо качение громче, у вагона на 6 дБ тише)
+@export var sound_profile: SoundProfile
+
 @export_category("Visuals & Layout")
 @export var scene = preload("res://data/trains/default_wagon.tscn")
 ## Стандартная высота оси буферов над головкой рельса, единицы игры (1 единица = 1 м прототипа). NEM 303 (2015), H0: 12.2 ±0.5 мм

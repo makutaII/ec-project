@@ -25,6 +25,7 @@
 [ext_resource type="Script" uid="uid://brbladjp7pfki" path="res://core/components/comp_settings/mechanisms_setting.gd" id="24_qe3ts"]
 [ext_resource type="Texture2D" uid="uid://ccglkaaxdcb5b" path="res://ui/icons/transport/steam-locomotive.svg" id="25_ios48"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="26_3icle"]
+[ext_resource type="Script" path="res://core/components/comp_settings/sound_setting.gd" id="99_sndst"]
 
 [sub_resource type="Resource" id="Resource_m448q"]
 script = ExtResource("2_6yohu")
@@ -154,6 +155,9 @@ metadata/_custom_type_script = "uid://mqrnwkjfweqr"
 script = ExtResource("24_qe3ts")
 metadata/_custom_type_script = "uid://brbladjp7pfki"
 
+[sub_resource type="Resource" id="Resource_snd01"]
+script = ExtResource("99_sndst")
+
 [resource]
 script = ExtResource("26_3icle")
 key = &"train.loco.loco_02el2"
@@ -163,5 +167,5 @@ category = &"train"
 tag = &"loco"
 icon = ExtResource("25_ios48")
 build_behavior = 1
-components = Array[ExtResource("1_pmufr")]([SubResource("Resource_ldqha"), SubResource("Resource_y13in"), SubResource("Resource_2odj0"), SubResource("Resource_4lulw"), SubResource("Resource_ii5fe"), SubResource("Resource_ywat7"), SubResource("Resource_bbw2b"), SubResource("Resource_d4y6m"), SubResource("Resource_ivg4w"), SubResource("Resource_keywu"), SubResource("Resource_saak8"), SubResource("Resource_nex2q"), SubResource("Resource_mchlt")])
+components = Array[ExtResource("1_pmufr")]([SubResource("Resource_ldqha"), SubResource("Resource_y13in"), SubResource("Resource_2odj0"), SubResource("Resource_4lulw"), SubResource("Resource_ii5fe"), SubResource("Resource_ywat7"), SubResource("Resource_bbw2b"), SubResource("Resource_d4y6m"), SubResource("Resource_ivg4w"), SubResource("Resource_keywu"), SubResource("Resource_saak8"), SubResource("Resource_nex2q"), SubResource("Resource_mchlt"), SubResource("Resource_snd01")])
 metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

@@ -21,6 +21,7 @@
 [ext_resource type="Script" uid="uid://mqrnwkjfweqr" path="res://core/components/comp_settings/coupler_setting.gd" id="17_h3v5j"]
 [ext_resource type="Texture2D" uid="uid://c7opn7g5dyq4d" path="res://ui/icons/transport/coal-wagon.svg" id="18_b5x2k"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="19_v5rfl"]
+[ext_resource type="Script" path="res://core/components/comp_settings/sound_setting.gd" id="99_sndst"]
 
 [sub_resource type="Resource" id="Resource_u60jt"]
 script = ExtResource("2_hp0cg")
@@ -94,6 +95,9 @@ metadata/_custom_type_script = "uid://b5kx0oyxhiaux"
 script = ExtResource("17_h3v5j")
 metadata/_custom_type_script = "uid://mqrnwkjfweqr"
 
+[sub_resource type="Resource" id="Resource_snd01"]
+script = ExtResource("99_sndst")
+
 [resource]
 script = ExtResource("19_v5rfl")
 key = &"train.boxcar.wagon_02"
@@ -103,5 +107,5 @@ category = &"train"
 tag = &"boxcar"
 icon = ExtResource("18_b5x2k")
 build_behavior = 1
-components = Array[ExtResource("1_h3v5j")]([SubResource("Resource_lvfb0"), SubResource("Resource_wjam3"), SubResource("Resource_s3hn0"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_mqnqg"), SubResource("Resource_6hxcd"), SubResource("Resource_1pi1k"), SubResource("Resource_h3v5j")])
+components = Array[ExtResource("1_h3v5j")]([SubResource("Resource_lvfb0"), SubResource("Resource_wjam3"), SubResource("Resource_s3hn0"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_mqnqg"), SubResource("Resource_6hxcd"), SubResource("Resource_1pi1k"), SubResource("Resource_h3v5j"), SubResource("Resource_snd01")])
 metadata/_custom_type_script = "uid://do5hjkm3r2pdg"
