@@ -1,0 +1,112 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_ipyj3"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="2_kg4t1"]
+[ext_resource type="Texture2D" path="res://ui/icons/transport/mine-wagon.svg" id="2_sioub"]
+[ext_resource type="PackedScene" path="res://data/coaster/cars/coaster_car_01.tscn" id="2_wjam3"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_3h2bg"]
+[ext_resource type="Script" uid="uid://b830vi2lx3hl5" path="res://core/components/comp_settings/trainvisual_setting.gd" id="3_4sxil"]
+[ext_resource type="PackedScene" path="res://data/coaster/cars/coaster_bogie.tscn" id="3_7lf7j"]
+[ext_resource type="PackedScene" path="res://data/coaster/cars/coaster_wheel_pair.tscn" id="4_3ukh4"]
+[ext_resource type="Script" path="res://core/coaster/ride_car_setting.gd" id="18_ride"]
+[ext_resource type="Script" uid="uid://gv2lrhu17dtf" path="res://setting/mechanism_config.gd" id="5_3ukh4"]
+[ext_resource type="Script" uid="uid://bkdny7eq5jthn" path="res://core/components/comp_settings/traindraggable_setting.gd" id="5_88nct"]
+[ext_resource type="Script" uid="uid://daeylhso0elsx" path="res://setting/light_config.gd" id="5_m6yoo"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="6_85qad"]
+[ext_resource type="Script" uid="uid://bicjny5dv1h3s" path="res://setting/wagon_config.gd" id="6_m6yoo"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="7_3h2bg"]
+[ext_resource type="Script" uid="uid://bwaluvayi2o8k" path="res://setting/suspension_config.gd" id="7_hji2h"]
+[ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="8_ogjdm"]
+[ext_resource type="Script" uid="uid://bhvk4o3qrvslv" path="res://core/components/comp_settings/chassis_setting.gd" id="9_nex2q"]
+[ext_resource type="Script" uid="uid://cpuhrycuvnuar" path="res://core/components/comp_settings/kinematics_setting.gd" id="10_7lf7j"]
+[ext_resource type="Script" uid="uid://7vuxuiiysiji" path="res://setting/bogie_config.gd" id="13_ogjdm"]
+[ext_resource type="Script" uid="uid://b5kx0oyxhiaux" path="res://core/components/comp_settings/bogie_setting.gd" id="15_3h2bg"]
+[ext_resource type="Script" uid="uid://mqrnwkjfweqr" path="res://core/components/comp_settings/coupler_setting.gd" id="17_nex2q"]
+
+[sub_resource type="Resource" id="Resource_euvxu"]
+script = ExtResource("13_ogjdm")
+b_offset_z = -2.4
+scene = ExtResource("3_7lf7j")
+wheel_pair_scene = ExtResource("4_3ukh4")
+wheel_pair_position = Vector3(0, 0.5, 0)
+metadata/_custom_type_script = "uid://7vuxuiiysiji"
+
+[sub_resource type="Resource" id="Resource_xi85s"]
+script = ExtResource("13_ogjdm")
+b_offset_z = 2.4
+scene = ExtResource("3_7lf7j")
+wheel_pair_scene = ExtResource("4_3ukh4")
+wheel_pair_position = Vector3(0, 0.5, 0)
+metadata/_custom_type_script = "uid://7vuxuiiysiji"
+
+[sub_resource type="Resource" id="Resource_y1p4g"]
+script = ExtResource("7_hji2h")
+metadata/_custom_type_script = "uid://bwaluvayi2o8k"
+
+[sub_resource type="Resource" id="Resource_ja6yk"]
+script = ExtResource("6_m6yoo")
+roll_resistance = 0.04
+min_curve_radius = 8.0
+suspension = SubResource("Resource_y1p4g")
+scene = ExtResource("2_wjam3")
+offset_mesh_y = 0.9
+bogie_configs = Array[ExtResource("13_ogjdm")]([SubResource("Resource_euvxu"), SubResource("Resource_xi85s")])
+coupler_offset = 4.0
+metadata/_custom_type_script = "uid://bicjny5dv1h3s"
+
+[sub_resource type="Resource" id="Resource_lvfb0"]
+script = ExtResource("3_3h2bg")
+object_config = SubResource("Resource_ja6yk")
+metadata/_custom_type_script = "uid://mpakwrr6lum8"
+
+[sub_resource type="Resource" id="Resource_wjam3"]
+script = ExtResource("3_4sxil")
+metadata/_custom_type_script = "uid://b830vi2lx3hl5"
+
+[sub_resource type="Resource" id="Resource_s3hn0"]
+script = ExtResource("5_88nct")
+metadata/_custom_type_script = "uid://bkdny7eq5jthn"
+
+[sub_resource type="Resource" id="Resource_aqgj4"]
+script = ExtResource("6_85qad")
+metadata/_custom_type_script = "uid://cuumo0qj7r7gb"
+
+[sub_resource type="Resource" id="Resource_j3fkf"]
+script = ExtResource("7_3h2bg")
+metadata/_custom_type_script = "uid://deljgsmo4bpow"
+
+[sub_resource type="Resource" id="Resource_tip3w"]
+script = ExtResource("8_ogjdm")
+metadata/_custom_type_script = "uid://chprgtlxn3aub"
+
+[sub_resource type="Resource" id="Resource_mqnqg"]
+script = ExtResource("9_nex2q")
+metadata/_custom_type_script = "uid://bhvk4o3qrvslv"
+
+[sub_resource type="Resource" id="Resource_6hxcd"]
+script = ExtResource("10_7lf7j")
+metadata/_custom_type_script = "uid://cpuhrycuvnuar"
+
+[sub_resource type="Resource" id="Resource_1pi1k"]
+script = ExtResource("15_3h2bg")
+metadata/_custom_type_script = "uid://b5kx0oyxhiaux"
+
+[sub_resource type="Resource" id="Resource_3ukh4"]
+script = ExtResource("17_nex2q")
+metadata/_custom_type_script = "uid://mqrnwkjfweqr"
+
+[sub_resource type="Resource" id="Resource_ride"]
+script = ExtResource("18_ride")
+
+[resource]
+script = ExtResource("2_kg4t1")
+key = &"coaster_car.car.coaster_car_01"
+name = "Вагон горок 01"
+description = "Деревянный вагон на 4 колёсах, катится по инерции (ATTN_27)"
+category = &"coaster_car"
+tag = &"car"
+sort_order = 10
+icon = ExtResource("2_sioub")
+build_behavior = 1
+components = Array[ExtResource("1_ipyj3")]([SubResource("Resource_lvfb0"), SubResource("Resource_wjam3"), SubResource("Resource_s3hn0"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_mqnqg"), SubResource("Resource_6hxcd"), SubResource("Resource_1pi1k"), SubResource("Resource_3ukh4"), SubResource("Resource_ride")])
+metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

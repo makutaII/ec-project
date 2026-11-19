@@ -72,6 +72,8 @@ var motor_powered: bool = false
 
 # g для качения/тяги (общая с C_Kinematics)
 var gravity = RailPhysics.G_ROLL
+## Коэффициент силы тяжести вдоль уклона. По умолчанию RailPhysics.GRADE_K; XX claude-coaster C3: C_RideCar подставляет значение из профиля заезда
+var grade_k: float = RailPhysics.GRADE_K
 
 
 func on_force_changed(data: Dictionary) -> void:
@@ -315,7 +317,7 @@ func _assist_speed_correction(delta: float) -> void:
 	
 	# XX claude-terra: уклон считаем ДО направления движения, чтобы трение покоя держало вагон на горке
 	# get_motion_axis() - мировой вектор при current_speed > 0, его y > 0 на подъеме
-	var incline_force = mass * RailPhysics.G_ROLL * RailPhysics.GRADE_K * get_motion_axis().y
+	var incline_force = mass * RailPhysics.G_ROLL * grade_k * get_motion_axis().y   # XX claude-coaster C3: grade_k вместо константы
 	var drive_force = total_active_force - incline_force
 
 	# 2. Направление движения

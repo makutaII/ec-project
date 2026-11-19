@@ -13,11 +13,18 @@ class_name Coaster extends RefCounted
 const MODE := &"coaster"
 ## Категории каталога режима
 const CAT_TRACK := &"coaster_track"
-const CAT_CAR := &"coaster_car"   # вагоны появятся в шаге C3
+const CAT_CAR := &"coaster_car"
 ## Папка объектов (входит в Global.object_dirs)
 const OBJECTS_DIR := "res://data/coaster/objects/"
+## Профиль заезда: числа физики и пинка (правится в инспекторе)
+const PROFILE: RideProfile = preload("res://data/coaster/ride_profile.tres")
 
 
 ## Сейчас включён режим Coaster
 static func is_active() -> bool:
 	return Global.current_mode == MODE
+
+
+## Профиль заезда (единый ресурс на все вагоны горок)
+static func profile() -> RideProfile:
+	return PROFILE

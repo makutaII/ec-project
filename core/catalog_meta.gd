@@ -18,7 +18,7 @@ const MODE_CATEGORIES := {
 	&"build": [&"train", &"track", &"building", &"decor", &"terrain"],
 	&"operate": [&"dc_controller", &"dcc_controller"],
 	&"sections": [&"table"],   # XX claude-table T2: секции подмакетника, не категория Build
-	&"coaster": [&"coaster_track"],   # XX claude-coaster C1: ATTN_27, режим «горки» (вагоны: coaster_car, шаг C3)
+	&"coaster": [&"coaster_track", &"coaster_car"],   # XX claude-coaster C1, C3: ATTN_27, режим «горки»
 }
 
 const CATEGORIES := {
@@ -31,6 +31,7 @@ const CATEGORIES := {
 	&"table": {"name": "Table", "icon": preload("res://ui/icons/resize.svg")},
 	# XX claude-coaster C1: траки горок. Не входит в MODE_CATEGORIES[build]: их ставят в режиме «Coaster»
 	&"coaster_track": {"name": "Coaster Tracks", "icon": preload("res://ui/icons/transport/path-distance.svg")},
+	&"coaster_car": {"name": "Coaster Cars", "icon": preload("res://ui/icons/transport/mine-wagon.svg")},   # XX claude-coaster C3
 	&"dc_controller": {"name": "DC Controllers", "icon": preload("res://ui/icons/settings-knobs.svg")},
 	&"dcc_controller": {"name": "DCC Controllers", "icon": preload("res://ui/icons/transport/steam-locomotive.svg")},
 }
@@ -43,6 +44,7 @@ const TAGS := {
 	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"water", &"plaster", &"brush"],
 	&"table": [&"section"],
+	&"coaster_car": [&"car"],   # XX claude-coaster C3
 	&"coaster_track": [&"straight"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)
 	&"dc_controller": [&"2d", &"3d", &"switch", &"wire"],
 }
@@ -59,6 +61,9 @@ const TAG_META := {
 	},
 	&"coaster_track": {
 		&"straight": {"name": "Прямые"},
+	},
+	&"coaster_car": {
+		&"car": {"name": "Вагоны"},
 	},
 	&"track": {
 		&"straight": {"name": "Прямые"},

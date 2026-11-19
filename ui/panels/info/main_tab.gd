@@ -90,7 +90,7 @@ func _on_bind() -> void:
 		_n("IconRect").texture = identity.get_icon()
 		
 		match  identity.get_category():
-			&'track':
+			&'track', &'coaster_track':   # XX claude-coaster C3: те же поля формы
 				var _path = target.get_comp(C_Path)
 				_n("TrackContainer").show()
 				_n("TrainContainer").hide()
@@ -103,7 +103,7 @@ func _on_bind() -> void:
 			&'terrain':
 				_n("TrackContainer").hide()
 				_n("TrainContainer").hide()
-			&'train':
+			&'train', &'coaster_car':   # XX claude-coaster C3: те же поля вагона
 				_n("TrackContainer").hide()
 				_n("TrainContainer").show()
 				# Типизированное чтение. Раньше брались поля 'power' и 'maxspeed', которых в WagonConfig нет (всегда дефолт 0.0 и 700.0)

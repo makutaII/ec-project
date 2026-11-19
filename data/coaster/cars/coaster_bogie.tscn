@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[node name="Bogie_01" type="Node3D"]
+
+[node name="RayCast3D" type="RayCast3D" parent="."]
+target_position = Vector3(0, -1.5, 0)
+collision_mask = 1029
