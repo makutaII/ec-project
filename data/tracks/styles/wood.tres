@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="TrackStyle" format=4]
+[gd_resource type="Resource" script_class="TrackStyle" format=4 uid="uid://lisfngitns4c"]
 
-[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="1_ts"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="2_aom78"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="3_5oavu"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="4_op6b1"]
+[ext_resource type="Script" uid="uid://cfpx56q1cgoy5" path="res://core/components/tracks/track_style.gd" id="1_ts"]
+[ext_resource type="Texture2D" uid="uid://nj88biwq7ii" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="2_aom78"]
+[ext_resource type="Texture2D" uid="uid://cb2eqc78qqmjq" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="3_5oavu"]
+[ext_resource type="Texture2D" uid="uid://cb0u4risyfmvm" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="4_op6b1"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_aom78"]
 vertex_color_use_as_albedo = true
@@ -52,7 +52,7 @@ _surfaces = [{
 metadata/track_spec = {
 "chamfer": 0.02,
 "end_slope": 0.0,
-"height": 0.19999999999999998,
+"height": 0.2,
 "length": 3.0,
 "pad_color": Color(0.37109375, 0.37109375, 0.37109375, 1),
 "pad_height": 0.02,
@@ -68,7 +68,7 @@ metadata/track_spec = {
 "uv_rotate": false,
 "width": 0.30000000000000004
 }
-metadata/seat_height = 0.19999999999999998
+metadata/seat_height = 0.2
 
 [resource]
 script = ExtResource("1_ts")

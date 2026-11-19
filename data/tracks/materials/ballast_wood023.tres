@@ -1,0 +1,29 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood023_1K-WebP/Wood023_1K-WebP-WebP_Color.webp" id="1_qxuid"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood023_1K-WebP/Wood023_1K-WebP-WebP_NormalGL.webp" id="2_iad5s"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood023_1K-WebP/Wood023_1K-WebP-WebP_Roughness.webp" id="3_y2bnr"]
+
+[resource]
+albedo_texture = ExtResource("1_qxuid")
+roughness_texture = ExtResource("3_y2bnr")
+roughness_texture_channel = 4
+normal_enabled = true
+normal_texture = ExtResource("2_iad5s")
+texture_filter = 5
+metadata/track_role = "ballast"
+metadata/track_source = "res://data/textures/track/Wood023_1K-WebP"
+metadata/track_params = {
+"ao_light_affect": 0.0,
+"height_scale": 0.05,
+"mesh_uv_units": false,
+"metallic": -1.0,
+"normal_scale": 1.0,
+"roughness": 1.0,
+"tile": Vector2(5, 5),
+"tint": Color(1, 1, 1, 1),
+"triplanar": false,
+"use_ao": true,
+"use_height": false,
+"vertex_color": false
+}

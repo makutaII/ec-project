@@ -96,7 +96,7 @@ grow_vertical = 1
 
 [node name="DockRow" parent="HUD" unique_id=1311200840 instance=ExtResource("19_tooldock")]
 unique_name_in_owner = true
-visible = false
+layout_mode = 1
 
 [node name="SideDock" parent="HUD" unique_id=1311200830 instance=ExtResource("18_sidedock")]
 unique_name_in_owner = true

@@ -406,8 +406,8 @@ func _update_hover():
 		if entity and entity.has_comp(IHoverable) and _is_pickable(entity):
 			new_hover = entity
 			
-	if Global.debug_mode:
-		_debug_hover(over_ui, result, new_hover)
+	#if Global.debug_mode:
+	#	_debug_hover(over_ui, result, new_hover)
 
 	# Если Новый ховер не такой же как был, то делаем ховером новый
 	if hovered_entity != new_hover:

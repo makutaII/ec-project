@@ -7,9 +7,8 @@
 [ext_resource type="Resource" path="res://data/tracks/styles/concrete.tres" id="5_conc"]
 [ext_resource type="Resource" path="res://data/tracks/styles/concrete_ballast.tres" id="6_cb"]
 [ext_resource type="Resource" path="res://data/tracks/styles/budget.tres" id="7_bud"]
+[ext_resource type="Resource" path="res://data/tracks/styles/coaster.tres" id="8_tk7qk"]
 
 [resource]
 script = ExtResource("1_set")
-styles = Array[ExtResource("2_ts")]([ExtResource("4_wb"), ExtResource("3_wood"), ExtResource("6_cb"), ExtResource("5_conc"), ExtResource("7_bud")])
-default_id = &"wood_ballast"
-scene_fallback_id = &"wood_ballast"
+styles = Array[ExtResource("2_ts")]([ExtResource("4_wb"), ExtResource("3_wood"), ExtResource("6_cb"), ExtResource("5_conc"), ExtResource("7_bud"), ExtResource("8_tk7qk")])
