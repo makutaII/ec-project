@@ -77,6 +77,11 @@ const LEGACY_TILE_ALONG := 10.0
 ## колёса на дне паза, ниже верха бортов ballast_profile. Коллизия основания доходит до этой высоты,
 ## коллизии рельса нет (боксы рельса остаются крошечными, внутри основания)
 @export var surface_height := 0.0
+## XX claude-coaster C4: лоток горок. Коллизия рельса заменяется коллизией бортов лотка: два бокса от дна (surface_height)
+## до верха бортов из ballast_profile. Нужны surface_height > 0 и профиль, у которого с краёв есть участки выше дна
+## (U: два борта; W: крайние стенки, средний выступ в коллизию не входит). Колёса идут по дну, а вагон, сошедший с трака,
+## упирается в борта. Рельсы и шпалы лотка выключаются отдельно (rail_enabled, sleeper_enabled): на коллизию они не влияют
+@export var trough := false
 
 
 # ==========================================
@@ -145,6 +150,59 @@ func head_height() -> float:
 	if surface_height > 0.0:   # XX claude-coaster C4
 		return surface_height
 	return base_height() + rail_height()
+
+
+## Борта лотка для коллизии: [левый, правый], каждый Vector3(x от, x до, верх над origin). Берутся из ballast_profile:
+## крайние участки, где верх профиля выше поверхности катания. Пусто, если лоток выключен, нет surface_height или балласта,
+## у профиля нет двух бортов или нет дна между ними
+func trough_boards() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	if not trough or surface_height <= 0.0 or not ballast_enabled or ballast_profile.size() < 2:
+		return out
+	var xs: Array[float] = []
+	for p in ballast_profile:
+		xs.append(p.x)
+	xs.sort()
+	var ux: Array[float] = []
+	for x in xs:
+		if ux.is_empty() or x - ux[ux.size() - 1] > 0.0001:
+			ux.append(x)
+	var n := ux.size() - 1
+	if n < 3:
+		return out   # между краями нужен хотя бы борт, дно и борт
+	var tops: Array[float] = []
+	for i in n:
+		tops.append(_profile_top((ux[i] + ux[i + 1]) * 0.5))
+	var wall_min := surface_height + 0.01
+	var i := 0
+	var left_top := 0.0
+	while i < n and tops[i] > wall_min:
+		left_top = maxf(left_top, tops[i])
+		i += 1
+	var j := n - 1
+	var right_top := 0.0
+	while j >= 0 and tops[j] > wall_min:
+		right_top = maxf(right_top, tops[j])
+		j -= 1
+	# i: первый интервал после левого борта, j: последний перед правым. Между ними должно быть дно
+	if i == 0 or j == n - 1 or i > j:
+		return out
+	out.append(Vector3(ux[0], ux[i], left_top))
+	out.append(Vector3(ux[j + 1], ux[n], right_top))
+	return out
+
+
+## Верх профиля балласта в точке x (максимум по всем невертикальным отрезкам ломаной, которые покрывают x)
+func _profile_top(x: float) -> float:
+	var top := 0.0
+	for k in ballast_profile.size() - 1:
+		var a := ballast_profile[k]
+		var b := ballast_profile[k + 1]
+		if absf(b.x - a.x) < 0.000001:
+			continue
+		if x >= minf(a.x, b.x) and x <= maxf(a.x, b.x):
+			top = maxf(top, lerpf(a.y, b.y, (x - a.x) / (b.x - a.x)))
+	return top
 
 
 ## Во сколько раз плотность полос слоя питания отличается от рельса с UV по умолчанию (тайл 10 ю вдоль пути).

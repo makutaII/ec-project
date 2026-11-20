@@ -333,19 +333,33 @@ static func segment_boxes(style: TrackStyle, curve: Curve3D, L: float, s0: float
 	var base_h := style.base_height()
 	var rail_h := style.rail_height()
 	var rail_w := style.rail_width()
+	var rail_y := base_h + rail_h * 0.5   # середина бокса рельса по высоте над origin
+	var x_l := -style.rail_x
+	var x_r := style.rail_x
 	if style.surface_height > 0.0:
-		# XX claude-coaster C4: лоток, коллизия основания до поверхности катания, рельс это крошечный бокс внутри основания
+		# XX claude-coaster C4: лоток. Основание до поверхности катания. Рельс: крошечный бокс внутри основания,
+		# а у стиля с trough два бокса бортов от дна до верха борта (те же два слота: число форм на сегмент не меняется)
 		base_h = style.surface_height
 		rail_h = 0.01
 		rail_w = 0.01
+		rail_y = base_h * 0.5
+		var bd := style.trough_boards()
+		if bd.size() == 2:
+			var lb := bd[0]
+			var rb := bd[1]
+			rail_w = maxf(lb.y - lb.x, rb.y - rb.x)   # размер общий для обоих: берём больший борт, позиции свои
+			rail_h = maxf(lb.z, rb.z) - base_h
+			rail_y = base_h + rail_h * 0.5
+			x_l = (lb.x + lb.y) * 0.5
+			x_r = (rb.x + rb.y) * 0.5
 	var f := frame(curve, (s0 + s1) * 0.5, L)
 	var chord := curve.sample_baked(s0).distance_to(curve.sample_baked(s1)) + COL_OVERLAP
 	var b := Basis(f.r, f.u, f.r.cross(f.u))
-	var rail_c := f.p + f.u * (base_h + rail_h * 0.5) if style.surface_height <= 0.0 else f.p + f.u * (base_h * 0.5)
+	var rail_c := f.p + f.u * rail_y
 	return {
 		"ballast_size": Vector3(style.collision_width, base_h, chord),
 		"ballast_xf": Transform3D(b, f.p + f.u * (base_h * 0.5)),
 		"rail_size": Vector3(rail_w, rail_h, chord),
-		"rail_l_xf": Transform3D(b, rail_c - f.r * style.rail_x),
-		"rail_r_xf": Transform3D(b, rail_c + f.r * style.rail_x),
+		"rail_l_xf": Transform3D(b, rail_c + f.r * x_l),
+		"rail_r_xf": Transform3D(b, rail_c + f.r * x_r),
 	}

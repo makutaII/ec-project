@@ -44,6 +44,23 @@ static func validate(style: TrackStyle) -> Array[Dictionary]:
 	if not style.sleeper_enabled:
 		_add(r, Level.INFO, "Шпала выключена: только визуал. Размер шпалы по-прежнему задаёт высоту постели рельса и высоту трака")
 
+	# --- лоток горок (XX claude-coaster C4) ---
+	if style.trough:
+		if style.surface_height <= 0.0:
+			_add(r, Level.ERROR, "Лоток: задайте поверхность катания (дно лотка), без неё борта не определить")
+		elif not style.ballast_enabled:
+			_add(r, Level.ERROR, "Лоток: борта берутся из профиля балласта, включите балласт")
+		else:
+			var bd := style.trough_boards()
+			if bd.size() < 2:
+				_add(r, Level.WARN, "Лоток: в профиле балласта нет двух бортов выше дна (%s) с дном между ними, коллизия бортов не строится" % _f(style.surface_height))
+			else:
+				_add(r, Level.INFO, "Борта коллизии: слева x %s…%s, справа x %s…%s, верх %s над origin, дно %s" % [_f(bd[0].x), _f(bd[0].y), _f(bd[1].x), _f(bd[1].y), _f(maxf(bd[0].z, bd[1].z)), _f(style.surface_height)])
+				if absf((bd[0].y - bd[0].x) - (bd[1].y - bd[1].x)) > 0.01 or absf(bd[0].z - bd[1].z) > 0.01:
+					_add(r, Level.WARN, "Лоток: борта разной толщины или высоты, оба бокса коллизии берут размер большего борта")
+	elif style.surface_height > 0.0:
+		_add(r, Level.INFO, "Поверхность катания задана полем (%s), а не шпалой и рельсом. Коллизия бортов выключена (trough)" % _f(style.surface_height))
+
 	# --- профили ---
 	_check_profile(r, "Профиль рельса", style.rail_profile, 3)
 	if style.ballast_enabled:
@@ -132,6 +149,9 @@ static func numbers(style: TrackStyle) -> Array:
 		parts.append("рельсы")
 	out.append(["Части трака", ", ".join(parts) if not parts.is_empty() else "нет"])
 	out.append(["Поверхность катания (head_height)", _f(style.head_height())])
+	if style.trough:   # XX claude-coaster C4
+		var bd := style.trough_boards()
+		out.append(["Борта лотка (коллизия)", "%s…%s и %s…%s, верх %s" % [_f(bd[0].x), _f(bd[0].y), _f(bd[1].x), _f(bd[1].y), _f(maxf(bd[0].z, bd[1].z))] if bd.size() == 2 else "нет"])
 	out.append(["Низ рельса (base_height)", _f(style.base_height())])
 	out.append(["Низ шпалы над origin", _f(style.sleeper_bottom())])
 	out.append(["Высота балласта", _f(style.ballast_height())])
