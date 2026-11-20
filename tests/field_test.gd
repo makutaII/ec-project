@@ -117,7 +117,7 @@ func _test_history() -> void:
 	f.lay_polygon(rect(0, 0, 4, 4), 1.0)
 	f.lay_polygon(rect(2, 2, 6, 6), 2.0)
 	check("отмена: две правки в истории", f.can_undo())
-	check("отмена: вторая правка отменена", f.undo() and near(f.layers_at(8, 8), 0.0) and near(f.layers_at(2, 2), 1.0))
+	check("отмена: вторая правка отменена", f.undo() and near(f.layers_at(10, 10), 0.0) and near(f.layers_at(8, 8), 1.0) and near(f.layers_at(2, 2), 1.0))
 	check("отмена: первая правка отменена", f.undo() and f.is_empty())
 	check("отмена: история пуста", not f.can_undo())
 	# вложенные begin/end считаются одной правкой
