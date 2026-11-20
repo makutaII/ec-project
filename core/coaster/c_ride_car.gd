@@ -9,8 +9,11 @@ class_name C_RideCar extends Component
 ##     Сила растёт с временем удержания (RideProfile), пока идёт зарядка, над вагоном висит надпись с силой.
 ##     Нажали на корму (заднюю половину) толкаем вперёд носом, на нос (переднюю половину) назад.
 ## Пинок это то же событие on_train_kicked, что у PgUp и PgDn (SelectTool), поэтому на шасси ничего нового нет.
+## Работает и на сошедшем вагоне на столе: событие тогда ловит C_Kinematics (импульс жёсткому телу вдоль носа).
+## Числа зарядки (KickCharge) вагон берёт из профиля заезда: клавиши PgUp и PgDn зарядки тоже его используют (on_kick_params).
 ## Тянуть вагон мышью (драг) можно как раньше: сдвинули курсор дальше CANCEL_PX и зарядка отменяется.
-## Клавиши PgUp и PgDn при выбранном вагоне пинают с силой 10, как у остальных вагонов (SelectTool).
+## Клавиши PgUp и PgDn при выбранном вагоне пинают, как у остальных вагонов (SelectTool): короткое нажатие силой 10,
+## зажатие сильнее (та же зарядка и те же числа профиля).
 
 ## На сколько пикселей можно сдвинуть курсор при зарядке (дальше это драг, а не пинок)
 const CANCEL_PX := 10.0
@@ -97,9 +100,18 @@ func _finish_charge() -> void:
 
 ## Сила пинка при удержании t секунд
 func _power_at(t: float) -> float:
+	var p := KickCharge.defaults()
+	on_kick_params(p)
+	return KickCharge.power_at(t, p)
+
+
+## Числа зарядки пинка из профиля заезда. Событие шлёт SelectTool перед зарядкой клавишами PgUp и PgDn
+func on_kick_params(p: Dictionary) -> void:
 	var prof := Coaster.profile()
-	var k := clampf((t - prof.kick_hold_min) / maxf(prof.kick_charge_time, 0.05), 0.0, 1.0)
-	return lerpf(prof.kick_power_min, prof.kick_power_max, k)
+	p.hold_min = prof.kick_hold_min
+	p.charge_time = prof.kick_charge_time
+	p.power_min = prof.kick_power_min
+	p.power_max = prof.kick_power_max
 
 
 func _cancel_charge() -> void:
@@ -113,4 +125,4 @@ func _cancel_charge() -> void:
 func _update_label() -> void:
 	if _charge_t < Coaster.profile().kick_hold_min:
 		return
-	InfoTips.show_lines(self, [InfoTips.title("%s %.0f" % ["Пинок вперёд" if _push_forward else "Пинок назад", _power_at(_charge_t)])])
+	InfoTips.show_lines(self, [InfoTips.title(KickCharge.label_text(_push_forward, _power_at(_charge_t)))])

@@ -57,6 +57,7 @@ func enter():
 
 
 func process_tick(_delta):
+	_kick_tick(_delta)
 	if handle_dragging and selected_entity:
 		selected_entity.send_event("on_handle_drag", controller.get_mouse_ray_vec())
 	else:
@@ -210,11 +211,59 @@ func handle_input(event: InputEvent):
 	if selected_entity and Actions.pressed(event, &"tunnel_portal"):
 		selected_entity.send_event("on_portal_cycle", {})
 
-	if selected_entity and Actions.pressed(event, &"wagon_kick_fwd"):
-		selected_entity.send_event("on_train_kicked", {"power_kick": 10.0}) # Пинок силой 10m\s
-	if selected_entity and Actions.pressed(event, &"wagon_kick_back"):
-		selected_entity.send_event("on_train_kicked", {"power_kick": -10.0}) # Пинок силой 10m\s
+	# Пинок вагона PgUp (вперёд носом) и PgDn (назад). Нажатие короткое: сила 10 при отпускании, зажатие: сильнее (KickCharge)
+	if selected_entity and selected_entity.has_comp(C_Chassis):
+		if Actions.pressed(event, &"wagon_kick_fwd"):
+			_kick_start(true)
+		elif Actions.pressed(event, &"wagon_kick_back"):
+			_kick_start(false)
 
+
+
+## ---- Пинок с зарядкой (PgUp, PgDn) ----
+## Клавиша зажата: сила растёт (подсказка у курсора, InfoTips), отпущена: пинок. Параметры берёт KickCharge, вагон может
+## переопределить их событием on_kick_params (C_RideCar). Отпускание читаем опросом Input в тике: не теряется,
+## если окно потеряло фокус
+var _kick_entity: Entity = null
+var _kick_forward := true
+var _kick_t := 0.0
+var _kick_params := {}
+
+
+func _kick_start(forward: bool) -> void:
+	if _kick_entity != null:
+		return
+	_kick_entity = selected_entity
+	_kick_forward = forward
+	_kick_t = 0.0
+	_kick_params = KickCharge.defaults()
+	_kick_entity.send_event("on_kick_params", _kick_params)
+	# Зажатие не должно пинать слабее короткого нажатия: рост силы начинается не ниже short_power
+	_kick_params.power_min = maxf(float(_kick_params.power_min), float(_kick_params.short_power))
+
+
+func _kick_tick(delta: float) -> void:
+	if _kick_entity == null:
+		return
+	if not is_instance_valid(_kick_entity) or _kick_entity != selected_entity:
+		_kick_cancel()   # выбор сменился или вагон удалён: пинка нет
+		return
+	_kick_t += delta
+	var key := &"wagon_kick_fwd" if _kick_forward else &"wagon_kick_back"
+	if Input.is_action_pressed(key):
+		if _kick_t >= float(_kick_params.hold_min):
+			InfoTips.show_lines(self, [InfoTips.title(KickCharge.label_text(_kick_forward, KickCharge.power_at(_kick_t, _kick_params)))])
+		return
+	var power := KickCharge.power_at(_kick_t, _kick_params)
+	var e := _kick_entity
+	_kick_cancel()
+	e.send_event("on_train_kicked", {"power_kick": power if _kick_forward else -power})
+
+
+func _kick_cancel() -> void:
+	_kick_entity = null
+	_kick_t = 0.0
+	InfoTips.clear(self)
 
 
 ## Del: группа, выбранная рамкой, иначе одиночный выбор. Группа проверяется первой и только по живым членам (GroupSelection.clear
