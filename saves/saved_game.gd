@@ -38,6 +38,10 @@ class_name SavedGame extends Resource
 ## Краска кистей (TGM.paint.save_data, ATTN_13 §13.13). Пусто = краски нет (в том числе сейвы до кистей)
 @export var paint: Dictionary = {}
 
+## Поле высот шпатлёвки (TGM.field.save_data, ATTN_13 §13.14 H1): чанки 16x16 узлов, слово узла 16 бит, сжатие.
+## Пусто = слоя нет (в том числе сейвы до поля)
+@export var field: Dictionary = {}
+
 ### массив в GM контуры питания
 #@export var clip_numbers		:Array[int] = []
 #@export var power_pwm 			:Dictionary[int, int] = {}

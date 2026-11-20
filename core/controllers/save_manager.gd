@@ -148,6 +148,7 @@ func save_game(slot_name: String ='savegame') -> bool:
 
 	# Краска кистей (ATTN_13 §13.13)
 	_saved_game.paint = TGM.paint.save_data()
+	_saved_game.field = TGM.field.save_data()   # XX claude-terra 13.14 H1
 
 	# 2️⃣ Собираем все сущности на столе
 	var root_node = get_node_or_null(world_entities_root)
@@ -188,6 +189,7 @@ func clear_scene() -> void:
 	LYM.reset()
 	LYM.ensure_start_section(root_node)
 	TGM.paint.clear()   # XX claude-terra 13.13 K1
+	TGM.field.clear()   # XX claude-terra 13.14 H1
 	set_layout_name("")   # U10: новый макет
 		
 	#INFO ДЕРГАЕМ ПАНЕЛЬ!
@@ -322,6 +324,9 @@ func load_game(slot_name: String  ='savegame', dir: String = SAVE_DIR, style_ove
 	# Краска кистей: после листов, чтобы оболочка уже была запрошена; пустой словарь очищает старую краску
 	TGM.paint.load_data(_saved_game.paint)
 	TGM.plaster_dirty()   # K3: крашеные ячейки на плоском верху входят в оболочку
+	# XX claude-terra 13.14 H1: поле высот после листов и стола (пол по листам, обрезка по столу)
+	TGM.field.load_data(_saved_game.field)
+	TGM.field_dirty()
 
 	# 4. ВАЖНЕЙШИЙ ТАКТ СИНХРОНИЗАЦИИ ФИЗИКИ (см. Критические нюансы ниже)
 	await get_tree().physics_frame

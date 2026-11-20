@@ -26,6 +26,15 @@ var skin: PlasterSkin
 ## 13.13 K1. Краска кистей (мировая сетка, общая на макет) и сплэт-текстура для материала оболочки (K3)
 var paint := PaintMap.new()
 var splat: PaintSplat
+## 13.14 H1. Поле высот шпатлёвки: данные, показ (текстуры и шейдер) и коллизия HeightMap по чанкам
+var field := TerrainField.new()
+var field_view: FieldView
+var field_collision: FieldCollision
+## Кэш листов для пола поля (собирается перед каждым пакетом вычислений пола)
+var _fl_layers: Array[C_TerrainLayer] = []
+var _fl_rects: Array[Rect2] = []
+## Отпечаток контуров стола: поле обрезается по столу, когда он изменился
+var _table_sig := 0
 
 ## Допуск по высоте, ю: касание верха одного листа с низом другого не считается пересечением
 const EPS := 0.001
@@ -42,6 +51,18 @@ func _ready() -> void:
 	skin.splat = splat
 	add_child(skin)
 	terrain_changed.connect(_on_terrain_changed_plaster)
+	# XX claude-terra 13.14 H1: поле высот
+	field.layer_height = float(Global.settings.layer_height)
+	field.floor_prepare = Callable(self, "_field_floor_prepare")
+	field.floor_fn = Callable(self, "_field_floor_at")
+	field_view = FieldView.new()
+	add_child(field_view)
+	field_view.bind(field)
+	field_collision = FieldCollision.new()
+	add_child(field_collision)
+	field_collision.bind(field)
+	terrain_changed.connect(_on_terrain_changed_field)
+	_connect_layout.call_deferred()   # LYM стоит в autoload ниже TGM
 
 
 ## XX claude-terra 13.5. Оболочку пересчитываем, если изменилась область под ней (или её ещё нет)
@@ -224,6 +245,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed(&"debug_terrain_probe", false, false):
 		_debug_print_surface()
+	elif event.is_action_pressed(&"debug_field_toggle", false, false):
+		_debug_toggle_field()
 
 
 func _debug_print_surface() -> void:
@@ -244,3 +267,141 @@ func _debug_print_surface() -> void:
 	# y_max чуть выше точки попадания: верх листа, на который попал луч, должен пройти фильтр
 	var ys := surface_y(p.x, p.z, p.y + 0.01)
 	print("[TGM] F7: луч y=%.3f, surface_y=%.3f, разница=%.4f, листов=%d" % [p.y, ys, absf(p.y - ys), get_layers().size()])
+
+
+# ==========================================
+# XX claude-terra 13.14 H1. ПОЛЕ ВЫСОТ ШПАТЛЁВКИ
+# ==========================================
+# Слой лежит на столе (пол 0) или на листе (пол = верх листа), толщина относительная. Подробнее: terrain_field.gd.
+# Здесь связка с листами и столом: пол по узлам, обрезка по столу, укладка и снятие слоя по полигону.
+
+func _connect_layout() -> void:
+	LYM.layout_changed.connect(_on_layout_changed_field)
+
+
+## Сменилась высота стола, секция, стол заново: обрезать слой по столу и подогнать окно показа
+func _on_layout_changed_field() -> void:
+	if field_view != null:
+		field_view.refit()
+	if field.is_empty():
+		return
+	var polys := field_table_polygons()
+	var sig := hash(polys)
+	if sig == _table_sig:
+		return
+	_table_sig = sig
+	field.clip_to_polygons(polys)
+
+
+## Лист изменился: пересчитать пол под ним
+func _on_terrain_changed_field(aabb: AABB) -> void:
+	_field_floor_prepare()   # кэш листов нужен и коллизии соседних узлов (floor_at без чанка)
+	if field.is_empty():
+		return
+	field.refresh_floor(Rect2(aabb.position.x, aabb.position.z, aabb.size.x, aabb.size.z).grow(TerrainField.STEP))
+
+
+## После отмены правки: слой, который стол уже не держит, снова обрезать (обрезка в историю не пишется)
+func field_reclip() -> void:
+	_table_sig = 0
+	_on_layout_changed_field()
+
+
+## Данные поля заменили целиком (загрузка сейва): пол и окно показа пересчитать
+func field_dirty() -> void:
+	_table_sig = 0
+	field.layer_height = float(Global.settings.layer_height)
+	if field_view != null:
+		field_view.refit()
+		field_view.rebuild_all()
+	var b := field.bounds()
+	if b.size.x > 0.0:
+		field.refresh_floor(b)
+	_on_layout_changed_field()
+
+
+## Внешние контуры стола (объединение секций) или прямоугольник стола v1, если секций нет
+func field_table_polygons() -> Array[PackedVector2Array]:
+	var polys := LYM.footprint()
+	if polys.is_empty():
+		var r: Rect2 = LYM.table_rect()
+		polys.append(TerrainField._rect_poly(r))
+	return polys
+
+
+## Положить слой толщиной layers (слоёв) на область poly (мировой XZ) там, где есть стол. erase: снять слой.
+## Возвращает число изменённых узлов. Одна правка для отмены (Ctrl+Z)
+func field_lay(poly: PackedVector2Array, layers: float, erase := false) -> int:
+	field.layer_height = float(Global.settings.layer_height)
+	var n := 0
+	field.begin_edit()
+	for sp in field_table_polygons():
+		for part: PackedVector2Array in Geometry2D.intersect_polygons(poly, sp):
+			if Geometry2D.is_polygon_clockwise(part):
+				continue   # дыра: у прямоугольных секций не бывает
+			n += field.erase_polygon(part) if erase else field.lay_polygon(part, layers)
+	field.end_edit()
+	return n
+
+
+## Положить (или снять) слой на весь стол
+func field_lay_table(layers: float, erase := false) -> int:
+	field.layer_height = float(Global.settings.layer_height)
+	var n := 0
+	field.begin_edit()
+	for sp in field_table_polygons():
+		n += field.erase_polygon(sp) if erase else field.lay_polygon(sp, layers)
+	field.end_edit()
+	return n
+
+
+## Поверхность поля в точке мира: высота и есть ли слой. Вне слоя возвращает NO_FIELD
+const NO_FIELD := -INF
+
+func field_surface_y(x: float, z: float) -> float:
+	if not field.covered(x, z):
+		return NO_FIELD
+	return field.sample(x, z)
+
+
+## Список листов для пола (раз на пакет вычислений)
+func _field_floor_prepare() -> void:
+	_fl_layers.clear()
+	_fl_rects.clear()
+	for e in get_layers():
+		var l := e.get_comp(C_TerrainLayer) as C_TerrainLayer
+		if l == null:
+			continue
+		_fl_layers.append(l)
+		_fl_rects.append(C_Contour.bounds_of(l.world_polygon()).grow(0.01))
+
+
+## Пол в точке: верх сплошной стопки, поднимающейся от стола. Висящие листы (мосты) пол не поднимают
+func _field_floor_at(x: float, z: float) -> float:
+	var pt := Vector2(x, z)
+	var ivs: Array[Vector2] = []
+	for k in _fl_layers.size():
+		if not _fl_rects[k].has_point(pt):
+			continue
+		for iv: Vector2 in _fl_layers[k].solid_intervals_at(pt):
+			ivs.append(iv)
+	var y := 0.0
+	var moved := not ivs.is_empty()
+	while moved:
+		moved = false
+		for iv in ivs:
+			if iv.x <= y + EPS and iv.y > y + EPS:
+				y = iv.y
+				moved = true
+	return y
+
+
+## Ctrl+Shift+F: слой 1 на весь стол, повторно снять всё поле (отладка H1a, вместо инструмента)
+func _debug_toggle_field() -> void:
+	var t0 := Time.get_ticks_usec()
+	if field.is_empty():
+		var n := field_lay_table(1.0)
+		print("[TGM] поле: слой на весь стол, узлов %d, чанков %d, %.1f мс" % [n, field.chunk_keys().size(), float(Time.get_ticks_usec() - t0) / 1000.0])
+	else:
+		field.clear()
+		print("[TGM] поле: снято")

@@ -108,6 +108,7 @@ func _register_defaults() -> void:
 	# F7 читает модификаторы сам: Shift, Alt, Ctrl задают вид выреза (c_terrain_layer), поэтому читается не точно
 	register(&"debug_stats_toggle", "action.debug_stats_toggle", &"debug", [G_DEBUG], _key(KEY_F4))
 	register(&"debug_terrain_probe", "action.debug_terrain_probe", &"debug", [G_DEBUG], _key(KEY_F7))
+	register(&"debug_field_toggle", "action.debug_field_toggle", &"debug", [G_DEBUG], _key(KEY_F, true, true))
 	register(&"debug_load_reference", "action.debug_load_reference", &"debug", [G_DEBUG], _key(KEY_F9))
 	register(&"debug_save_look", "action.debug_save_look", &"debug", [G_DEBUG], _key(KEY_F10))
 	register(&"debug_look_lab", "action.debug_look_lab", &"debug", [G_DEBUG], _key(KEY_L, true, true))
