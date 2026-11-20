@@ -41,6 +41,7 @@ func _make_decal() -> Decal:
 	d.upper_fade = 0.3
 	d.lower_fade = 0.3
 	d.emission_energy = 1.0
+	d.visible = false
 	add_child(d)
 	return d
 

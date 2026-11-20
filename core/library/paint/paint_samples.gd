@@ -9,14 +9,14 @@ class_name PaintSamples extends RefCounted
 ## швах UV2 и не растягивается. Образец запекается в слой краски при штампе, формат слоя не меняется.
 ## Встроенные образцы рисуются кодом при первом обращении с фиксированным зерном (FastNoiseLite и линии с заворотом).
 ## Свои образцы это картинки (png, jpg, webp) в папках USER_DIRS: каждый файл становится образцом с id "f:<имя файла>"
-## и названием из имени. Файлы, имя которых начинается на «decal», относятся к декалям и в образцы не попадают. Картинка должна быть бесшовной (края стыкуются), альфа-канал это пятнистость (без альфы
+## и названием из имени. Файлы на «decal» из этих же папок видны и как декали (PaintDecals): одну картинку можно
+## использовать и как образец любой кисти (заливка текстурой), и как декаль (один отпечаток). Картинка должна быть бесшовной (края стыкуются), альфа-канал это пятнистость (без альфы
 ## образец сплошной), цвет как есть. Список читается при входе в режим «Кисть» (refresh).
 
 const SIZE := 256
 const LEVEL := 3          ## с какого уровня правил (paint.level) образцы доступны
 const ORDER := ["rust", "dirt", "soot", "wear", "streaks"]
 const USER_DIRS := ["res://data/library/paint_samples", "user://library/paint_samples"]
-const DECAL_PREFIX := "decal"     ## файлы с таким началом имени это декали (PaintDecals), в образцы не попадают
 const FILE_PREFIX := "f:"
 const FILE_EXT := ["png", "jpg", "jpeg", "webp"]
 const NAMES := {
@@ -65,8 +65,6 @@ static func refresh() -> void:
 				if name.ends_with(suffix):
 					name = name.trim_suffix(suffix)
 			if not FILE_EXT.has(name.get_extension().to_lower()):
-				continue
-			if name.get_basename().to_lower().begins_with(DECAL_PREFIX):
 				continue
 			found[FILE_PREFIX + name.get_basename()] = str(dir).path_join(name)
 	for id in _files.keys():

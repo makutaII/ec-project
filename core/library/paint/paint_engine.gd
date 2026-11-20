@@ -409,7 +409,8 @@ func _flush() -> void:
 	var mat := _erase_mat if first["erase"] else _stamp_mat
 	var count := 0
 	for q in _queue:
-		if count >= MAX_STAMPS or not _same_params(q, first):
+		# первый штамп входит всегда (декаль не равна даже себе: она одна на пачку), остальные только с теми же параметрами
+		if count >= MAX_STAMPS or (count > 0 and not _same_params(q, first)):
 			break
 		count += 1
 	var centers: Array = []

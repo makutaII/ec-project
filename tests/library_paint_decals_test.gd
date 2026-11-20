@@ -188,6 +188,14 @@ func _test_render() -> void:
 	var two := eng.read_layer()
 	_check("две декали за кадр: обе на месте (%.2f и %.2f)" % [_alpha(two, 16, 32), _alpha(two, 48, 32)], _alpha(two, 16, 32) > 0.9 and _alpha(two, 48, 32) > 0.9)
 
+	# после декали обычная кисть работает (очередь не застревает на декали)
+	eng.begin_stroke()
+	eng.stamp(Vector3(0, -0.3, 0), Vector3(0, 0, 1), 0.15, Color(0, 1, 0), 1.0, 0.99)
+	eng.end_stroke()
+	await _frames(6)
+	var after := eng.read_layer()
+	_check("после декали обычная кисть красит (%.2f), очередь пуста" % _alpha(after, 32, 51), _alpha(after, 32, 51) > 0.9 and eng._queue.is_empty())
+
 	eng.queue_free()
 	q.queue_free()
 	await _frames(2)

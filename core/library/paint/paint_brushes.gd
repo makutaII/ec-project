@@ -14,7 +14,8 @@ class_name PaintBrushes extends RefCounted
 ##   "random" (случайный угол на каждый штамп), "fixed" (по оси Y модели); scatter: разброс центра штампа в долях радиуса;
 ##   jitter: случайность размера и угла 0..1; spacing: шаг штампов вдоль мазка, пиксели экрана;
 ##   decal_tool: инструмент «Декаль»: клик ставит картинку (decal, id из PaintDecals) с поворотом decal_angle (градусы),
-##   зеркалом decal_mirror и цветом палитры decal_tint; size это полуразмер большей стороны; single: один штамп на нажатие;
+##   зеркалом decal_mirror и цветом палитры decal_tint; size это полуразмер большей стороны; single: один штамп на нажатие
+##   (decal_stroke включает цепочку: декаль повторяется вдоль мазка с шагом spacing, картинка повёрнута по направлению мазка);
 ##   relief: 1 красить только по рельефу, выступы и светлые кромки (сухая кисть), -1 только впадины и тёмные тени (смывка),
 ##   0 без рельефа; relief_sens: чувствительность к рельефу; relief_width: ширина перехода в пикселях слоя;
 ##   dry: сила «сухой щетины» 0..1 по запасу краски (0 выключена; пресеты не используют); dry_len: длина запаса, пиксели;
@@ -29,7 +30,8 @@ const DEFAULTS := {
 	"tip": "", "shape": "round", "box": Vector2(1.0, 1.0), "rotate": "none", "scatter": 0.0, "jitter": 0.0,
 	"spacing": 6.0, "dry": 0.0, "dry_len": 300.0, "relief": 0.0, "relief_sens": 1.0, "relief_width": 3.0,
 	"sample": "", "sample_size": 0.25, "sample_random": true,
-	"decal_tool": false, "single": false, "decal": "", "decal_angle": 0.0, "decal_mirror": false, "decal_tint": true, "level": 2,
+	"decal_tool": false, "single": false, "decal": "", "decal_angle": 0.0, "decal_mirror": false, "decal_tint": true,
+	"decal_stroke": false, "level": 2,
 }
 const PRESETS := {
 	"brush": {"name": "Кисть", "size": 0.04, "hardness": 0.8, "flow": 1.0},
@@ -46,7 +48,7 @@ const PRESETS := {
 	"square": {"name": "Квадрат", "size": 0.04, "hardness": 0.9, "flow": 1.0, "shape": "box", "rotate": "stroke",
 		"spacing": 4.0},
 	"decal": {"name": "Декаль", "size": 0.08, "hardness": 0.99, "flow": 1.0, "decal_tool": true, "single": true, "decal": "star",
-		"level": 3},
+		"spacing": 40.0, "level": 3},
 }
 
 

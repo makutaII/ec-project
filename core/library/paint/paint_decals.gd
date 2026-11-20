@@ -24,7 +24,7 @@ const FILE_PREFIX := "f:"
 const FILE_EXT := ["png", "jpg", "jpeg", "webp"]
 
 static var dirs: Array = USER_DIRS.duplicate()         # где искать свои декали (тест подменяет)
-static var mixed_dirs: Array = MIXED_DIRS.duplicate()  # папки образцов: оттуда берутся только файлы decal*
+static var mixed_dirs: Array = MIXED_DIRS.duplicate()  # папки образцов: оттуда берутся только файлы decal* (в образцах они тоже остаются)
 static var _files := {}      # id файла -> путь
 static var _cache := {}      # id -> {image, texture, flipped}
 

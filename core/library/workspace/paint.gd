@@ -65,6 +65,7 @@ var _decal_ids: Array[String] = []
 var _decal_angle_slider: HSlider
 var _decal_mirror_cb: CheckBox
 var _decal_tint_cb: CheckBox
+var _decal_stroke_cb: CheckBox
 var _plain_rows: Array = []            # строки обычных кистей (у декали скрыты)
 var _decal_rows: Array = []            # строки декали (у остальных скрыты)
 var _sample_shift := Vector2.ZERO # сдвиг образца текущего мазка
@@ -577,7 +578,15 @@ func _build_decal_rows() -> void:
 		if not _silent:
 			_tool_params[_tool]["decal_tint"] = on)
 	_brush_box.add_child(_decal_tint_cb)
-	_decal_rows = [row, _decal_angle_slider.get_parent(), _decal_mirror_cb, _decal_tint_cb]
+	_decal_stroke_cb = CheckBox.new()
+	_decal_stroke_cb.text = "Цепочка вдоль мазка"
+	_decal_stroke_cb.tooltip_text = "Включено: пока кнопка зажата, декаль повторяется вдоль мазка с шагом «Шаг, px», картинка повёрнута по направлению мазка (стрелки, звёзды, клейма). Выключено: один клик, одна декаль"
+	_decal_stroke_cb.toggled.connect(func(on: bool) -> void:
+		if not _silent:
+			_tool_params[_tool]["decal_stroke"] = on
+			_sync_tool_sliders())
+	_brush_box.add_child(_decal_stroke_cb)
+	_decal_rows = [row, _decal_angle_slider.get_parent(), _decal_mirror_cb, _decal_tint_cb, _decal_stroke_cb]
 	_fill_decal_options()
 
 
@@ -679,6 +688,8 @@ func _sync_tool_sliders() -> void:
 		_decal_angle_slider.value = float(p["decal_angle"])
 		_decal_mirror_cb.button_pressed = bool(p["decal_mirror"])
 		_decal_tint_cb.button_pressed = bool(p["decal_tint"])
+		_decal_stroke_cb.button_pressed = bool(p["decal_stroke"])
+		_spacing_slider.get_parent().visible = bool(p["decal_stroke"])      # шаг нужен только цепочке
 		_decal_opt.select(maxi(_decal_ids.find(str(p["decal"])), 0))
 	_sample_random_cb.button_pressed = bool(p["sample_random"])
 	_sample_opt.select(_sample_ids.find(str(p["sample"])) + 1)
@@ -958,8 +969,8 @@ func _stroke_begin(pos: Vector2) -> void:
 
 ## Штампы вдоль отрезка мыши с шагом spacing инструмента (остаток шага переносится на следующее движение)
 func _stroke_move(pos: Vector2) -> void:
-	if bool(_tool_params[_tool]["single"]):
-		return                                  # декаль: один штамп на нажатие
+	if bool(_tool_params[_tool]["single"]) and not bool(_tool_params[_tool]["decal_stroke"]):
+		return                                  # декаль: один штамп на нажатие (если не включена цепочка)
 	var dist := pos.distance_to(_last_pos)
 	if dist <= 0.0:
 		return
@@ -995,7 +1006,17 @@ func _stamp_at(pos: Vector2, step_px := 0.0) -> void:
 	var n: Vector3 = hit["normal"]
 	var at: Vector3 = hit["position"]
 	if bool(p["decal_tool"]):
-		var d_opts := PaintBrushes.stamp_opts(p, PaintBrushes.decal_right(n, float(p["decal_angle"])), 1.0)
+		var angle := float(p["decal_angle"])
+		var right := PaintBrushes.decal_right(n, angle)
+		if bool(p["decal_stroke"]):
+			# цепочка: картинка смотрит вправо по направлению мазка (поворот добавляется к нему); у первой декали направления ещё нет
+			if _stroke_prev_ok and (at - _stroke_prev).length() > 0.00001:
+				_stroke_tan = PaintBrushes.tangent(n, "stroke", at - _stroke_prev, _rng, 0.0, _stroke_tan)
+			if _stroke_tan != Vector3.ZERO:
+				right = _stroke_tan.rotated(n.normalized(), deg_to_rad(angle))
+			_stroke_prev = at
+			_stroke_prev_ok = true
+		var d_opts := PaintBrushes.stamp_opts(p, right, 1.0)
 		eng.stamp(at, n, eng.radius_for(float(p["size"])), _color_btn.color, float(p["flow"]), 1.0, false, d_opts)
 		return
 	var jit := float(p["jitter"])
