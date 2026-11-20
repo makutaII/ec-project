@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
+[ext_resource type="Texture2D" uid="uid://fx8ptxkne2sg" path="res://ui/icons/tool/paint-roller.svg" id="2_ic"]
+
+[resource]
+script = ExtResource("1_es")
+key = &"terrain.field.table"
+facets = {
+"shape": "table"
+}
+sort_order = 2
+name = "Шпатлёвка: вся столешница"
+description = "Слой шпатлёвки на весь стол одним кликом. Ctrl+ЛКМ снимает слой со всего стола, Ctrl+Z отменяет"
+category = &"terrain"
+tag = &"field"
+icon = ExtResource("2_ic")
+build_behavior = 10

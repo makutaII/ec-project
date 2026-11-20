@@ -50,6 +50,9 @@ const HINTS := {
 	"coaster/select_none": [["ЛКМ", "выбрать трак или вагон"], ["ЛКМ удержать на вагоне", "пинок: сзади вперёд, спереди назад (дольше, сильнее)"], ["Категория → объект", "построить новый"]],
 	"coaster/select_sel": [["Тащить ЛКМ", "переместить"], ["@delete", "удалить"], ["ЛКМ удержать на вагоне", "пинок: сзади вперёд, спереди назад (дольше, сильнее)"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"]],
 	"coaster/build": [["ЛКМ", "построить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"]],
+	"field_rect": [["ЛКМ", "угол, второй клик кладёт слой"], ["Ctrl+ЛКМ", "снять слой"], ["@shape_undo", "отменить рисунок"], ["@tool_undo", "отменить правку"], ["ПКМ", "сбросить / выйти"]],
+	"field_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / @shape_confirm", "положить слой"], ["Ctrl+ЛКМ или Ctrl+@shape_confirm", "снять слой"], ["@shape_undo", "убрать вершину"], ["@tool_undo", "отменить правку"], ["ПКМ", "сбросить / выйти"]],
+	"field_table": [["ЛКМ", "слой на всю столешницу"], ["Ctrl+ЛКМ", "снять слой со всей столешницы"], ["@tool_undo", "отменить правку"], ["ПКМ", "выйти"]],
 	"water_pour": [["ЛКМ", "налить воду (область видна до клика)"], ["Shift+ЛКМ", "осушить"], ["@level_up/@level_down", "глубина воды (Shift ×5)"], ["@level_up_x5/@level_down_x5", "глубина ±5"], ["@tool_undo", "отменить налив"], ["ПКМ", "выйти"]],
 	"plaster": [["ЛКМ", "сгладить весь холм под курсором"], ["Shift+ЛКМ", "только этот лист"], ["Ctrl+ЛКМ", "снять (Shift: только лист)"], ["@width_down и @width_up", "ступень пандуса, ю на слой"], ["@tool_undo", "отменить"], ["ПКМ", "выйти"]],
 	"paint": [["ЛКМ", "красить (тянуть)"], ["Ctrl+ЛКМ", "стереть"], ["@width_down и @width_up", "радиус кисти, ю (Shift ×5)"], ["@tool_undo", "отменить мазок"], ["ПКМ", "выйти"]],
@@ -157,6 +160,10 @@ func _context_key() -> String:
 			return "plaster"
 		&"PaintTool":   # XX claude-terra 13.13 K2: кисть
 			return "paint"
+		&"FieldTool":   # XX claude-terra 13.14 H1b: шпатлёвка (контекст ставит сам инструмент)
+			if _ctx.get(&"field_polygon", false):
+				return "field_polygon"
+			return "field_table" if _ctx.get(&"field_table", false) else "field_rect"
 		&"WaterPourTool":   # XX claude-terra 13.4 W3: налить воду
 			return "water_pour"
 		&"TableTool":   # XX claude-table T2: постановка секций
@@ -192,7 +199,7 @@ func _compose() -> String:
 		return ""
 	var text := _format(items)
 	# Вторая строка про камеру: когда ею управляет игрок (не Follow, POV, Orbit и не фоторежим)
-	var own_camera := key in ["select_none", "select_group", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "cut_strip", "cut_line", "cut_bevel", "water_pour", "table_place", "plaster", "wire", "wire_started", "drag", "observe"]
+	var own_camera := key in ["select_none", "select_group", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "cut_strip", "cut_line", "cut_bevel", "field_rect", "field_polygon", "field_table", "water_pour", "table_place", "plaster", "wire", "wire_started", "drag", "observe"]
 	if own_camera:
 		text += "\n[color=%s]%s[/color]" % [DIM_COLOR, _format(CAMERA_LINE, false)]
 	return "[center]" + text + "[/center]"

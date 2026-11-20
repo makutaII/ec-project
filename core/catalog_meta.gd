@@ -42,7 +42,7 @@ const TAGS := {
 	&"train": [&"loco", &"boxcar", &"parts", &"consist"],
 	&"track": [&"straight", &"curve", &"junction", &"special"],
 	&"building": [&"house", &"mybuildings"],
-	&"terrain": [&"foam", &"cut", &"water", &"plaster", &"brush"],
+	&"terrain": [&"foam", &"cut", &"field", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14 H1b: field
 	&"table": [&"section"],
 	&"coaster_car": [&"car"],   # XX claude-coaster C3
 	&"coaster_track": [&"straight", &"slope"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)

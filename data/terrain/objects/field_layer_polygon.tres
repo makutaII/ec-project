@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
+[ext_resource type="Texture2D" uid="uid://d0lx37eeopjln" path="res://ui/icons/tool/pencil-ruler.svg" id="2_ic"]
+
+[resource]
+script = ExtResource("1_es")
+key = &"terrain.field.polygon"
+facets = {
+"shape": "polygon"
+}
+sort_order = 1
+name = "Шпатлёвка: полигон"
+description = "Слой шпатлёвки по вершинам: клики, Enter или клик по первой вершине кладёт. Ctrl снимает слой, Ctrl+Z отменяет"
+category = &"terrain"
+tag = &"field"
+icon = ExtResource("2_ic")
+build_behavior = 10

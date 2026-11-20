@@ -25,6 +25,7 @@ var cut_tool: ThermoCutTool
 var water_tool: WaterPourTool   # XX claude-terra 13.4 W3
 var plaster_tool: PlasterTool   # XX claude-terra 13.5 G3
 var paint_tool: PaintTool   # XX claude-terra 13.13 K2
+var field_tool: FieldTool   # XX claude-terra 13.14 H1b
 var wire_tool: WireTool   # D4 (ATTN_10): провода между клеммами
 var table_tool: TableTool   # XX claude-table T2: постановка секций подмакетника (режим «Секции»)
 #@onready var save_controller: SaveManager = %SaveManager
@@ -73,6 +74,9 @@ func _ready() -> void:
 	paint_tool = PaintTool.new()
 	paint_tool.name = &"PaintTool"
 	%Tools.add_child(paint_tool)
+	field_tool = FieldTool.new()
+	field_tool.name = &"FieldTool"
+	%Tools.add_child(field_tool)
 	wire_tool = WireTool.new()
 	wire_tool.name = &"WireTool"
 	%Tools.add_child(wire_tool)
@@ -221,6 +225,13 @@ func select_build_object(setting: EntitySetting, variant: Dictionary = {}) -> vo
 	if setting.build_behavior == EntitySetting.BuildBehavior.PAINT_TOOL:
 		paint_tool.brush = PaintTool.brush_from_facet(setting.get_facet(&"brush"))
 		switch_tool(paint_tool)
+		return
+
+	# XX claude-terra 13.14 H1b: кнопка шпатлёвки включает FieldTool, форма из facet "shape"
+	if setting.build_behavior == EntitySetting.BuildBehavior.FIELD_TOOL:
+		var fshape := StringName(setting.get_facet(&"shape")) if setting.get_facet(&"shape") != "" else FieldTool.SHAPE_RECT
+		field_tool.shape = fshape
+		switch_tool(field_tool)
 		return
 
 	# XX claude-table T2: пресет секции (категория table) включает TableTool, режим «Секции»
