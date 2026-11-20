@@ -15,7 +15,6 @@
 [ext_resource type="Script" uid="uid://bkdny7eq5jthn" path="res://core/components/comp_settings/traindraggable_setting.gd" id="9_maqnf"]
 [ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="10_ohs0c"]
 [ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="11_81r0d"]
-[ext_resource type="Script" uid="uid://b7jf4te0slqxl" path="res://setting/sound_profile.gd" id="11_681gr"]
 [ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="12_hpjo4"]
 [ext_resource type="Script" uid="uid://bhvk4o3qrvslv" path="res://core/components/comp_settings/chassis_setting.gd" id="13_xh8lx"]
 [ext_resource type="Script" uid="uid://cpuhrycuvnuar" path="res://core/components/comp_settings/kinematics_setting.gd" id="14_x2lrn"]
@@ -82,11 +81,6 @@ color = Color(1, 0.85, 0.6, 1)
 energy = 1.5
 light_range = 8.0
 
-[sub_resource type="Resource" id="Resource_iiqmn"]
-script = ExtResource("11_681gr")
-motor_loop = &"motor_roll_loop"
-metadata/_custom_type_script = "uid://b7jf4te0slqxl"
-
 [sub_resource type="Resource" id="Resource_0p1ic"]
 script = ExtResource("8_i4jyf")
 metadata/_custom_type_script = "uid://bwaluvayi2o8k"
@@ -98,7 +92,6 @@ max_grip = 400.0
 suspension = SubResource("Resource_0p1ic")
 has_engine = true
 max_theoretical_speed = 50.0
-sound_profile = SubResource("Resource_iiqmn")
 scene = ExtResource("4_1pi1k")
 offset_mesh_y = 1.815
 bogie_configs = Array[ExtResource("2_xi8dl")]([SubResource("Resource_m448q"), SubResource("Resource_ibl0p")])
