@@ -94,15 +94,15 @@ offset_right = 116.0
 offset_bottom = -291.0
 grow_vertical = 1
 
-[node name="DockRow" parent="HUD" unique_id=1311200840 instance=ExtResource("19_tooldock")]
-unique_name_in_owner = true
-layout_mode = 1
-
 [node name="SideDock" parent="HUD" unique_id=1311200830 instance=ExtResource("18_sidedock")]
 unique_name_in_owner = true
 layout_mode = 0
 offset_top = 45.0
 offset_bottom = 553.0
+
+[node name="DockRow" parent="HUD" unique_id=1311200840 instance=ExtResource("19_tooldock")]
+unique_name_in_owner = true
+layout_mode = 1
 
 [node name="Windows" type="CanvasLayer" parent="." unique_id=1311200802]
 layer = 20

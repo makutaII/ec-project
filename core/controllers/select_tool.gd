@@ -30,7 +30,7 @@ var _marquee_additive := false   # рамка с Shift: добавляет к г
 var _shift_press := false        # ЛКМ нажата с Shift (Build): клик переключает объект в группе, драг добавляет рамкой
 var _shift_click: Entity         # объект под курсором в момент нажатия с Shift (null: пустое место)
 var _group_drag_candidate: Entity   # член группы под курсором в момент нажатия (без Shift/Ctrl): драг потащит всю группу
-const GROUP_MOVABLE: Array[StringName] = [&"track", &"building"]   # категории, которые группа умеет двигать
+const GROUP_MOVABLE: Array[StringName] = [&"track", &"building", &"coaster_track"]   # категории, которые группа умеет двигать (coaster_track: XX claude-coaster)
 var _group_layer: CanvasLayer
 var _marquee: MarqueeOverlay
 var _tooltip: GroupSelectionPanel
@@ -107,7 +107,7 @@ func handle_input(event: InputEvent):
 			_shift_press = false
 			_shift_click = null
 			_group_drag_candidate = null
-			var in_build: bool = Global.current_mode == &'build'
+			var in_build: bool = Global.current_mode == &'build' or Global.current_mode == &'coaster'   # XX claude-coaster: рамка и группа и в режиме «горки»
 			var shift: bool = in_build and Actions.shift()
 			# Нажатие на члене группы без модификаторов: группа остается, драг потащит ее всю, клик без драга выберет только его.
 			# Рамку при этом не взводим: иначе она начнется на 8 px, раньше драга на 10 px, и снимет группу
@@ -465,6 +465,7 @@ func _update_hover():
 		hovered_entity = new_hover
 		if hovered_entity: 
 			hovered_entity.add_component(C_Hovered.new())
+	InfoTips.hover(hovered_entity)   # подсказка при наведении (U20a.5): задержку и показ ведет сервис
 
 
 
@@ -577,6 +578,7 @@ func exit(_to_drag : bool = false):
 		if is_instance_valid(hovered_entity):
 			hovered_entity.remove_component(C_Hovered)
 		hovered_entity = null
+	InfoTips.hover(null)
 	
 	handle_dragging = false
 
@@ -669,7 +671,7 @@ func _seed_group_from_single() -> void:
 func _start_group_drag(leader: Entity) -> void:
 	for e in _group.members:
 		if is_instance_valid(e) and not GROUP_MOVABLE.has(GroupSelection.category_of(e)):
-			_tooltip.set_note("Двигать группу можно, если в ней только траки и домики. Снимите галки: вагоны, террейн.")
+			_tooltip.set_note("Двигать группу можно, если в ней только траки и домики. Снимите галки остальных категорий.")
 			return
 	_tooltip.set_note("")
 	controller.drag_tool.sel_group.assign(_group.members)   # assign, а не присваивание: типизированный Array[Entity]

@@ -32,7 +32,7 @@ func _ready() -> void:
 	_popup.add_item("Сохранить…", ID_SAVE)
 	_popup.add_item("Загрузить…", ID_LOAD)
 	_popup.add_separator()
-	_popup.add_check_item("Подсказки", ID_HINTS)
+	_popup.add_check_item("Подсказки (%s)" % Actions.key_text(&"hints_toggle"), ID_HINTS)
 	_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
 	_popup.add_item("Настройки…", ID_SETTINGS)
 	_popup.add_separator()

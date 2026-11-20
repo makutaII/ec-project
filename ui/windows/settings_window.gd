@@ -30,6 +30,8 @@ var _look_row: OptionRow
 var _vsync_row: ToggleRow
 var _fullscreen_row: ToggleRow
 var _hints_row: ToggleRow
+var _hover_row: ToggleRow
+var _hover_delay_row: OptionRow
 
 var _keys_msg: Label
 var _key_buttons: Dictionary = {}
@@ -297,6 +299,10 @@ func _build_interface() -> void:
 	var box := _add_page(&"interface", "Интерфейс")
 	_hints_row = _add_toggle(box, "Подсказки внизу экрана", true)
 	_hints_row.value_changed.connect(func(v: Variant) -> void: Hints.set_enabled(bool(v)))
+	_hover_row = _add_toggle(box, "Подсказка при наведении на объекты", true)
+	_hover_row.value_changed.connect(func(v: Variant) -> void: InfoTips.set_hover_enabled(bool(v)))
+	_hover_delay_row = _add_option(box, "Задержка подсказки", [0.0, 0.2, 0.5, 1.0], ["Сразу", "0,2 с", "0,5 с", "1 с"], 0.2)
+	_hover_delay_row.value_changed.connect(func(v: Variant) -> void: InfoTips.set_hover_delay(float(v)))
 
 	var lang := _add_option(box, "Язык", [&"ru", &"en"], ["Русский", "English"], &"ru")
 	lang.set_value(&"ru")
@@ -331,5 +337,7 @@ func _refresh_values() -> void:
 	_vsync_row.set_value(DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED)
 	_fullscreen_row.set_value(_is_fullscreen())
 	_hints_row.set_value(Hints.enabled)
+	_hover_row.set_value(InfoTips.hover_enabled)
+	_hover_delay_row.set_value(InfoTips.hover_delay)
 	for id in _key_buttons:
 		_refresh_key_button(id)

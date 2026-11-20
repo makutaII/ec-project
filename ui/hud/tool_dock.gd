@@ -57,14 +57,19 @@ func empty_label() -> Label: return %EmptyObjects
 
 
 ## Высота от нижнего края окна до верха того, что стоит у левого края: панель категорий или ToolDock
-## (что выше, только видимое). 0, если ряд спрятан (Observe, фоторежим)
+## (что выше, только видимое). 0, если ряд спрятан (Observe, фоторежим).
+## ToolDock считается по минимальной высоте, а не по растянутой: когда игрок тянет его вверх, он накрывает DC-панель
+## и SideDock (ряд лежит в HUD выше них), а не поднимает их за собой (решение 20.11.2026)
 func occupied_height() -> float:
 	if not is_visible_in_tree():
 		return 0.0
 	var h := 0.0
-	for c: Control in [%CategoriesPanel, %DockColumn]:
-		if c.visible:
-			h = maxf(h, c.size.y)
+	var cats := %CategoriesPanel as Control
+	if cats.visible:
+		h = cats.size.y
+	var column := %DockColumn as Control
+	if column.visible:
+		h = maxf(h, MIN_H + (%ResizeGrip as Control).get_combined_minimum_size().y)
 	return h
 
 

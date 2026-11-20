@@ -97,6 +97,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	# U10: пока открыто модальное окно, клавиши (Delete, V, Z...) инструментам не идут
 	if UIPointer.modal_open():
 		return
+	# H: включить или выключить подсказки внизу экрана (в Observe H прячет интерфейс, там это делает камера)
+	if Global.current_mode != &'observe' and Actions.pressed(event, &"hints_toggle"):
+		Hints.set_enabled(not Hints.enabled)
+		get_viewport().set_input_as_handled()
+		return
 	# XX claude-terra 13.1.7: Z - показать или скрыть зоны проблем flex (радиус, уклон) в режиме Build
 	if Actions.pressed(event, &"flex_zones_toggle") and Global.current_mode == &'build':
 		Global.flex_zones = not Global.flex_zones

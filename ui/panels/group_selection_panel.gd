@@ -56,7 +56,7 @@ func _init() -> void:
 	_title.text = "Выбрано: 0"
 	box.add_child(_title)
 
-	for cat in GroupSelection.CATEGORIES:
+	for cat in GroupSelection.CATEGORIES + GroupSelection.COASTER_CATEGORIES:
 		var cb := CheckBox.new()
 		cb.text = GroupSelection.LABELS[cat]
 		cb.button_pressed = true
@@ -97,6 +97,7 @@ func set_state(selected: int, counts: Dictionary, enabled: Dictionary) -> void:
 		cb.text = "%s (%d)" % [GroupSelection.LABELS[cat], n]
 		cb.set_pressed_no_signal(bool(enabled.get(cat, true)))
 		cb.disabled = n == 0
+		cb.visible = GroupSelection.categories_for_mode(Global.current_mode).has(cat)   # строки только режима
 	_delete_btn.disabled = selected == 0
 	_syncing = false
 

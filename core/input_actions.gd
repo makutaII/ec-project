@@ -102,6 +102,8 @@ func _register_defaults() -> void:
 		register(StringName("bookmark_%d" % (i + 1)), "action.bookmark", &"observe", [G_OBSERVE], _key((KEY_1 + i) as Key))
 	# Общие
 	register(&"quick_save", "action.quick_save", &"system", [G_GLOBAL], _key(KEY_S, false, true))
+	# H: подсказки внизу экрана. Не global: в Observe H прячет интерфейс для снимка (photo_hide_ui)
+	register(&"hints_toggle", "action.hints_toggle", &"system", [G_BUILD, G_SELECT, G_OPERATE, G_SECTIONS, G_DRAG, G_TERRAIN, G_WIRE], _key(KEY_H))
 	# Отладка
 	register(&"debug_panel_toggle", "action.debug_panel_toggle", &"debug", [G_DEBUG], _key(KEY_F3))
 	register(&"debug_vsync_toggle", "action.debug_vsync_toggle", &"debug", [G_DEBUG], _key(KEY_V, true, true))

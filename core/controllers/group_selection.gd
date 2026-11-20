@@ -13,19 +13,28 @@ class_name GroupSelection extends RefCounted
 signal changed
 
 const CATEGORIES: Array[StringName] = [&"track", &"train", &"building", &"terrain"]
+## XX claude-coaster: рамка в режиме «горки» берет только объекты горок (категории каталога режима, ATTN_27)
+const COASTER_CATEGORIES: Array[StringName] = [&"coaster_track", &"coaster_car"]
 const LABELS := {
 	&"track": "Траки",
 	&"train": "Вагоны",
 	&"building": "Домики",
 	&"terrain": "Террейн",
+	&"coaster_track": "Траки горок",
+	&"coaster_car": "Вагоны горок",
 }
 
 ## Включена ли категория в группу
-var enabled := {&"track": true, &"train": true, &"building": true, &"terrain": true}
+var enabled := {&"track": true, &"train": true, &"building": true, &"terrain": true, &"coaster_track": true, &"coaster_car": true}
 ## Все объекты последней рамки (до фильтра)
 var candidates: Array[Entity] = []
 ## Объекты группы: кандидаты с включенной категорией
 var members: Array[Entity] = []
+
+
+## Категории, которые рамка берет в режиме mode (Build: траки, вагоны, домики, террейн; «горки»: траки и вагоны горок)
+static func categories_for_mode(mode: StringName) -> Array[StringName]:
+	return COASTER_CATEGORIES if mode == &"coaster" else CATEGORIES
 
 
 ## Рамка. rect в экранных координатах viewport. additive = false: группа заменяется кандидатами рамки;
@@ -39,7 +48,7 @@ func select_in_rect(rect: Rect2, root: Node, cam: Camera3D, additive: bool = fal
 			var e := child as Entity
 			if e == null or e.is_queued_for_deletion() or e.has_comp(C_Ghost) or not e.has_comp(ISelectable):
 				continue
-			if not CATEGORIES.has(category_of(e)) or candidates.has(e):
+			if not categories_for_mode(Global.current_mode).has(category_of(e)) or candidates.has(e):
 				continue
 			if _in_rect(e, rect, cam):
 				candidates.append(e)
@@ -52,7 +61,7 @@ func add_entity(e: Entity) -> bool:
 	if e == null or not is_instance_valid(e) or e.is_queued_for_deletion() or e.has_comp(C_Ghost):
 		return false
 	var cat := category_of(e)
-	if not CATEGORIES.has(cat):
+	if not categories_for_mode(Global.current_mode).has(cat):
 		return false
 	if not candidates.has(e):
 		candidates.append(e)
@@ -105,7 +114,7 @@ func take_members() -> Array[Entity]:
 ## Сколько кандидатов в каждой категории (до фильтра)
 func counts() -> Dictionary:
 	var res := {}
-	for cat in CATEGORIES:
+	for cat in categories_for_mode(Global.current_mode):
 		res[cat] = 0
 	for e in candidates:
 		if is_instance_valid(e):

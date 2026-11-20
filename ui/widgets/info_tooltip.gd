@@ -96,8 +96,14 @@ func set_lines(lines: Array) -> void:
 		var font := label.get_theme_font("font")
 		if font != null:
 			widest = maxf(widest, font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
-	custom_minimum_size.x = clampf(widest + 2.0 * PAD_X + 2.0, MIN_WIDTH, MAX_WIDTH)
+	var width := clampf(widest + 2.0 * PAD_X + 2.0, MIN_WIDTH, MAX_WIDTH)
+	# Ширина строки задана явно: у Label с переносом при нулевой ширине (до первой раскладки) минимальная высота
+	# считается по одной букве в строке, и панель при первом показе растягивалась на весь экран
+	for label in _labels:
+		label.custom_minimum_size.x = width - 2.0 * PAD_X
+	custom_minimum_size.x = width
 	reset_size()
+	reset_size.call_deferred()   # после раскладки высота подстраивается под настоящие строки
 
 
 ## Плавно показать или спрятать (120 мс). Положение задает вызывающий до показа

@@ -17,19 +17,37 @@ extends Node
 ## каждый кадр). Подсказка идет за курсором со смещением, у края экрана переворачивается.
 ## Источник, который освободился без clear, убирается сам.
 ## Снимок экрана (фоторежим): suspend(true), как у Hints.
+##
+## Подсказка при наведении (U20a.5): SelectTool каждый кадр сообщает объект под курсором (hover). Показывается только для
+## объектов своего режима (категория входит в CatalogMeta.MODE_CATEGORIES текущего режима), после задержки hover_delay
+## (по умолчанию 0,2 с) и только если нет сообщения инструмента; пока нажата кнопка мыши (драг, вращение камеры) молчит.
+## Сейчас в ней название объекта и имя узла Entity. Включение и задержка в настройках: [ui] hover_tip, hover_tip_delay.
 
 const LAYER := 12   # над Hints (10), под окнами UI (20)
 const CURSOR_OFFSET := Vector2(16.0, 20.0)
 const EDGE := 8.0
+const SECTION := "ui"
+const KEY_HOVER := "hover_tip"
+const KEY_HOVER_DELAY := "hover_tip_delay"
+const HOVER_DELAY_DEFAULT := 0.2
+
+## Подсказка при наведении включена
+var hover_enabled := true
+## Задержка перед подсказкой при наведении, с
+var hover_delay := HOVER_DELAY_DEFAULT
 
 var _layer: CanvasLayer
 var _tip: InfoToolTip
 var _entries: Dictionary = {}   # instance_id источника -> {"lines": Array, "sig": String, "stamp": int}
 var _stamp := 0
 var _suspended := false
+var _hover_target: Node
+var _hover_t := 0.0
 
 
 func _ready() -> void:
+	hover_enabled = bool(Settings.get_value(SECTION, KEY_HOVER, true))
+	hover_delay = float(Settings.get_value(SECTION, KEY_HOVER_DELAY, HOVER_DELAY_DEFAULT))
 	_layer = CanvasLayer.new()
 	_layer.name = "InfoTipLayer"
 	_layer.layer = LAYER
@@ -98,6 +116,27 @@ func clear(owner: Object) -> void:
 	_entries.erase(owner.get_instance_id())
 
 
+## Объект под курсором (SelectTool зовет каждый кадр); null: курсор ушел. Тот же объект подряд ничего не меняет
+func hover(target: Node) -> void:
+	if target == _hover_target:
+		return
+	_hover_target = target
+	_hover_t = 0.0
+	if target != null:
+		set_process(true)
+
+
+func set_hover_enabled(on: bool) -> void:
+	hover_enabled = on
+	Settings.set_value(SECTION, KEY_HOVER, on)
+
+
+## Задержка перед подсказкой при наведении, с (0: сразу)
+func set_hover_delay(sec: float) -> void:
+	hover_delay = maxf(sec, 0.0)
+	Settings.set_value(SECTION, KEY_HOVER_DELAY, hover_delay)
+
+
 ## Временно скрыть (снимок экрана)
 func suspend(on: bool) -> void:
 	_suspended = on
@@ -117,14 +156,41 @@ func _process(_delta: float) -> void:
 	for entry: Dictionary in _entries.values():
 		if best.is_empty() or int(entry["stamp"]) > int(best["stamp"]):
 			best = entry
-	if best.is_empty() or _suspended:
+	var lines: Array = best["lines"] if not best.is_empty() else _hover_lines(delta)
+	if lines.is_empty() or _suspended:
 		_tip.fade(false)
-		if best.is_empty():
+		if best.is_empty() and _hover_target == null:
 			set_process(false)
 		return
-	_tip.set_lines(best["lines"])
+	_tip.set_lines(lines)
 	_place_at_cursor()
 	_tip.fade(true)
+
+
+## Строки подсказки при наведении, когда задержка прошла; пусто, если показывать нечего
+func _hover_lines(delta: float) -> Array:
+	if not hover_enabled or _hover_target == null:
+		return []
+	if not is_instance_valid(_hover_target):
+		_hover_target = null
+		return []
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) \
+			or Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		_hover_t = 0.0   # тащат объект или вращают камеру: после отпускания задержка заново
+		return []
+	var entity := _hover_target as Entity
+	if entity == null:
+		return []
+	var identity := entity.get_comp(C_Identity) as C_Identity
+	if identity == null:
+		return []
+	var own: Array = CatalogMeta.MODE_CATEGORIES.get(Global.current_mode, [])
+	if not own.has(identity.get_category()):
+		return []   # объект не этого режима (вагон в Operate, трак в Observe): подсказки нет
+	_hover_t += delta
+	if _hover_t < hover_delay:
+		return []
+	return [title(identity.get_name_e()), dim(String(entity.name))]
 
 
 func _place_at_cursor() -> void:
