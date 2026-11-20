@@ -7,7 +7,12 @@ class_name RideShape extends RefCounted
 ## Чистая математика, без нод. Трак описывается тремя числами вдоль его оси (длина L, мерится по самой кривой):
 ##  - pitch меняется линейно от pitch_start до pitch_end (угол касательной над горизонтом, + вверх);
 ##    равные углы это прямой уклон, разные это дуга в вертикальной плоскости (постоянная кривизна);
-##  - heading (поворот в плане) растёт линейно от 0 до turn, + вправо: с pitch ≠ 0 получается винтовой участок.
+##  - heading (поворот в плане) растёт линейно от 0 до turn, + вправо: с pitch ≠ 0 получается винтовой участок;
+##  - roll (крен, «штопор») меняется линейно по длине от roll_start до roll_end. + = правый край лотка ниже (правый крен,
+##    как у правого поворота), − = левый. Это вращение поперечного сечения вокруг оси движения.
+## Крен хранится в кривой как наклон точек (Curve3D.set_point_tilt, радианы, то же направление: правая тройка вокруг касательной,
+## нормаль лотка наклоняется вправо). Форма оси (положение и касательные) от крена не зависит. Кто использует крен (репер
+## меша и коллизии, тележка, кузов, сокеты, шаги C5.2…C5.4), берёт его из RideShape.roll_at, а не из знака наклона Godot.
 ## Кривая начинается в нуле, касательная в начале лежит в вертикальной плоскости, смотрящей в −Z, как у остальных траков
 ## (C_Path.generate_track_curve). Сокеты берут направление из ручек кривой, поэтому ручки на торцах равны касательной.
 
@@ -22,8 +27,10 @@ static func tangent(pitch: float, heading: float) -> Vector3:
 	return Vector3(cos(pitch) * sin(heading), sin(pitch), -cos(pitch) * cos(heading))
 
 
-## Кривая трака. turn_deg > 0 вправо. Прямой уклон (pitch равны, turn 0): две точки, ручки нулевые, как у прямых траков
-static func build(length: float, pitch_start_deg: float, pitch_end_deg: float, turn_deg: float) -> Curve3D:
+## Кривая трака. turn_deg > 0 вправо, крен roll_*_deg > 0 правый (правый край ниже). Прямой уклон (pitch равны, turn 0):
+## две точки, ручки нулевые, как у прямых траков (крен ложится на эти же две точки)
+static func build(length: float, pitch_start_deg: float, pitch_end_deg: float, turn_deg: float,
+		roll_start_deg: float = 0.0, roll_end_deg: float = 0.0) -> Curve3D:
 	var L := maxf(length, 0.5)
 	var th0 := deg_to_rad(pitch_start_deg)
 	var th1 := deg_to_rad(pitch_end_deg)
@@ -32,6 +39,8 @@ static func build(length: float, pitch_start_deg: float, pitch_end_deg: float, t
 	if absf(th1 - th0) < 0.00001 and absf(turn) < 0.00001:
 		c.add_point(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
 		c.add_point(tangent(th0, 0.0) * L, Vector3.ZERO, Vector3.ZERO)
+		c.set_point_tilt(0, deg_to_rad(roll_start_deg))
+		c.set_point_tilt(1, deg_to_rad(roll_end_deg))
 		return c
 	var n := maxi(2, ceili(L / STEP))
 	var ds := L / float(n)
@@ -40,6 +49,7 @@ static func build(length: float, pitch_start_deg: float, pitch_end_deg: float, t
 		var t := _tangent_at(ds * i, L, th0, th1, turn)
 		var h := t * (ds / 3.0)   # ручки Эрмита → Безье: треть шага вдоль касательной
 		c.add_point(pos, -h, h)
+		c.set_point_tilt(i, deg_to_rad(roll_at(ds * i, L, roll_start_deg, roll_end_deg)))
 		if i < n:
 			pos += _segment(ds * i, ds, L, th0, th1, turn)
 	return c
@@ -53,9 +63,15 @@ static func plan_radius(length: float, pitch_start_deg: float, pitch_end_deg: fl
 	return length * cos(mid) / deg_to_rad(absf(turn_deg))
 
 
-## Трак ровный (оба угла 0): лежит на плоскости, как обычные траки
-static func is_level(pitch_start_deg: float, pitch_end_deg: float) -> bool:
-	return absf(pitch_start_deg) < 0.01 and absf(pitch_end_deg) < 0.01
+## Трак ровный (оба угла 0, крена нет): лежит на плоскости, как обычные траки
+static func is_level(pitch_start_deg: float, pitch_end_deg: float, roll_start_deg: float = 0.0, roll_end_deg: float = 0.0) -> bool:
+	return absf(pitch_start_deg) < 0.01 and absf(pitch_end_deg) < 0.01 \
+			and absf(roll_start_deg) < 0.01 and absf(roll_end_deg) < 0.01
+
+
+## Крен (градусы) в точке s вдоль оси трака длиной length: линейно от roll_start до roll_end. + = правый край ниже
+static func roll_at(s: float, length: float, roll_start_deg: float, roll_end_deg: float) -> float:
+	return lerpf(roll_start_deg, roll_end_deg, clampf(s / maxf(length, 0.0001), 0.0, 1.0))
 
 
 static func _tangent_at(s: float, L: float, th0: float, th1: float, turn: float) -> Vector3:
