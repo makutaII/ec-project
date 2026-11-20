@@ -15,8 +15,6 @@ const BODY_PATH := "res://data/terrain/water_body.tres"
 const MAX_DEPTH := 32
 const MAX_HISTORY := 50
 const MSG_TIME := 2.5
-const NOTE_PIXEL_SIZE := 0.0015
-const NOTE_FONT_SIZE := 32
 ## Сколько отрезков границы области рисуем в превью (океан по краю стола даёт больше, остальное опускаем)
 const MAX_EDGE_LINES := 6000
 
@@ -44,7 +42,6 @@ var _msg_t := 0.0
 
 var _mi: MeshInstance3D
 var _imm: ImmediateMesh
-var _label: Label3D
 
 
 func enter() -> void:
@@ -64,11 +61,9 @@ func exit(_to_drag: bool = false) -> void:
 		TGM.terrain_changed.disconnect(_on_terrain_changed)
 	if is_instance_valid(_mi):
 		_mi.queue_free()
-	if is_instance_valid(_label):
-		_label.queue_free()
+	InfoTips.clear(self)
 	_mi = null
 	_imm = null
-	_label = null
 	controller.select_build_object(null)   # снять нажатие с кнопки каталога
 
 
@@ -252,22 +247,12 @@ func _ensure_preview() -> void:
 	m.no_depth_test = true
 	_mi.material_override = m
 	add_child(_mi)   # узел инструмента не Node3D: превью живёт в мировых координатах
-	_label = Label3D.new()
-	_label.name = "WaterPourNote"
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.fixed_size = true
-	_label.no_depth_test = true
-	_label.pixel_size = NOTE_PIXEL_SIZE
-	_label.font_size = NOTE_FONT_SIZE
-	_label.outline_size = 8
-	add_child(_label)
 
 
 func _hide_preview() -> void:
 	if _imm:
 		_imm.clear_surfaces()
-	if is_instance_valid(_label):
-		_label.visible = false
+	InfoTips.clear(self)
 
 
 ## Граница области на высоте воды и крест курсора
@@ -315,30 +300,22 @@ func _line(a: Vector3, b: Vector3, c: Color) -> void:
 	_imm.surface_add_vertex(b)
 
 
-## Подпись у курсора: уровень, площадь, предупреждения
+## Подсказка у курсора: уровень, площадь, предупреждения (InfoToolTip, U20a)
 func _update_note() -> void:
-	if not is_instance_valid(_label):
+	if _imm == null:
 		return
 	if not _has_cursor:
-		_label.visible = false
+		InfoTips.clear(self)
 		return
-	var lines: Array[String] = ["Налить воду · глубина %d · уровень %d" % [_depth, _level()]]
-	var col := Color.WHITE
+	var lines: Array = [InfoTips.title("Налить воду · глубина %d · уровень %d" % [_depth, _level()])]
 	if _msg != "":
-		lines.append(_msg)
-		col = Color(1.0, 0.85, 0.3)
+		lines.append(InfoTips.warn(_msg))
 	elif _reason != "":
-		lines.append(_reason)
-		col = Color(1.0, 0.35, 0.35)
+		lines.append(InfoTips.danger(_reason))
 	elif _exists:
-		lines.append("Здесь уже налито на этот уровень")
-		col = Color(1.0, 0.35, 0.35)
+		lines.append(InfoTips.danger("Здесь уже налито на этот уровень"))
 	else:
 		var s: float = Global.settings.terrain_grid_step
 		var area := float(_res["count"]) * s * s
-		lines.append("Площадь %.0f ю²%s" % [area, ", доходит до края стола" if _res["touches_edge"] else ""])
-		col = COL_OK
-	_label.text = "\n".join(lines)
-	_label.modulate = col
-	_label.position = Vector3(_cursor.x, float(_level()) * float(Global.settings.layer_height) + 1.6, _cursor.y)
-	_label.visible = true
+		lines.append(InfoTips.ok("Площадь %.0f ю²%s" % [area, ", доходит до края стола" if _res["touches_edge"] else ""]))
+	InfoTips.show_lines(self, lines)

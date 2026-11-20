@@ -11,8 +11,6 @@ class_name PaintTool extends Node
 
 const MAX_HISTORY := 50
 const MSG_TIME := 2.5
-const NOTE_PIXEL_SIZE := 0.0015
-const NOTE_FONT_SIZE := 32
 const MIN_RADIUS := 1
 const MAX_RADIUS := 20
 const DEFAULT_RADIUS := 3
@@ -48,7 +46,6 @@ var _dirty := true
 
 var _mi: MeshInstance3D
 var _imm: ImmediateMesh
-var _label: Label3D
 
 
 ## Класс кисти по facet кнопки каталога. Неизвестное значение: трава
@@ -76,11 +73,9 @@ func exit(_to_drag: bool = false) -> void:
 	Hints.set_context(&"paint", false)
 	if is_instance_valid(_mi):
 		_mi.queue_free()
-	if is_instance_valid(_label):
-		_label.queue_free()
+	InfoTips.clear(self)
 	_mi = null
 	_imm = null
-	_label = null
 	controller.select_build_object(null)   # снять нажатие с кнопки каталога
 
 
@@ -232,15 +227,6 @@ func _ensure_preview() -> void:
 	m.no_depth_test = true
 	_mi.material_override = m
 	add_child(_mi)   # узел инструмента не Node3D: превью живёт в мировых координатах
-	_label = Label3D.new()
-	_label.name = "PaintNote"
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.fixed_size = true
-	_label.no_depth_test = true
-	_label.pixel_size = NOTE_PIXEL_SIZE
-	_label.font_size = NOTE_FONT_SIZE
-	_label.outline_size = 8
-	add_child(_label)
 
 
 ## Кольцо кисти по поверхности: высота каждой точки из поля оболочки
@@ -267,21 +253,15 @@ func _redraw() -> void:
 	_imm.surface_end()
 
 
+## Подсказка у курсора: кисть и сообщение (InfoToolTip, U20a)
 func _update_note() -> void:
-	if not is_instance_valid(_label):
+	if _imm == null:
 		return
-	var lines: Array[String] = []
+	var lines: Array = []
 	if _hover_ok or _hover_sheet:
-		lines.append("Кисть: %s · радиус %d ю" % [NAMES.get(brush, "?"), _radius])
+		lines.append(InfoTips.title("Кисть: %s · радиус %d ю" % [NAMES.get(brush, "?"), _radius]))
 	if _msg != "":
-		lines.append(_msg)
+		lines.append(InfoTips.warn(_msg))
 	elif _hover_sheet and not _hover_ok:
-		lines.append("Сначала гипсовый бинт")
-	if lines.is_empty():
-		_label.visible = false
-		return
-	_label.text = "\n".join(lines)
-	_label.modulate = Color(1.0, 0.85, 0.3) if (_msg != "" or not _hover_ok) else Color.WHITE
-	var y := TGM.skin.height_at(_hover)
-	_label.position = Vector3(_hover.x, (0.0 if is_nan(y) else y) + float(_radius) * 0.3 + 1.6, _hover.y)
-	_label.visible = true
+		lines.append(InfoTips.warn("Сначала гипсовый бинт"))
+	InfoTips.show_lines(self, lines)   # пустой набор снимает подсказку

@@ -36,6 +36,7 @@ TGM="*res://core/controllers/terrain_manager.gd"
 LYM="*res://core/controllers/layout_manager.gd"
 TSM="*res://core/controllers/track_style_manager.gd"
 SND="*res://core/controllers/sound_manager.gd"
+InfoTips="*res://core/controllers/info_tips.gd"
 
 [display]
 

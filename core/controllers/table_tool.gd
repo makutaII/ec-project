@@ -21,8 +21,6 @@ const EPS := 0.01
 ## Объём проверки на мебель: от низа плиты до этой высоты над столом, u
 const CLEAR_ABOVE := 10.0
 const MSG_TIME := 2.5
-const NOTE_PIXEL_SIZE := 0.0015
-const NOTE_FONT_SIZE := 32
 const COL_OK := Color(0.45, 1.0, 0.6)
 const COL_BAD := Color(1.0, 0.35, 0.35)
 
@@ -42,7 +40,6 @@ var _rmb_pos := Vector2.ZERO
 var _msg := ""
 var _msg_t := 0.0
 var _history: Array[Entity] = []
-var _label: Label3D
 
 
 func enter() -> void:
@@ -59,7 +56,6 @@ func enter() -> void:
 	_size = cfg.size if cfg != null else Vector2(100.0, 100.0)
 	_apply_size()
 	ghost.visible = false
-	_ensure_label()
 	controller.publish_selection(null)
 
 
@@ -67,9 +63,7 @@ func exit(_to_drag: bool = false) -> void:
 	if is_instance_valid(ghost):
 		ghost.queue_free()
 	ghost = null
-	if is_instance_valid(_label):
-		_label.queue_free()
-	_label = null
+	InfoTips.clear(self)
 	controller.select_build_object(null)   # снять нажатие с кнопки каталога
 
 
@@ -290,41 +284,18 @@ func _say(text: String) -> void:
 	_msg_t = MSG_TIME
 
 
-## --- Подпись у курсора ---
-
-func _ensure_label() -> void:
-	if is_instance_valid(_label):
-		return
-	_label = Label3D.new()
-	_label.name = "TableToolNote"
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.fixed_size = true
-	_label.no_depth_test = true
-	_label.pixel_size = NOTE_PIXEL_SIZE
-	_label.font_size = NOTE_FONT_SIZE
-	_label.outline_size = 8
-	add_child(_label)
-
+## --- Подсказка у курсора (InfoToolTip, U20a) ---
 
 func _update_note() -> void:
-	if not is_instance_valid(_label):
-		return
 	if not _has_cursor:
-		_label.visible = false
+		InfoTips.clear(self)
 		return
 	var sz := _world_size()
-	var lines: Array[String] = ["Секция %d × %d · высота стола %d" % [int(sz.x), int(sz.y), int(LYM.config.height)]]
-	var col := COL_OK
+	var lines: Array = [InfoTips.title("Секция %d × %d · высота стола %d" % [int(sz.x), int(sz.y), int(LYM.config.height)])]
 	if _msg != "":
-		lines.append(_msg)
-		col = Color(1.0, 0.85, 0.3)
+		lines.append(InfoTips.warn(_msg))
 	elif _reason != "":
-		lines.append(_reason)
-		col = COL_BAD
+		lines.append(InfoTips.danger(_reason))
 	elif _warn != "":
-		lines.append(_warn)
-		col = Color(1.0, 0.85, 0.3)
-	_label.text = "\n".join(lines)
-	_label.modulate = col
-	_label.position = Vector3(_center.x, 14.0, _center.y)
-	_label.visible = true
+		lines.append(InfoTips.warn(_warn))
+	InfoTips.show_lines(self, lines)

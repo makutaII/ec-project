@@ -14,7 +14,6 @@ var points := PackedVector3Array()
 
 var _hover: PowerTerminal
 var _preview: MeshInstance3D
-var _note: Label3D
 var _rmb_start := Vector2.ZERO
 
 const LIFT := 1.0
@@ -32,14 +31,6 @@ func enter() -> void:
 	mat.albedo_color = Color(1.0, 0.85, 0.2)
 	_preview.material_override = mat
 	add_child(_preview)
-	_note = Label3D.new()
-	_note.top_level = true
-	_note.pixel_size = 0.02
-	_note.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_note.no_depth_test = true
-	_note.modulate = Color(1.0, 0.45, 0.3)
-	_note.visible = false
-	add_child(_note)
 	Hints.set_context(&"wire_started", false)
 
 
@@ -49,8 +40,7 @@ func exit(_to_drag: bool = false) -> void:
 	points = PackedVector3Array()
 	if is_instance_valid(_preview):
 		_preview.queue_free()
-	if is_instance_valid(_note):
-		_note.queue_free()
+	InfoTips.clear(self)
 	Hints.set_context(&"wire_started", false)
 
 
@@ -125,7 +115,7 @@ func _set_hover(t: PowerTerminal) -> void:
 func _update_preview(t: PowerTerminal) -> void:
 	var im := _preview.mesh as ImmediateMesh
 	im.clear_surfaces()
-	_note.visible = false
+	InfoTips.clear(self)
 	if start == null:
 		return
 	var end := Vector3.ZERO
@@ -135,9 +125,7 @@ func _update_preview(t: PowerTerminal) -> void:
 		var why := PowerTerminal.refuse_reason(start, t)
 		if why != "":
 			ok = false
-			_note.text = why
-			_note.global_position = end + Vector3(0, 1.5, 0)
-			_note.visible = true
+			InfoTips.show_lines(self, [InfoTips.danger(why)])
 	else:
 		var hit := controller.get_mouse_ray(Global.active_layers(["ground", "tracks", "plaster"]))
 		if hit.is_empty():

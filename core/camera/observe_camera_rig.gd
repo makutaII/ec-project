@@ -267,6 +267,7 @@ func set_ui_hidden(on: bool) -> void:
 func take_photo() -> void:
 	var ui_was_hidden := _ui_hidden
 	Hints.suspend(true)   # подсказки не должны попасть в кадр
+	InfoTips.suspend(true)
 	set_ui_hidden(true)
 	var prev_quality: StringName = GFX.state.quality
 	GFX.apply_quality(&"high", 0.0, false)   # временно, в настройки не пишется
@@ -284,6 +285,7 @@ func take_photo() -> void:
 		push_error("Observe: не удалось сохранить снимок (код %d)" % err)
 	GFX.apply_quality(prev_quality, 0.0, false)
 	Hints.suspend(false)
+	InfoTips.suspend(false)
 	if not ui_was_hidden:
 		set_ui_hidden(false)
 

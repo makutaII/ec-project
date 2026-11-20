@@ -2,25 +2,23 @@ class_name TrackNote extends RefCounted
 
 # XX claude-terra 13.1.7 (новый файл)
 #######################
-## Одна метка Label3D над траком на все подписи и предупреждения.
+## Строки подсказки над призраком или объектом в руке: все подписи и предупреждения трака.
 #######################
-## Раньше уровень, отказ снапа, форма flex и TUNNEL были четырьмя Label3D в одной точке и налезали друг на друга
-## (при отказе снапа читалось "Ур.6 ... Излом ..." кашей). Теперь у Entity одна метка "TrackNote", а компоненты
-## держат каждый свою строку (Line) и меняют ее как раньше: text, modulate, visible, position.
-## Строки идут сверху вниз по order. Цвет метки у самой тревожной строки: красный, желтый, белый, голубой (инфо).
-## Положение метки берется у верхней видимой строки.
+## U20a.3 (20.11.2026): раньше одна метка Label3D над траком, теперь строки идут в InfoToolTip у курсора (сервис InfoTips).
+## API прежний: компоненты держат каждый свою строку (Line) и меняют ее как раньше: text, modulate, visible.
+## Строки идут сверху вниз по order. Вид строки (знак и цвет подсказки) берется из modulate: красный это отказ (×),
+## желтый предупреждение (!), зеленый норма (●), белый и голубой нейтральная строка.
+## position осталось в API для совместимости и не используется: подсказка стоит у курсора.
+## Подсказка одна на экран (InfoTips): показывается набор того трака, строки которого менялись последними.
 ##
 ##   var _label := TrackNote.line(entity, &"flex", 0)
 ##   _label.text = "L 12.0"
 ##   _label.modulate = Color(1.0, 0.35, 0.35)
 ##   _label.queue_free()     # убрать строку
 
-const PIXEL_SIZE := 0.0015
-const FONT_SIZE := 32
 const META := &"track_note"
 
 var _entity: Node3D
-var _label: Label3D
 var _lines: Array[Line] = []
 
 
@@ -84,9 +82,7 @@ static func line(entity: Node3D, key: StringName, order: int = 0) -> Line:
 func _remove(l: Line) -> void:
 	_lines.erase(l)
 	if _lines.is_empty():
-		if is_instance_valid(_label):
-			_label.queue_free()
-		_label = null
+		InfoTips.clear(self)
 		if is_instance_valid(_entity) and _entity.has_meta(META):
 			_entity.remove_meta(META)
 		return
@@ -95,38 +91,22 @@ func _remove(l: Line) -> void:
 
 func _refresh() -> void:
 	if not is_instance_valid(_entity):
+		InfoTips.clear(self)
 		return
-	var parts: PackedStringArray = []
-	var top: Line = null
-	var alert := -INF
-	var color := Color.WHITE
+	var lines: Array = []
 	for l in _lines:
 		if not l.visible or l.text == "":
 			continue
-		parts.append(l.text)
-		if top == null:
-			top = l
-		var a := l.modulate.r - l.modulate.g    # красный > желтый > белый > голубой
-		if a > alert:
-			alert = a
-			color = l.modulate
-	if top == null:
-		if is_instance_valid(_label):
-			_label.visible = false
-		return
-	if not is_instance_valid(_label):
-		_label = Label3D.new()
-		_label.name = "TrackNote"
-		_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_label.fixed_size = true
-		_label.no_depth_test = true
-		_label.pixel_size = PIXEL_SIZE
-		_label.font_size = FONT_SIZE
-		_label.outline_size = 8
-		_entity.add_child(_label)
-	var txt := "\n".join(parts)
-	if _label.text != txt:
-		_label.text = txt
-	_label.modulate = color
-	_label.position = top.position
-	_label.visible = true
+		lines.append(InfoTips.line(l.text, _kind_of(l.modulate)))
+	InfoTips.show_lines(self, lines)   # пустой набор снимает подсказку
+
+
+## Вид строки по цвету, который задал компонент
+static func _kind_of(c: Color) -> int:
+	if c.r > 0.8 and c.g < 0.55:
+		return InfoToolTip.Kind.DANGER   # красный и оранжево-красный
+	if c.r > 0.8 and c.b < 0.6:
+		return InfoToolTip.Kind.WARN     # желтый
+	if c.g > c.r + 0.15 and c.g > c.b:
+		return InfoToolTip.Kind.OK       # зеленый
+	return InfoToolTip.Kind.INFO         # белый и голубой

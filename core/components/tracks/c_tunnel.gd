@@ -11,10 +11,8 @@ class_name C_Tunnel extends Component
 ## Включается клавишей U: в BuildTool на призраке (режим запоминается), в SelectTool на выбранном траке.
 ## Можно задать и в .tres трака: TrackConfig.allow_underground.
 ## Сохраняется (save_data) и переходит из призрака в настоящий объект (on_clone_state_to).
-## Индикатор: метка TUNNEL над траком (Label3D, как метка flex).
-
-const LABEL_PIXEL_SIZE := 0.0015
-const LABEL_FONT_SIZE := 32
+## Индикатор: строка TUNNEL в подсказке у курсора, пока трак в руке (призрак). Постоянной метки на траке нет
+## (решение 20.11.2026): на поставленном траке TUNNEL покажет подсказка при наведении (U20a.5) и вкладка InfoPanel.
 
 var _label: TrackNote.Line   # строка общей метки TrackNote
 ## 13.13 K5. Стиль портала (TunnelPortal.STYLES): пусто = нет. Рамку рисует лист в устье выреза, здесь хранится только стиль
@@ -28,7 +26,6 @@ func _init() -> void:
 func on_added() -> void:
 	name = 'C_Tunnel'
 	_ensure_label()
-	_place_label()
 	# слушатели (C_TrackSupport) отложат пересчет листов: сейчас компонент еще (или уже) в Entity
 	entity.send_event("on_tunnel_changed", {})
 
@@ -38,11 +35,6 @@ func on_removed() -> void:
 		_label.queue_free()
 	_label = null
 	entity.send_event("on_tunnel_changed", {})
-
-
-## flex поменял форму: метка остается над серединой кривой
-func on_curve_changed(_d: Dictionary) -> void:
-	_place_label()
 
 
 ## Призрак -> настоящий объект: флаг и стиль портала переходят вместе с состоянием
@@ -69,23 +61,14 @@ func _ensure_label() -> void:
 	if _label:
 		return
 	_label = TrackNote.line(entity, &"tunnel", 20)   # самой нижней строкой
-	_update_label()
 	_label.modulate = Color(0.45, 0.8, 1.0)
+	_update_label()
 
 
 func _update_label() -> void:
 	if _label:
 		_label.text = "TUNNEL" if portal == TunnelPortal.STYLE_NONE else "TUNNEL · портал: %s" % TunnelPortal.NAMES.get(portal, "?")
-
-
-func _place_label() -> void:
-	if not _label:
-		return
-	var mid := Vector3.ZERO
-	var path := get_comp(C_Path) as C_Path
-	if path and path.curve and path.path_node:
-		mid = path.path_node.position + path.curve.sample_baked(path.curve.get_baked_length() * 0.5)
-	_label.position = mid + Vector3(0.0, 4.0, 0.0)
+		_label.visible = entity.has_comp(C_Ghost)   # только пока трак в руке
 
 
 ## --- Сейв ---

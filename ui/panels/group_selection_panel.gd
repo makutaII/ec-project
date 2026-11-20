@@ -1,8 +1,9 @@
-class_name InfoToolTip extends PanelContainer
+class_name GroupSelectionPanel extends PanelContainer
 
 # XX claude-switch (новый файл)
 #########################
 ## Временная панель сводки по группе (выделение рамкой). Инфопанель при группе не трогаем.
+## Раньше называлась InfoToolTip (переименована 20.11.2026, U20a: имя InfoToolTip занято сообщением инструмента).
 #########################
 ## Показывает, сколько объектов выбрано, и по каждой категории (траки, вагоны, домики, террейн) число объектов рамки и галку фильтра:
 ## снятая галка убирает категорию из группы. Кнопка «Удалить» и клавиша Del удаляют группу.
@@ -24,7 +25,7 @@ var _syncing := false
 
 
 func _init() -> void:
-	name = "InfoToolTip"
+	name = "GroupSelectionPanel"
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
 	anchor_left = 1.0

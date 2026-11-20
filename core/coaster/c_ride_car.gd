@@ -22,7 +22,6 @@ var _charging := false
 var _charge_t := 0.0
 var _press_pos := Vector2.ZERO
 var _push_forward := true
-var _label: Label3D
 
 
 func _ready() -> void:
@@ -107,22 +106,11 @@ func _cancel_charge() -> void:
 	_charging = false
 	_charge_t = 0.0
 	set_process(false)
-	if is_instance_valid(_label):
-		_label.queue_free()
-	_label = null
+	InfoTips.clear(self)
 
 
-## Надпись с силой над вагоном (появляется, когда удержание дольше обычного клика)
+## Подсказка с силой у курсора (появляется, когда удержание дольше обычного клика; InfoToolTip, U20a)
 func _update_label() -> void:
 	if _charge_t < Coaster.profile().kick_hold_min:
 		return
-	if _label == null:
-		_label = Label3D.new()
-		_label.top_level = true   # позиция в мире, без наследования от компонента
-		_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_label.no_depth_test = true
-		_label.font_size = 64
-		_label.pixel_size = 0.02
-		add_child(_label)
-	_label.global_position = entity.global_position + Vector3(0.0, 5.0, 0.0)
-	_label.text = "%s %.0f" % ["Пинок вперёд" if _push_forward else "Пинок назад", _power_at(_charge_t)]
+	InfoTips.show_lines(self, [InfoTips.title("%s %.0f" % ["Пинок вперёд" if _push_forward else "Пинок назад", _power_at(_charge_t)])])

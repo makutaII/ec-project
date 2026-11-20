@@ -33,7 +33,7 @@ var _group_drag_candidate: Entity   # член группы под курсор�
 const GROUP_MOVABLE: Array[StringName] = [&"track", &"building"]   # категории, которые группа умеет двигать
 var _group_layer: CanvasLayer
 var _marquee: MarqueeOverlay
-var _tooltip: InfoToolTip
+var _tooltip: GroupSelectionPanel
 # XX claude-table T2: сообщения подмакетника (отказ убрать секцию, высота стола) наверху экрана
 var _note: Label
 var _note_gen := 0
@@ -546,7 +546,7 @@ func _ensure_group_ui() -> void:
 	add_child(_group_layer)
 	_marquee = MarqueeOverlay.new()
 	_group_layer.add_child(_marquee)
-	_tooltip = InfoToolTip.new()
+	_tooltip = GroupSelectionPanel.new()
 	_group_layer.add_child(_tooltip)
 	_note = Label.new()
 	_note.name = "LayoutNote"
