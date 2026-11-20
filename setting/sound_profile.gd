@@ -7,7 +7,9 @@ class_name SoundProfile extends Resource
 ## Профиль не держит ссылок на файлы: репозиторий собирается без звука (аудио не коммитится), а файл,
 ## который положили в папку с нужным именем, подхватывается при следующем запуске без правки ресурсов.
 ## Нет файла: этот звук молчит, ошибок нет.
-## Пусто в WagonConfig.sound_profile: берётся SoundProfile.make_default(есть ли у сущности мотор).
+## Пусто в WagonConfig.sound_profile: берётся SoundProfile.make_default(есть ли у сущности мотор): общий ресурс
+## data/sounds/profiles/default_loco.tres (локо) или default_wagon.tres (вагон), если он есть, иначе значения по умолчанию.
+## Подбор уровней: открыть этот .tres в Инспекторе и менять поля (при запущенной игре правки видны во вкладке Remote).
 
 ## Папка со звуками
 @export_dir var folder: String = "res://data/sounds"
@@ -37,8 +39,10 @@ class_name SoundProfile extends Resource
 @export var roll_pitch_max: float = 1.6
 
 @export_group("Моторчик")
-## Уровень моторчика, дБ
+## Уровень моторчика (обеих петель), дБ
 @export var motor_gain_db: float = 0.0
+## Добавка к уровню холостого хода, дБ: подгонка стыка холостой ход / обороты (кроссфейд)
+@export var motor_idle_gain_db: float = 0.0
 ## Доля max_theoretical_speed, на которой записана петля motor_loop (тон 1.0). Обороты вала делятся на неё
 @export var motor_ref_ratio: float = 0.5
 ## Пределы тона моторчика (pitch_scale)
@@ -62,8 +66,18 @@ class_name SoundProfile extends Resource
 @export var max_distance: float = 60.0
 
 
-## Профиль по умолчанию: у локо качение громче, у вагона на 6 дБ тише (ATTN_26 §26.6.3)
+const DEFAULT_LOCO := "res://data/sounds/profiles/default_loco.tres"
+const DEFAULT_WAGON := "res://data/sounds/profiles/default_wagon.tres"
+
+
+## Профиль по умолчанию: общий ресурс из data/sounds/profiles, если он есть, иначе новый.
+## У локо качение громче, у вагона на 6 дБ тише (ATTN_26 §26.6.3)
 static func make_default(is_loco: bool) -> SoundProfile:
+	var path := DEFAULT_LOCO if is_loco else DEFAULT_WAGON
+	if ResourceLoader.exists(path):
+		var shared := load(path) as SoundProfile
+		if shared != null:
+			return shared
 	var p := SoundProfile.new()
 	p.roll_gain_db = 0.0 if is_loco else -6.0
 	return p

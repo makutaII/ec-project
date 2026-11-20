@@ -212,7 +212,7 @@ func _update_motor(delta: float, live: bool) -> void:
 	if live and _powered and _chassis.is_on_rails:
 		var r := motor_ratio(_chassis.get_motor_speed(), _engine.max_theoretical_speed)
 		var w := motor_mix(r, profile.motor_idle_fade_ratio, has_idle, has_run)
-		idle_db = profile.motor_gain_db + linear_to_db(maxf(w.x, 0.001))
+		idle_db = profile.motor_gain_db + profile.motor_idle_gain_db + linear_to_db(maxf(w.x, 0.001))
 		run_db = profile.motor_gain_db + linear_to_db(maxf(w.y, 0.001))
 		run_pitch = clampf(r / maxf(profile.motor_ref_ratio, 0.001), profile.motor_pitch_min, profile.motor_pitch_max)
 	_motor_idle.update(self, delta, idle_db, 1.0)

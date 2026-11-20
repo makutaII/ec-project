@@ -32,6 +32,9 @@ func _test_profile() -> void:
 	_check("Профиль: по умолчанию три варианта стыка и петля качения",
 		loco.joint_clicks.size() == 3 and loco.roll_loop == &"roll_loop")
 	_check("Профиль: папка звуков data/sounds", loco.folder == "res://data/sounds")
+	_check("Профиль: общие ресурсы по умолчанию есть (data/sounds/profiles) и грузятся",
+		ResourceLoader.exists(SoundProfile.DEFAULT_LOCO) and ResourceLoader.exists(SoundProfile.DEFAULT_WAGON)
+		and load(SoundProfile.DEFAULT_WAGON) is SoundProfile)
 	_check("Профиль: моторчик по умолчанию (три холостых, motor_only_loop, motor_roll_loop)",
 		loco.motor_idle_loops.size() == 3 and loco.motor_loop == &"motor_only_loop" and loco.motor_roll_loop == &"motor_roll_loop")
 
