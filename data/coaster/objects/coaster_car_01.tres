@@ -1,14 +1,13 @@
-[gd_resource type="Resource" script_class="EntitySetting" format=3]
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://d0ae4sh26a78j"]
 
 [ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_ipyj3"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="2_kg4t1"]
-[ext_resource type="Texture2D" path="res://ui/icons/transport/mine-wagon.svg" id="2_sioub"]
-[ext_resource type="PackedScene" path="res://data/coaster/cars/coaster_car_01.tscn" id="2_wjam3"]
+[ext_resource type="Texture2D" uid="uid://b032vuk3mye1j" path="res://ui/icons/transport/mine-wagon.svg" id="2_sioub"]
+[ext_resource type="PackedScene" uid="uid://dknbs35ceg7kf" path="res://data/coaster/cars/coaster_car_01.tscn" id="2_wjam3"]
 [ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_3h2bg"]
 [ext_resource type="Script" uid="uid://b830vi2lx3hl5" path="res://core/components/comp_settings/trainvisual_setting.gd" id="3_4sxil"]
 [ext_resource type="PackedScene" path="res://data/coaster/cars/coaster_bogie.tscn" id="3_7lf7j"]
 [ext_resource type="PackedScene" path="res://data/coaster/cars/coaster_wheel_pair.tscn" id="4_3ukh4"]
-[ext_resource type="Script" path="res://core/coaster/ride_car_setting.gd" id="18_ride"]
 [ext_resource type="Script" uid="uid://gv2lrhu17dtf" path="res://setting/mechanism_config.gd" id="5_3ukh4"]
 [ext_resource type="Script" uid="uid://bkdny7eq5jthn" path="res://core/components/comp_settings/traindraggable_setting.gd" id="5_88nct"]
 [ext_resource type="Script" uid="uid://daeylhso0elsx" path="res://setting/light_config.gd" id="5_m6yoo"]
@@ -22,6 +21,7 @@
 [ext_resource type="Script" uid="uid://7vuxuiiysiji" path="res://setting/bogie_config.gd" id="13_ogjdm"]
 [ext_resource type="Script" uid="uid://b5kx0oyxhiaux" path="res://core/components/comp_settings/bogie_setting.gd" id="15_3h2bg"]
 [ext_resource type="Script" uid="uid://mqrnwkjfweqr" path="res://core/components/comp_settings/coupler_setting.gd" id="17_nex2q"]
+[ext_resource type="Script" uid="uid://b0i255eobhgig" path="res://core/coaster/ride_car_setting.gd" id="18_ride"]
 
 [sub_resource type="Resource" id="Resource_euvxu"]
 script = ExtResource("13_ogjdm")
@@ -101,11 +101,11 @@ script = ExtResource("18_ride")
 [resource]
 script = ExtResource("2_kg4t1")
 key = &"coaster_car.car.coaster_car_01"
+sort_order = 10
 name = "Вагон горок 01"
 description = "Деревянный вагон на 4 колёсах, катится по инерции (ATTN_27)"
 category = &"coaster_car"
 tag = &"car"
-sort_order = 10
 icon = ExtResource("2_sioub")
 build_behavior = 1
 components = Array[ExtResource("1_ipyj3")]([SubResource("Resource_lvfb0"), SubResource("Resource_wjam3"), SubResource("Resource_s3hn0"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_mqnqg"), SubResource("Resource_6hxcd"), SubResource("Resource_1pi1k"), SubResource("Resource_3ukh4"), SubResource("Resource_ride")])

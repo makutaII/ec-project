@@ -64,7 +64,7 @@ func _exit_tree() -> void:
 
 func _try_start_charge(pos: Vector2) -> void:
 	# Вагон под курсором (C_Hovered ставит выбор), на рельсах, не призрак
-	if not has_comp(C_Hovered) or has_comp(C_Ghost) or not _chassis.is_on_rails:
+	if not has_comp(C_Hovered) or has_comp(C_Ghost) : #or not _chassis.is_on_rails:
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:

@@ -1,11 +1,7 @@
-[gd_resource type="Resource" script_class="RideProfile" format=3]
+[gd_resource type="Resource" script_class="RideProfile" format=3 uid="uid://c4vywnr7ienb1"]
 
-[ext_resource type="Script" path="res://core/coaster/ride_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://d0tllxgnyihmj" path="res://core/coaster/ride_profile.gd" id="1_profile"]
 
 [resource]
 script = ExtResource("1_profile")
-grade_k = 2.0
-kick_hold_min = 0.25
-kick_charge_time = 1.2
-kick_power_min = 3.0
-kick_power_max = 20.0
+kick_power_max = 50.0
