@@ -298,7 +298,7 @@ func _input(event: InputEvent) -> void:
 
 func _build_interface() -> void:
 	var box := _add_page(&"interface", "Интерфейс")
-	_hints_row = _add_toggle(box, "Подсказки внизу экрана", true)
+	_hints_row = _add_toggle(box, "Подсказки (%s)" % Actions.key_text(&"hints_toggle"), true)
 	_hints_row.value_changed.connect(func(v: Variant) -> void: Hints.set_enabled(bool(v)))
 	_hints_pos_row = _add_option(box, "Расположение подсказок", [&"bottom", &"right"], ["Внизу, над ToolDock", "Справа сверху"], &"right")
 	_hints_pos_row.value_changed.connect(func(v: Variant) -> void: Hints.set_position_mode(StringName(v)))

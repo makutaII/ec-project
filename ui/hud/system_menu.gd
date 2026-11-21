@@ -1,14 +1,14 @@
 class_name SystemMenu extends Node
 
 # U10 (ATTN_17 §17.3.1): новый файл, заменяет меню из TopPanel
-## Системное меню (кнопка в TopBar): Новый, Сохранить, Загрузить, Подсказки, Настройки, Выход.
+## Системное меню (кнопка в TopBar): Новый, Сохранить, Загрузить, Настройки, Выход.
+## Подсказки (H) переехали в SideDock (21.11.2026).
 ## Новый и Выход спрашивают подтверждение. Save и Load открывают SaveLoadDialog.
 ## Настройки открывают SettingsWindow (U11).
 
 const ID_NEW := 0
 const ID_SAVE := 1
 const ID_LOAD := 2
-const ID_HINTS := 3
 const ID_SETTINGS := 4
 const ID_EXIT := 5
 
@@ -32,14 +32,10 @@ func _ready() -> void:
 	_popup.add_item("Сохранить…", ID_SAVE)
 	_popup.add_item("Загрузить…", ID_LOAD)
 	_popup.add_separator()
-	_popup.add_check_item("Подсказки (%s)" % Actions.key_text(&"hints_toggle"), ID_HINTS)
-	_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
 	_popup.add_item("Настройки…", ID_SETTINGS)
 	_popup.add_separator()
 	_popup.add_item("Выход", ID_EXIT)
 	_popup.id_pressed.connect(_on_id_pressed)
-	# Подсказки можно переключить и в окне настроек: галочка в меню следует за Settings
-	Settings.changed.connect(_on_setting_changed)
 
 
 func _on_id_pressed(id: int) -> void:
@@ -50,18 +46,10 @@ func _on_id_pressed(id: int) -> void:
 			_save_load.open_save(_save_manager.layout_name)
 		ID_LOAD:
 			_save_load.open_load()
-		ID_HINTS:
-			Hints.set_enabled(not Hints.enabled)
-			_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
 		ID_SETTINGS:
 			_settings.open()
 		ID_EXIT:
 			_exit()
-
-
-func _on_setting_changed(section: String, key: String, _value: Variant) -> void:
-	if section == "ui" and key == "hints_enabled":
-		_popup.set_item_checked(_popup.get_item_index(ID_HINTS), Hints.enabled)
 
 
 func _new_layout() -> void:

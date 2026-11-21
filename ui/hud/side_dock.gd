@@ -3,7 +3,7 @@ class_name SideDock extends SlidePanel
 # U12 (ATTN_17 §17.4, §17.13): новый файл, забирает переключатели из TopBar
 ## Боковая панель слева поверх DC. Состав: стиль траков и «Ко всем», шаг поворота, привязка
 ## (сокеты работают, сетка пока серая), лимиты flex (L), тени траков, слой питания, тема,
-## положение подсказок (серое до U16). Значения читаются и пишутся в Global.build_options,
+## подсказки вкл/выкл (H). Значения читаются и пишутся в Global.build_options,
 ## GFX, PGM, TSM; сама панель ничего не хранит. Автозакрытие и закрепление в SlidePanel.
 
 const ROW_TOGGLE := preload("res://ui/widgets/toggle_row.tscn")
@@ -28,6 +28,7 @@ var _flex_row: ToggleRow
 var _shadows_row: ToggleRow
 var _power_row: ToggleRow
 var _theme_row: OptionRow
+var _hints_row: ToggleRow
 
 
 func _ready() -> void:
@@ -69,9 +70,14 @@ func _ready() -> void:
 	_theme_row.value_changed.connect(func(v: Variant) -> void:
 		_apply_theme(v)
 		note_action())
-	var hints := _add_option("Подсказки", [&"bottom", &"top_right"], ["Внизу", "Вверху справа"], &"bottom")
-	hints.set_value(&"bottom")
-	hints.set_available(false, "Скоро: положение подсказок появится в U16")
+	_hints_row = _add_toggle("Подсказки (%s)" % Actions.key_text(&"hints_toggle"), true)
+	_hints_row.value_changed.connect(func(v: Variant) -> void:
+		Hints.set_enabled(bool(v))
+		note_action())
+	# Подсказки переключают и клавишей H, и окном настроек: строка следует за Settings
+	Settings.changed.connect(func(section: String, key: String, _v: Variant) -> void:
+		if section == "ui" and key == "hints_enabled":
+			_hints_row.set_value(Hints.enabled))
 
 	_pin.toggled.connect(func(on: bool) -> void: pinned = on)
 	opened.connect(_refresh)
@@ -111,6 +117,7 @@ func _refresh() -> void:
 	_shadows_row.set_value(GFX.is_track_shadows())
 	_power_row.set_value(PGM.is_power_layer_active)
 	_theme_row.set_value(&"light" if String(Settings.get_value("ui", "theme", "dark")) == "light" else &"dark")
+	_hints_row.set_value(Hints.enabled)
 	_sync_style(TSM.current_id)
 
 
