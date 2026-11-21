@@ -9,6 +9,8 @@ extends Node
 ## Голоса: C_Sound регистрируется здесь, раз в INTERVAL секунд ближайшие к камере (max_roll_voices штук)
 ## получают audible = true, остальные молчат (как GFX.light_budget для света).
 ## Стыки: allow_click() не пускает больше max_clicks_per_sec ударов в секунду на всю игру.
+## Одиночные звуки по событиям (S2.1): allow_cue() (max_cues_per_sec), claim() отсекает повтор одного события у обоих
+## вагонов пары, too_far() не создаёт источник за пределами слышимости.
 
 const INTERVAL := 0.25
 const EXTENSIONS: Array[String] = ["wav", "ogg", "mp3"]
@@ -18,6 +20,8 @@ const BUSES: Array[StringName] = [&"World", &"UI", &"Music", &"Ambience"]
 var max_roll_voices := 12
 ## Сколько ударов стыков в секунду на всю игру
 var max_clicks_per_sec := 30
+## Сколько одиночных звуков по событиям (сцепка, удар, сход) в секунду на всю игру
+var max_cues_per_sec := 20
 ## Шина мира; если шины World нет, Master
 var world_bus: StringName = &"World"
 
@@ -32,6 +36,8 @@ var _acc := 0.0
 var _cache: Dictionary = {}    # ключ -> AudioStream или null (файла нет)
 var _click_t := 0.0
 var _click_n := 0
+var _cue_n := 0
+var _claims: Array = []        # [ключ, позиция, время мс]
 
 
 func _ready() -> void:
@@ -111,6 +117,7 @@ func _process(delta: float) -> void:
 	if _click_t >= 1.0:
 		_click_t = 0.0
 		_click_n = 0
+		_cue_n = 0
 	_acc += delta
 	if _acc < INTERVAL:
 		return
@@ -163,3 +170,43 @@ func allow_click() -> bool:
 func reset_click_budget() -> void:
 	_click_t = 0.0
 	_click_n = 0
+
+
+## ------ Одиночные звуки по событиям ------
+
+## Бюджет одиночных звуков: false, если в эту секунду уже сыграно max_cues_per_sec
+func allow_cue() -> bool:
+	if _cue_n >= max_cues_per_sec:
+		return false
+	_cue_n += 1
+	return true
+
+
+## Событие приходит обоим вагонам пары: true получает только первый, остальные в радиусе radius за window_ms получают false
+func claim(key: StringName, pos: Vector3, radius: float, window_ms: int = 150) -> bool:
+	var now := Time.get_ticks_msec()
+	var keep: Array = []
+	for c in _claims:
+		if now - int(c[2]) <= window_ms:
+			keep.append(c)
+	_claims = keep
+	for c in _claims:
+		if c[0] == key and (c[1] as Vector3).distance_to(pos) <= radius:
+			return false
+	_claims.append([key, pos, now])
+	return true
+
+
+func reset_claims() -> void:
+	_claims.clear()
+	_cue_n = 0
+
+
+## Дальше reach от камеры (0 = без предела): источник не создаётся
+func too_far(pos: Vector3, reach: float) -> bool:
+	if reach <= 0.0:
+		return false
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return false
+	return cam.global_position.distance_to(pos) > reach

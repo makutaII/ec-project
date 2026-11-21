@@ -59,6 +59,34 @@ class_name SoundProfile extends Resource
 ## Пауза между стыками одной сущности, с
 @export var joint_cooldown: float = 0.04
 
+## Расстояние между осями тележки, м: после стыка идёт второй удар (двойной «тук-тук»: сигнал стыка приходит
+## один на тележку, вторую ось добавляем задержкой gap / скорость). 0 = один удар
+@export var joint_axle_gap: float = 2.0
+## Второй удар тише первого на столько дБ
+@export var joint_second_gain_db: float = -2.0
+## Второй удар не играет, если до него дольше, с (на малой скорости оси далеко разнесены по времени)
+@export var joint_second_max_delay: float = 0.5
+
+@export_group("Одиночные звуки по событиям (S2.1)")
+## Сцепка: v_close, м/с. Сила 0 (состав из шаблона, загрузка) молчит
+@export var coupled: SoundCue = SoundCue.make([&"coupler_couple_01", &"coupler_couple_02", &"coupler_couple_03"], [], 1.0, 0.3, 24.0, 0.0, 0.05)
+## Ручная расцепка
+@export var uncoupled: SoundCue = SoundCue.make([&"coupler_release_01", &"coupler_release_02"], [&"coupler_couple_01", &"coupler_couple_02", &"coupler_couple_03"], 1.0, 0.3, 24.0)
+## Обрыв сцепки: сила в Н
+@export var coupler_broken: SoundCue = SoundCue.make([&"coupler_break_01"], [&"coupler_impact_01", &"coupler_impact_02", &"coupler_impact_03"], 30.0, 0.5, 24.0)
+## Удар буферов вагона о вагон: v_close, м/с
+@export var coupler_impact: SoundCue = SoundCue.make([&"coupler_impact_01", &"coupler_impact_02", &"coupler_impact_03"], [], 1.5, 0.2, 24.0)
+## Удар о препятствие или тупик: v_close, м/с
+@export var obstacle_impact: SoundCue = SoundCue.make([&"obstacle_impact_01", &"obstacle_impact_02"], [&"coupler_impact_01", &"coupler_impact_02", &"coupler_impact_03"], 1.5, 0.3)
+## Лязг слабины сцепки: сила в Н; играет, когда сила переходит порог min_strength (слабину выбрали)
+@export var coupler_clank: SoundCue = SoundCue.make([&"coupler_clank_01", &"coupler_clank_02", &"coupler_clank_03"], [&"coupler_impact_01", &"coupler_impact_02", &"coupler_impact_03"], 20.0, 0.35, 24.0, 0.0, 3.0)
+## Сход с рельсов: скорость, м/с
+@export var derailed: SoundCue = SoundCue.make([&"derail_01", &"derail_02"], [], 3.0, 1.0)
+## Пинок игрока: |power_kick|, м/с (заряженный пинок 2…50)
+@export var kicked: SoundCue = SoundCue.make([&"kick_01"], [&"wagon_set_01", &"wagon_set_02", &"wagon_set_03"], 20.0, 0.2)
+## Посадка вагона на рельсы после перетаскивания
+@export var snapped: SoundCue = SoundCue.make([&"wagon_set_01", &"wagon_set_02", &"wagon_set_03"], [], 1.0, 0.2, 0.0, -3.0)
+
 @export_group("Источник в пространстве")
 ## AudioStreamPlayer3D.unit_size: расстояние, на котором звук ещё не ослаблен
 @export var unit_size: float = 10.0

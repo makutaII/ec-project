@@ -6,7 +6,11 @@ class_name C_Sound extends ICapability
 ## Профиль: WagonConfig.sound_profile, пусто = SoundProfile.make_default(есть ли у сущности C_Engine).
 ## Качение: одна петля roll_loop на сущность, тон и громкость идут за |C_Chassis.current_speed|, пока вагон
 ## на рельсах и движется; остановился, сошёл с рельсов или далеко от камеры: плавный спад и stop().
-## Стыки: on_rail_joint {bogie, kind, strength} -> случайный из joint_clicks, громкость от strength.
+## Стыки: on_rail_joint {bogie, kind, strength} -> случайный из joint_clicks, громкость от strength; через
+##   joint_axle_gap / скорость идёт второй удар (вторая ось тележки), тише на joint_second_gain_db.
+## Одиночные звуки по событиям (S2.1, SoundCue в профиле): on_coupled, on_coupler_released (manual), on_coupler_broken,
+##   on_coupler_impact (obstacle: удар о препятствие), on_coupler_force (лязг слабины), on_derailed, on_train_kicked,
+##   on_train_snapped. Событие сцепки приходит обоим вагонам: SND.claim оставляет один звук на пару.
 ## Моторчик (только у сущности с C_Engine): две петли с кроссфейдом равной мощности по оборотам вала
 ##   r = |C_Chassis.get_motor_speed()| / C_Engine.max_theoretical_speed:
 ##   холостой ход (motor_idle_loops, случайный вариант при каждом включении) на r около 0 и петля оборотов
@@ -88,6 +92,11 @@ var _roll_suppressed := false          # рельсы уже записаны в
 var _click_streams: Array[AudioStream] = []
 var _powered := false                  # из on_force_changed
 var _click_cd := 0.0
+var _pending: Array = []               # вторые удары стыков: [осталось с, дБ]
+var _cue_streams: Dictionary = {}      # SoundCue -> Array[AudioStream]
+var _cue_last_ms: Dictionary = {}      # ключ звука -> время последнего, мс
+var _prev_force := 0.0                 # для лязга слабины: сила в прошлом событии
+var _last_force_ms := 0
 # Свои на каждый вагон: одинаковые вагоны иначе складываются в «гребёнку» (ATTN_26 §26.6.3)
 var _pitch_jitter := 1.0
 var _db_jitter := 0.0
@@ -166,24 +175,174 @@ func on_rail_joint(data: Dictionary) -> void:
 	_click_cd = profile.joint_cooldown
 	var strength := float(data.get("strength", 1.0))
 	var k := clampf(strength / maxf(profile.joint_ref_strength, 0.001), 0.1, 1.5)
+	var db := profile.joint_gain_db + _db_jitter + linear_to_db(k)
+	_spawn_click(db)
+	# вторая ось тележки: тот же стык через gap / скорость (скорость растёт: удары ближе)
+	if profile.joint_axle_gap > 0.0 and _chassis != null:
+		var v := absf(_chassis.current_speed)
+		if v > 0.05:
+			var delay := profile.joint_axle_gap / v
+			if delay <= profile.joint_second_max_delay:
+				_pending.append([delay, db + profile.joint_second_gain_db])
+
+
+func _spawn_click(db: float) -> void:
+	if _click_streams.is_empty():
+		return
 	var p := AudioStreamPlayer3D.new()
 	p.stream = _click_streams[randi() % _click_streams.size()]
 	p.bus = SND.world_bus
 	p.unit_size = profile.unit_size
 	p.max_distance = profile.max_distance
-	p.volume_db = profile.joint_gain_db + _db_jitter + linear_to_db(k)
+	p.volume_db = db
 	p.pitch_scale = randf_range(0.95, 1.05)
 	p.finished.connect(p.queue_free)
 	entity.add_child(p)
 	p.play()
 
 
+## ------ Одиночные звуки по событиям (S2.1) ------
+
+## ⚡ Сцепка: оба вагона пары получают событие, звук один, в точке между вагонами. v_close 0 (шаблон, загрузка) молчит
+func on_coupled(data: Dictionary) -> void:
+	if profile == null:
+		return
+	var pos := entity.global_position
+	var other = data.get("other")
+	if is_instance_valid(other) and other is Entity:
+		pos = (pos + (other as Entity).global_position) * 0.5
+	_play_cue(&"coupled", profile.coupled, float(data.get("v_close", 0.0)), pos)
+
+
+## ⚡ Расцепка: только ручная (сход, снятие с рельсов, обрыв приходят с другой причиной и звучат отдельно)
+func on_coupler_released(data: Dictionary) -> void:
+	if profile != null and data.get("reason", &"") == &"manual":
+		_play_cue(&"uncoupled", profile.uncoupled, 1.0, entity.global_position)
+
+
+func on_coupler_broken(data: Dictionary) -> void:
+	if profile == null:
+		return
+	_play_cue(&"coupler_broken", profile.coupler_broken, absf(float(data.get("force", 0.0))), entity.global_position)
+
+
+## ⚡ Удар сцепки или буферов; obstacle: удар о препятствие или тупик
+func on_coupler_impact(data: Dictionary) -> void:
+	if profile == null:
+		return
+	var v := float(data.get("v_close", 0.0))
+	if data.get("obstacle", false):
+		_play_cue(&"obstacle_impact", profile.obstacle_impact, v, entity.global_position)
+	else:
+		_play_cue(&"coupler_impact", profile.coupler_impact, v, entity.global_position)
+
+
+## ⚡ Сила сцепки приходит каждый кадр, пока она не нулевая. Лязг на переходе через порог (слабину выбрали);
+## пропуск событий дольше 150 мс значит, что сила была нулевой
+func on_coupler_force(data: Dictionary) -> void:
+	if profile == null:
+		return
+	var cue := profile.coupler_clank
+	var f := absf(float(data.get("force", 0.0)))
+	var now := Time.get_ticks_msec()
+	if now - _last_force_ms > 150:
+		_prev_force = 0.0
+	_last_force_ms = now
+	if f >= cue.min_strength and _prev_force < cue.min_strength:
+		_play_cue(&"coupler_clank", cue, f, entity.global_position)
+	_prev_force = f
+
+
+func on_derailed(data: Dictionary) -> void:
+	if profile == null:
+		return
+	var v := (data.get("current_velocity_3d", Vector3.ZERO) as Vector3).length()
+	_play_cue(&"derailed", profile.derailed, v, entity.global_position)
+
+
+func on_train_kicked(data: Dictionary) -> void:
+	if profile == null:
+		return
+	_play_cue(&"kicked", profile.kicked, absf(float(data.get("power_kick", 0.0))), entity.global_position)
+
+
+## ⚡ Вагон посажен на рельсы после перетаскивания (при загрузке и расстановке составов событие не приходит)
+func on_train_snapped(_data: Dictionary) -> void:
+	if profile == null:
+		return
+	_play_cue(&"snapped", profile.snapped, 1.0, entity.global_position)
+
+
+## Одиночный звук cue заданной силы в точке pos. key: ключ паузы и отсечения повтора
+func _play_cue(key: StringName, cue: SoundCue, strength: float, pos: Vector3) -> void:
+	if cue == null or strength < cue.min_strength or not is_active():
+		return
+	var streams := _streams_for(cue)
+	if streams.is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	if now - int(_cue_last_ms.get(key, -1000000)) < int(cue.cooldown * 1000.0):
+		return
+	if SND.too_far(pos, profile.max_distance):
+		return
+	if cue.dedupe_radius > 0.0 and not SND.claim(key, pos, cue.dedupe_radius):
+		return
+	if not SND.allow_cue():
+		return
+	_cue_last_ms[key] = now
+	var p := AudioStreamPlayer3D.new()
+	p.stream = streams[randi() % streams.size()]
+	p.bus = SND.world_bus
+	p.unit_size = profile.unit_size
+	p.max_distance = profile.max_distance
+	p.volume_db = cue.volume_db(strength)
+	p.pitch_scale = randf_range(1.0 - cue.pitch_jitter, 1.0 + cue.pitch_jitter)
+	p.finished.connect(p.queue_free)
+	entity.add_child(p)
+	p.global_position = pos
+	p.play()
+
+
+## Файлы звука: files, а если их нет ни одного, fallback_files. Загружаются один раз на сущность
+func _streams_for(cue: SoundCue) -> Array:
+	if _cue_streams.has(cue):
+		return _cue_streams[cue]
+	var list := _load_all(cue.files)
+	if list.is_empty():
+		list = _load_all(cue.fallback_files)
+	_cue_streams[cue] = list
+	return list
+
+
+func _load_all(names: Array[StringName]) -> Array:
+	var out: Array = []
+	for n in names:
+		var s := SND.load_stream(profile.folder, n, false)
+		if s != null:
+			out.append(s)
+	return out
+
+
 func _physics_process(delta: float) -> void:
 	if _click_cd > 0.0:
 		_click_cd -= delta
 	var live := audible and is_active()
+	_update_pending(delta, live)
 	_update_roll(delta, live)
 	_update_motor(delta, live)
+
+
+## Вторые удары стыков: ждут свою задержку, играют, если сущность слышима
+func _update_pending(delta: float, live: bool) -> void:
+	var i := _pending.size() - 1
+	while i >= 0:
+		var item: Array = _pending[i]
+		item[0] = float(item[0]) - delta
+		if float(item[0]) <= 0.0:
+			if live and SND.allow_click():
+				_spawn_click(float(item[1]))
+			_pending.remove_at(i)
+		i -= 1
 
 
 func _update_roll(delta: float, live: bool) -> void:

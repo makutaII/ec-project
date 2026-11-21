@@ -1,6 +1,7 @@
 extends Node
 
-## Проверка звука этапа 1 (ATTN_26 S1.0-S1.3): шины, профиль, поиск файлов, петли, моторчик, расстановка голосов, стыки.
+## Проверка звука (ATTN_26 S1.0-S1.3, S2.1): шины, профиль, поиск файлов, петли, моторчик, расстановка голосов, стыки,
+## одиночные звуки по событиям.
 ## Запуск: открыть tests/sound_test.tscn и нажать F6. Итог в Output: строки PASS/FAIL и «Sound: n/m».
 ## Звуковые файлы не нужны: тест работает без data/sounds, поток для петель и стыков собирается кодом.
 
@@ -15,6 +16,7 @@ func _ready() -> void:
 	await _test_motor()
 	await _test_voices()
 	await _test_clicks()
+	await _test_cues()
 	print("Sound: %d/%d" % [_ok, _all])
 	get_tree().quit(0 if _ok == _all else 1)
 
@@ -77,6 +79,87 @@ func _test_motor() -> void:
 	c._roll.update(c, 1.0, -80.0, 1.2)
 	_check("Голос: после спада громкость ниже порога тишины", c._roll.db <= C_Sound.SILENT_DB)
 	c.entity.queue_free()
+	await get_tree().process_frame
+
+
+func _test_cues() -> void:
+	var cue := SoundCue.make([&"a"], [&"b"], 2.0, 0.1, 0.0, -3.0, 0.5)
+	_check("Звук по событию: сила равна ref_strength, громкость равна gain_db", is_equal_approx(cue.volume_db(2.0), -3.0))
+	_check("Звук по событию: сила вдвое больше ref ограничена +3.5 дБ, нулевая даёт -20 дБ",
+		absf(cue.volume_db(10.0) - (-3.0 + linear_to_db(1.5))) < 0.001 and absf(cue.volume_db(0.0) - (-3.0 - 20.0)) < 0.001)
+	var prof := SoundProfile.make_default(false)
+	_check("Звук по событию: у профиля по умолчанию заданы все звуки S2.1",
+		prof.coupled != null and prof.uncoupled != null and prof.coupler_broken != null and prof.coupler_impact != null
+		and prof.obstacle_impact != null and prof.coupler_clank != null and prof.derailed != null and prof.kicked != null and prof.snapped != null)
+	_check("Звук по событию: сцепка с v_close 0 (шаблон состава) молчит по min_strength", prof.coupled.min_strength > 0.0)
+
+	SND.reset_claims()
+	_check("Повтор события пары: первый звук проходит", SND.claim(&"t_pair", Vector3.ZERO, 10.0))
+	_check("Повтор события пары: второй рядом отсечён", not SND.claim(&"t_pair", Vector3(5, 0, 0), 10.0))
+	_check("Повтор события пары: дальше радиуса, другой ключ проходят",
+		SND.claim(&"t_pair", Vector3(50, 0, 0), 10.0) and SND.claim(&"t_other", Vector3(5, 0, 0), 10.0))
+	SND.reset_claims()
+
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.current = true
+	_check("Дальность: за пределами слышимости источник не создаётся",
+		SND.too_far(Vector3(500, 0, 0), 60.0) and not SND.too_far(Vector3(5, 0, 0), 60.0) and not SND.too_far(Vector3(500, 0, 0), 0.0))
+
+	var c := _spawn(Vector3(3, 0, 0))
+	await get_tree().process_frame
+	var s := _make_stream()
+	for cu in [c.profile.coupled, c.profile.uncoupled, c.profile.coupler_impact, c.profile.obstacle_impact,
+			c.profile.coupler_clank, c.profile.derailed, c.profile.kicked, c.profile.snapped]:
+		c._cue_streams[cu] = [s]
+	var base := c.entity.get_child_count()
+
+	c.on_coupled({"other": null, "end": 0, "v_close": 0.0})
+	_check("Сцепка: v_close 0 звука не даёт", c.entity.get_child_count() == base)
+	SND.reset_claims()
+	c.on_coupled({"other": null, "end": 0, "v_close": 1.0})
+	_check("Сцепка: на скорости сближения играет один источник", c.entity.get_child_count() == base + 1)
+	c.on_coupled({"other": null, "end": 0, "v_close": 1.0})
+	_check("Сцепка: повтор сразу отсекает пауза", c.entity.get_child_count() == base + 1)
+
+	c.on_coupler_released({"reason": &"separated"})
+	_check("Расцепка: не ручная причина звука не даёт", c.entity.get_child_count() == base + 1)
+	SND.reset_claims()
+	c.on_coupler_released({"reason": &"manual"})
+	_check("Расцепка: ручная играет", c.entity.get_child_count() == base + 2)
+
+	SND.reset_claims()
+	c.on_coupler_impact({"v_close": 1.0, "dv": 0.0, "derailed": false})
+	c.on_coupler_impact({"v_close": 1.0, "dv": 0.0, "derailed": false, "obstacle": true})
+	_check("Удар: вагон о вагон и о препятствие играют разными звуками (свои паузы)", c.entity.get_child_count() == base + 4)
+
+	SND.reset_claims()
+	c.on_coupler_force({"force": 1.0})
+	_check("Лязг: слабая сила ниже порога звука не даёт", c.entity.get_child_count() == base + 4)
+	c.on_coupler_force({"force": 10.0})
+	_check("Лязг: переход через порог играет", c.entity.get_child_count() == base + 5)
+	c.on_coupler_force({"force": 12.0})
+	_check("Лязг: сила остаётся выше порога, звука повторно нет", c.entity.get_child_count() == base + 5)
+
+	c.on_derailed({"reason": "hi speed", "current_velocity_3d": Vector3(4, 0, 0)})
+	c.on_train_kicked({"power_kick": -10.0})
+	c.on_train_snapped({})
+	_check("Сход, пинок и посадка на рельсы играют по одному источнику", c.entity.get_child_count() == base + 8)
+
+	# вторые удары стыков: задержка выходит, звук играет, очередь пустеет
+	c._click_streams.append(s)
+	c.audible = true
+	c._pending.append([0.0, -10.0])
+	var before := c.entity.get_child_count()
+	c._physics_process(0.016)
+	_check("Стыки: второй удар играет по истечении задержки, очередь пустеет",
+		c.entity.get_child_count() == before + 1 and c._pending.is_empty())
+	c._pending.append([1.0, -10.0])
+	c._physics_process(0.016)
+	_check("Стыки: второй удар до своего времени не играет", c.entity.get_child_count() == before + 1 and c._pending.size() == 1)
+
+	c.entity.queue_free()
+	cam.queue_free()
 	await get_tree().process_frame
 
 
