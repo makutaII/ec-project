@@ -122,10 +122,11 @@ func type_at(i: int, j: int) -> int:
 func floor_at(i: int, j: int) -> float:
 	var key := key_of(i, j)
 	if not _floor.has(key):
-		# чанка нет (соседний ряд узлов карты коллизии): пол считаем напрямую, иначе у слоя на листе край провалится к столу
-		if floor_fn.is_valid():
-			return float(floor_fn.call(float(i) * STEP, float(j) * STEP))
-		return 0.0
+		# чанка нет (соседний ряд узлов карты коллизии, кисть над пустым местом): пол чанка считается один раз и кэшируется,
+		# refresh_floor обновляет и такие чанки
+		if not floor_fn.is_valid():
+			return 0.0
+		_make_floor(key)
 	var f: PackedFloat32Array = _floor[key]
 	return f[index_in_chunk(i, j)]
 
@@ -308,7 +309,7 @@ func clear() -> void:
 
 ## Пересчитать пол в области area (мир, XZ) у существующих чанков. Сообщает changed о тех чанках, где пол изменился
 func refresh_floor(area: Rect2) -> void:
-	if _data.is_empty() or not floor_fn.is_valid():
+	if _floor.is_empty() or not floor_fn.is_valid():
 		return
 	_prepare_floor()
 	var i0 := floori(area.position.x / STEP)
@@ -321,8 +322,8 @@ func refresh_floor(area: Rect2) -> void:
 	for cz in range(k0.y, k1.y + 1):
 		for cx in range(k0.x, k1.x + 1):
 			var key := Vector2i(cx, cz)
-			if not _data.has(key):
-				continue
+			if not _floor.has(key):
+				continue   # пол без данных кэшируется read_region, пересчитываем и его
 			var f: PackedFloat32Array = _floor[key]
 			var any := false
 			for jj in range(maxi(j0, cz * CHUNK), mini(j1, cz * CHUNK + CHUNK - 1) + 1):
@@ -334,7 +335,8 @@ func refresh_floor(area: Rect2) -> void:
 						any = true
 			if any:
 				_floor[key] = f
-				keys.append(key)
+				if _data.has(key):
+					keys.append(key)
 	if not keys.is_empty():
 		changed.emit(keys)
 
@@ -352,6 +354,113 @@ func _make_floor(key: Vector2i) -> void:
 			for rx in range(CHUNK):
 				f[rz * CHUNK + rx] = float(floor_fn.call(float(key.x * CHUNK + rx) * STEP, float(key.y * CHUNK + rz) * STEP))
 	_floor[key] = f
+
+
+## --- Область узлов (кисти, H2) ---
+
+## Пол чанка: из кэша или считается и кэшируется (чанк без данных тоже)
+func _floor_arr(key: Vector2i) -> PackedFloat32Array:
+	if not _floor.has(key):
+		_make_floor(key)
+	return _floor[key]
+
+
+## Слова и пол узлов прямоугольника r (узлы r.position .. r.end - 1) построчно: {"w": PackedInt32Array, "f": PackedFloat32Array}.
+## Чанков не создаёт: у узла без чанка слово 0, пол считается и кэшируется
+func read_region(r: Rect2i) -> Dictionary:
+	var w := PackedInt32Array()
+	var f := PackedFloat32Array()
+	if r.size.x <= 0 or r.size.y <= 0:
+		return {"w": w, "f": f}
+	if _depth == 0:
+		_prepare_floor()
+	var i_last := r.end.x - 1
+	var c0 := floori(float(r.position.x) / float(CHUNK))
+	var c1 := floori(float(i_last) / float(CHUNK))
+	var empty := PackedInt32Array()
+	empty.resize(CHUNK_NODES)
+	for j in range(r.position.y, r.end.y):
+		var cz := floori(float(j) / float(CHUNK))
+		var row := posmod(j, CHUNK) * CHUNK
+		for cx in range(c0, c1 + 1):
+			var key := Vector2i(cx, cz)
+			var a := maxi(r.position.x, cx * CHUNK) - cx * CHUNK
+			var b := mini(i_last, cx * CHUNK + CHUNK - 1) - cx * CHUNK
+			var d: PackedInt32Array = _data.get(key, empty)
+			w.append_array(d.slice(row + a, row + b + 1))
+			f.append_array(_floor_arr(key).slice(row + a, row + b + 1))
+	return {"w": w, "f": f}
+
+
+## Записать слова w (та же раскладка, что у read_region для r) в узлы прямоугольника ch (внутри r). Недостающие чанки создаются,
+## в историю идёт одна правка (внутри begin_edit / end_edit, иначе правка закрывается здесь). Сообщает changed о затронутых чанках сразу
+func write_region(r: Rect2i, w: PackedInt32Array, ch: Rect2i) -> void:
+	ch = ch.intersection(r)
+	if ch.size.x <= 0 or ch.size.y <= 0:
+		return
+	var own := _depth == 0
+	if own:
+		begin_edit()
+	var k0 := key_of(ch.position.x, ch.position.y)
+	var k1 := key_of(ch.end.x - 1, ch.end.y - 1)
+	var keys: Array = []
+	for cz in range(k0.y, k1.y + 1):
+		for cx in range(k0.x, k1.x + 1):
+			var key := Vector2i(cx, cz)
+			_touch(key)
+			var d := PackedInt32Array()
+			if _data.has(key):
+				d = _data[key]
+			else:
+				d.resize(CHUNK_NODES)
+				_floor_arr(key)
+			var j0 := maxi(ch.position.y, cz * CHUNK)
+			var j1 := mini(ch.end.y - 1, cz * CHUNK + CHUNK - 1)
+			var i0 := maxi(ch.position.x, cx * CHUNK)
+			var i1 := mini(ch.end.x - 1, cx * CHUNK + CHUNK - 1)
+			for j in range(j0, j1 + 1):
+				var src := (j - r.position.y) * r.size.x - r.position.x
+				var dst := (j - cz * CHUNK) * CHUNK - cx * CHUNK
+				for i in range(i0, i1 + 1):
+					d[dst + i] = w[src + i]
+			_data[key] = d
+			keys.append(key)
+	if own:
+		end_edit()
+	else:
+		changed.emit(keys)
+
+
+## Интервалы узлов [i0, i1, i0, i1, ...] строки j внутри полигонов polys (граница входит), непересекающиеся и по возрастанию
+func row_intervals(polys: Array, j: int) -> PackedInt32Array:
+	var z := float(j) * STEP
+	var raw: Array = []
+	for poly: PackedVector2Array in polys:
+		for dz in PROBES:
+			var xs := _crossings(poly, z + dz)
+			for a in range(0, xs.size() - 1, 2):
+				var i0 := ceili((xs[a] - EDGE) / STEP)
+				var i1 := floori((xs[a + 1] + EDGE) / STEP)
+				if i1 >= i0:
+					raw.append(Vector2i(i0, i1))
+	raw.sort_custom(func(p: Vector2i, q: Vector2i) -> bool: return p.x < q.x)
+	var out := PackedInt32Array()
+	var cur := Vector2i.ZERO
+	var have := false
+	for v: Vector2i in raw:
+		if not have:
+			cur = v
+			have = true
+		elif v.x <= cur.y + 1:
+			cur.y = maxi(cur.y, v.y)
+		else:
+			out.append(cur.x)
+			out.append(cur.y)
+			cur = v
+	if have:
+		out.append(cur.x)
+		out.append(cur.y)
+	return out
 
 
 ## --- Сейв ---

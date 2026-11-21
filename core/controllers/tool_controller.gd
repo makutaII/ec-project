@@ -26,6 +26,7 @@ var water_tool: WaterPourTool   # XX claude-terra 13.4 W3
 var plaster_tool: PlasterTool   # XX claude-terra 13.5 G3
 var paint_tool: PaintTool   # XX claude-terra 13.13 K2
 var field_tool: FieldTool   # XX claude-terra 13.14 H1b
+var brush_tool: BrushTool   # XX claude-terra 13.14 H2
 var wire_tool: WireTool   # D4 (ATTN_10): провода между клеммами
 var table_tool: TableTool   # XX claude-table T2: постановка секций подмакетника (режим «Секции»)
 #@onready var save_controller: SaveManager = %SaveManager
@@ -77,6 +78,9 @@ func _ready() -> void:
 	field_tool = FieldTool.new()
 	field_tool.name = &"FieldTool"
 	%Tools.add_child(field_tool)
+	brush_tool = BrushTool.new()
+	brush_tool.name = &"BrushTool"
+	%Tools.add_child(brush_tool)
 	wire_tool = WireTool.new()
 	wire_tool.name = &"WireTool"
 	%Tools.add_child(wire_tool)
@@ -237,6 +241,16 @@ func select_build_object(setting: EntitySetting, variant: Dictionary = {}) -> vo
 		var fshape := StringName(setting.get_facet(&"shape")) if setting.get_facet(&"shape") != "" else FieldTool.SHAPE_RECT
 		field_tool.shape = fshape
 		switch_tool(field_tool)
+		return
+
+	# XX claude-terra 13.14 H2: кнопка кисти рельефа включает BrushTool, описание кисти это TerrainBrush в components карточки
+	if setting.build_behavior == EntitySetting.BuildBehavior.BRUSH_TOOL:
+		brush_tool.brush = null
+		for comp in setting.components:
+			if comp is TerrainBrush:
+				brush_tool.brush = comp
+				break
+		switch_tool(brush_tool)
 		return
 
 	# XX claude-table T2: пресет секции (категория table) включает TableTool, режим «Секции»

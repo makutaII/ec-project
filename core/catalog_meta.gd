@@ -42,7 +42,7 @@ const TAGS := {
 	&"train": [&"loco", &"boxcar", &"parts", &"consist"],
 	&"track": [&"straight", &"curve", &"junction", &"special"],
 	&"building": [&"house", &"mybuildings"],
-	&"terrain": [&"foam", &"cut", &"field", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14 H1b: field
+	&"terrain": [&"foam", &"cut", &"field", &"relief", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14: field (H1b), relief (H2)
 	&"table": [&"section"],
 	&"coaster_car": [&"car"],   # XX claude-coaster C3
 	&"coaster_track": [&"straight", &"slope", &"bank"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)
@@ -52,6 +52,10 @@ const TAGS := {
 ## Подписи и иконки тегов (необязательно): {category: {tag: {"name": String, "icon": Texture2D}}}.
 ## Пока пусто: подпись это id тега, иконка у первого объекта тега. Заполнять по мере появления иконок (U18)
 const TAG_META := {
+	&"terrain": {   # XX claude-terra 13.14
+		&"field": {"name": "Шпатлёвка", "tooltip": "Слой шпатлёвки на стол или лист: прямоугольник, полигон, вся столешница"},
+		&"relief": {"name": "Рельеф", "tooltip": "Кисти рельефа: холм, гравий, скалы. Ctrl+колесо подъём и яма, ЛКМ выравнивание"},
+	},
 	&"train": {
 		&"parts": {"name": "Составные", "tooltip": "Части составов по отдельности: паровоз, тендер, секции"},
 		&"consist": {"name": "Составы", "tooltip": "Готовые составы: ставятся одной кнопкой. Свой состав: «Записать состав» во вкладке «Положение»"},

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://8f5am0rrdcue"]
+
+[ext_resource type="Script" uid="uid://db1ylqgfiq13" path="res://tests/brush_test.gd" id="1"]
+
+[node name="BrushTest" type="Node"]
+script = ExtResource("1")

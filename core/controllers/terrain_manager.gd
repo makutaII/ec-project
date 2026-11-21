@@ -295,9 +295,7 @@ func _on_layout_changed_field() -> void:
 
 ## Лист изменился: пересчитать пол под ним
 func _on_terrain_changed_field(aabb: AABB) -> void:
-	_field_floor_prepare()   # кэш листов нужен и коллизии соседних узлов (floor_at без чанка)
-	if field.is_empty():
-		return
+	_field_floor_prepare()   # кэш листов нужен и пересчёту пола, и floor_at без чанка
 	field.refresh_floor(Rect2(aabb.position.x, aabb.position.z, aabb.size.x, aabb.size.z).grow(TerrainField.STEP))
 
 
