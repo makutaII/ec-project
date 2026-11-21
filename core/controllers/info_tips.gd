@@ -148,7 +148,7 @@ func suspend(on: bool) -> void:
 # ПОКАЗ
 # ==========================================
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	for id: int in _entries.keys():
 		if not is_instance_id_valid(id):
 			_entries.erase(id)
