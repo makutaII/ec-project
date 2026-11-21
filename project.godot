@@ -38,6 +38,10 @@ TSM="*res://core/controllers/track_style_manager.gd"
 SND="*res://core/controllers/sound_manager.gd"
 InfoTips="*res://core/controllers/info_tips.gd"
 
+[debug]
+
+file_logging/enable_file_logging=true
+
 [display]
 
 window/size/viewport_width=1920

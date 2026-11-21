@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="TrackStyle" format=3]
+[gd_resource type="Resource" script_class="TrackStyle" format=3 uid="uid://bbeytped68e3v"]
 
 [ext_resource type="Material" path="res://data/tracks/materials/ballast_wood023.tres" id="1_xsy5d"]
-[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="4_54g6f"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="5_5ps6i"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="6_6g4j7"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="7_xyolv"]
+[ext_resource type="Script" uid="uid://cfpx56q1cgoy5" path="res://core/components/tracks/track_style.gd" id="4_54g6f"]
+[ext_resource type="Texture2D" uid="uid://nj88biwq7ii" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="5_5ps6i"]
+[ext_resource type="Texture2D" uid="uid://cb2eqc78qqmjq" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="6_6g4j7"]
+[ext_resource type="Texture2D" uid="uid://cb0u4risyfmvm" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="7_xyolv"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uv7ai"]
 vertex_color_use_as_albedo = true

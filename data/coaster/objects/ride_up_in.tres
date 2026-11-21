@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://ba17i4fhdngnp" path="res://core/coaster/ride_track_config.gd" id="2_tc"]
 [ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
 [ext_resource type="Script" uid="uid://1xmvhthiwc64" path="res://core/components/comp_settings/stylevisual_setting.gd" id="4_sv"]
-[ext_resource type="Resource" uid="uid://n87nod00dgxy" path="res://data/tracks/styles/coaster.tres" id="5_forar"]
+[ext_resource type="Resource" uid="uid://bbeytped68e3v" path="res://data/tracks/styles/coaster.tres" id="5_forar"]
 [ext_resource type="Script" uid="uid://b1jwuxb32so7e" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="7_dr"]
 [ext_resource type="Script" uid="uid://djbifkyei01t7" path="res://core/components/comp_settings/pivot_setting.gd" id="8_pv"]
 [ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="9_hv"]

@@ -866,11 +866,12 @@ func _discover_features() -> void:
 	_p_ao_multibounce = _find_bool_prop(_env, ["multibounce", "multi_bounce"])
 	_p_contact_env = _find_bool_prop(_env, ["contact"])
 	_p_contact_sun = _find_bool_prop(_sun, ["contact_shadows_allow", "contact"])
-	if Global.debug_mode:
-		print("[GFX] contact shadows (sun): ", str(_p_contact_sun) if _p_contact_sun != &"" else "НЕ НАЙДЕНО",
-				" | multi-bounce AO переключатель: ", str(_p_ao_multibounce) if _p_ao_multibounce != &"" else "нет (встроен в SSAO)")
-	if _sun and _p_contact_sun == &"":
-		push_warning("GFX: свойство contact shadows на DirectionalLight3D не найдено (GFX.dump_props() покажет кандидатов)")
+	
+	#if Global.debug_mode:
+	#	print("[GFX] contact shadows (sun): ", str(_p_contact_sun) if _p_contact_sun != &"" else "НЕ НАЙДЕНО",
+	#			" | multi-bounce AO переключатель: ", str(_p_ao_multibounce) if _p_ao_multibounce != &"" else "нет (встроен в SSAO)")
+	#if _sun and _p_contact_sun == &"":
+	#	push_warning("GFX: свойство contact shadows на DirectionalLight3D не найдено (GFX.dump_props() покажет кандидатов)")
 
 
 func _set_feature(obj: Object, prop: StringName, on: bool) -> void:
