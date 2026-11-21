@@ -60,6 +60,10 @@ var _preview_ok := false
 var _busy_box: CenterContainer    # панелька «Построение карты кисти, ждите» поверх вида
 var _busy_label: Label
 var _sample_random_cb: CheckBox
+var _end_opt: OptionButton        # конец кисти: круг, щётка, губка, брызги, квадрат
+var _end_row: Control
+var _relief_kind_opt: OptionButton  # куда красит сухая кисть: кромки и выступы или впадины и тени
+var _relief_kind_row: Control
 var _decal_opt: OptionButton
 var _decal_ids: Array[String] = []
 var _decal_angle_slider: HSlider
@@ -504,6 +508,7 @@ func _build_brush_box() -> void:
 		b.pressed.connect(_select_tool.bind(id))
 		tool_row.add_child(b)
 		_tool_buttons[id] = b
+	_build_end_row()
 
 	# минимумы в три раза меньше прежних (размер 1 -> 0.33, поток 5 -> 1.67); у жёсткости минимум 0 и так
 	_size_slider = _add_slider("Размер, %", 0.33, 30.0, 0.01, "size")
@@ -518,6 +523,7 @@ func _build_brush_box() -> void:
 	_relief_note.text = "Режим работает с текстурой модели: красит только по переходам яркости её базовой текстуры (светлые кромки, тёмные впадины). На модели без текстуры ничего не красит."
 	_relief_note.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
 	_brush_box.add_child(_relief_note)
+	_build_relief_kind_row()
 	_relief_sens_slider = _add_slider("Чувств. рельефа, %", 20.0, 400.0, 5.0, "relief_sens")
 	_relief_sens_slider.tooltip_text = "Сухая кисть и смывка красят только по рельефу: переходу яркости текстуры. Больше: красит и слабый контраст"
 	_relief_width_slider = _add_slider("Ширина кромки, px", 1.0, 10.0, 1.0, "relief_width", 1.0)
@@ -543,6 +549,49 @@ func _build_brush_box() -> void:
 	clear_btn.pressed.connect(_on_clear_layer)
 	row.add_child(clear_btn)
 	_sync_tool_sliders()
+
+
+## Конец кисти: один инструмент «Кисть» с разными концами, а не по кнопке на каждый конец. Форма, поворот, разброс и шаг
+## берутся из PaintBrushes.TIPS (apply_tip); у кисти, аэрографа, ластика и сухой кисти
+func _build_end_row() -> void:
+	var row := HBoxContainer.new()
+	_brush_box.add_child(row)
+	_end_row = row
+	var l := Label.new()
+	l.text = "Конец кисти"
+	l.custom_minimum_size = Vector2(100, 0)
+	row.add_child(l)
+	_end_opt = OptionButton.new()
+	_end_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_end_opt.tooltip_text = "Форма штампа: круг, щётка (полосы), губка (пористое пятно), брызги (россыпь), квадрат. Размер при смене конца подстраивается, дальше его можно менять ползунком"
+	for id in PaintBrushes.TIP_ORDER:
+		_end_opt.add_item(str(PaintBrushes.TIPS[id]["name"]))
+	_end_opt.item_selected.connect(func(i: int) -> void:
+		if _silent or i >= PaintBrushes.TIP_ORDER.size():
+			return
+		PaintBrushes.apply_tip(_tool_params[_tool], PaintBrushes.TIP_ORDER[i], float(PaintBrushes.PRESETS[_tool]["size"]))
+		_sync_tool_sliders())
+	row.add_child(_end_opt)
+
+
+## Вид сухой кисти: куда ложится краска. Видна только у инструментов с рельефом
+func _build_relief_kind_row() -> void:
+	var row := HBoxContainer.new()
+	_brush_box.add_child(row)
+	_relief_kind_row = row
+	var l := Label.new()
+	l.text = "Красит"
+	l.custom_minimum_size = Vector2(100, 0)
+	row.add_child(l)
+	_relief_kind_opt = OptionButton.new()
+	_relief_kind_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_relief_kind_opt.tooltip_text = "Кромки и выступы: светлые края и бугры рельефа текстуры. Впадины и тени: тёмные углубления (смывка)"
+	for k in PaintBrushes.RELIEF_KINDS:
+		_relief_kind_opt.add_item(str(k[1]))
+	_relief_kind_opt.item_selected.connect(func(i: int) -> void:
+		if not _silent and i < PaintBrushes.RELIEF_KINDS.size():
+			_tool_params[_tool]["relief"] = float(PaintBrushes.RELIEF_KINDS[i][0]))
+	row.add_child(_relief_kind_opt)
 
 
 ## Строки инструмента «Декаль»: выбор картинки, поворот, зеркало, цвет палитры. Видны только у него
@@ -676,12 +725,17 @@ func _sync_tool_sliders() -> void:
 	_relief_sens_slider.get_parent().visible = has_relief
 	_relief_width_slider.get_parent().visible = has_relief
 	_relief_note.visible = has_relief
+	_relief_kind_row.visible = has_relief
+	_relief_kind_opt.select(0 if float(p["relief"]) >= 0.0 else 1)
+	_end_row.visible = bool(p["tips"])
+	_end_opt.select(maxi(PaintBrushes.TIP_ORDER.find(str(p["end"])), 0))
 	var is_decal := bool(p["decal_tool"])
 	for c in _plain_rows:
 		c.visible = not is_decal
 	for c in _decal_rows:
 		c.visible = is_decal
 	if is_decal:
+		_relief_kind_row.visible = false
 		_relief_sens_slider.get_parent().visible = false
 		_relief_width_slider.get_parent().visible = false
 		_relief_note.visible = false
@@ -706,6 +760,13 @@ func _update_tool_levels(level: int) -> void:
 	if int(PaintBrushes.PRESETS[_tool].get("level", PaintBrushes.DEFAULTS["level"])) > level:
 		_tool_buttons["brush"].button_pressed = true
 		_select_tool("brush")
+	# концы кисти по уровням правил; выбранный недоступный конец у всех инструментов сбрасывается на круг
+	for i in PaintBrushes.TIP_ORDER.size():
+		_end_opt.set_item_disabled(i, level < int(PaintBrushes.TIPS[PaintBrushes.TIP_ORDER[i]]["level"]))
+	for id in PaintBrushes.ORDER:
+		var te := str(_tool_params[id]["end"])
+		if PaintBrushes.TIPS.has(te) and int(PaintBrushes.TIPS[te]["level"]) > level:
+			PaintBrushes.apply_tip(_tool_params[id], "round", float(PaintBrushes.PRESETS[id]["size"]))
 	# образцы доступны с уровня PaintSamples.LEVEL; выбранный образец при нехватке уровня сбрасывается
 	for i in range(1, _sample_opt.item_count):
 		_sample_opt.set_item_disabled(i, level < PaintSamples.LEVEL)

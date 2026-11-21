@@ -91,18 +91,48 @@ func _test_presets() -> void:
 		all_ok = all_ok and str(p["name"]) != "" and PaintBrushes.PRESETS.has(id)
 		levels_ok = levels_ok and int(p["level"]) >= 2 and int(p["level"]) <= 3
 		tips_ok = tips_ok and (str(p["tip"]) == "" or PaintTips.has(str(p["tip"]))) and (str(p["shape"]) == "round" or str(p["shape"]) == "box")
-	_check("инструменты по порядку: кисть, аэрограф, ластик, щётка, сухая, смывка, губка, брызги, квадрат, декаль", PaintBrushes.ORDER == ["brush", "airbrush", "eraser", "flat", "dry", "wash", "sponge", "splatter", "square", "decal"])
+	_check("инструменты по порядку: кисть, аэрограф, ластик, сухая кисть, декаль (концы кисти это не инструменты)", PaintBrushes.ORDER == ["brush", "airbrush", "eraser", "dry", "decal"])
+	_check("концы кисти по порядку: круг, щётка, губка, брызги, квадрат", PaintBrushes.TIP_ORDER == ["round", "flat", "sponge", "splatter", "square"])
 	_check("у каждого пресета есть все параметры и имя", all_ok)
 	_check("уровни правил 2..3, тексты концов и форма известны", levels_ok and tips_ok)
-	_check("кисть, аэрограф, ластик и квадрат с уровня 2, остальные с 3", PaintBrushes.preset("brush")["level"] == 2 and PaintBrushes.preset("airbrush")["level"] == 2 and PaintBrushes.preset("eraser")["level"] == 2 and PaintBrushes.preset("square")["level"] == 2 and PaintBrushes.preset("flat")["level"] == 3 and PaintBrushes.preset("dry")["level"] == 3 and PaintBrushes.preset("wash")["level"] == 3)
+	var tip_ok := true
+	for id in PaintBrushes.TIP_ORDER:
+		var t: Dictionary = PaintBrushes.TIPS[id]
+		tip_ok = tip_ok and str(t["name"]) != "" and (str(t["tip"]) == "" or PaintTips.has(str(t["tip"]))) and (str(t["shape"]) == "round" or str(t["shape"]) == "box") \
+			and int(t["level"]) >= 2 and int(t["level"]) <= 3 and float(t["size_mul"]) > 0.0 and float(t["spacing"]) > 0.0
+	_check("концы кисти: названия, текстуры и формы известны, размер и шаг положительные", tip_ok)
+	_check("кисть, аэрограф, ластик и сухая кисть выбирают конец, декаль нет", PaintBrushes.preset("brush")["tips"] == true and PaintBrushes.preset("airbrush")["tips"] == true and PaintBrushes.preset("eraser")["tips"] == true and PaintBrushes.preset("dry")["tips"] == true and PaintBrushes.preset("decal")["tips"] == false)
+	_check("уровни: кисть, аэрограф, ластик и круг, квадрат с уровня 2; сухая кисть, декаль, щётка, губка, брызги с уровня 3", PaintBrushes.preset("brush")["level"] == 2 and PaintBrushes.preset("airbrush")["level"] == 2 and PaintBrushes.preset("eraser")["level"] == 2 and PaintBrushes.TIPS["round"]["level"] == 2 and PaintBrushes.TIPS["square"]["level"] == 2 and PaintBrushes.preset("dry")["level"] == 3 and PaintBrushes.preset("decal")["level"] == 3 and PaintBrushes.TIPS["flat"]["level"] == 3 and PaintBrushes.TIPS["sponge"]["level"] == 3 and PaintBrushes.TIPS["splatter"]["level"] == 3)
 	_check("прежние инструменты не изменились (размер, жёсткость, поток)", PaintBrushes.preset("brush")["hardness"] == 0.8 and PaintBrushes.preset("airbrush")["accumulate"] == true and PaintBrushes.preset("airbrush")["flow"] == 0.12 and PaintBrushes.preset("eraser")["erase"] == true)
-	_check("сухая кисть красит выступы (relief 1), смывка впадины (relief -1), остальные без рельефа", float(PaintBrushes.preset("dry")["relief"]) == 1.0 and float(PaintBrushes.preset("wash")["relief"]) == -1.0 and float(PaintBrushes.preset("brush")["relief"]) == 0.0 and float(PaintBrushes.preset("flat")["relief"]) == 0.0)
-	_check("щётка прямоугольная, у рельефных инструментов есть чувствительность и ширина кромки", PaintBrushes.preset("flat")["shape"] == "box" and float(PaintBrushes.preset("dry")["relief_sens"]) > 0.0 and float(PaintBrushes.preset("wash")["relief_width"]) >= 1.0)
-	_check("брызги разбрасываются, губка вращается случайно", float(PaintBrushes.preset("splatter")["scatter"]) > 0.0 and PaintBrushes.preset("sponge")["rotate"] == "random")
+	_check("у новой кисти конец «круг», круг совпадает с параметрами по умолчанию", PaintBrushes.preset("brush")["end"] == "round" and PaintBrushes.preset("brush")["shape"] == PaintBrushes.TIPS["round"]["shape"] and PaintBrushes.preset("brush")["rotate"] == PaintBrushes.TIPS["round"]["rotate"] and float(PaintBrushes.preset("brush")["spacing"]) == float(PaintBrushes.TIPS["round"]["spacing"]))
+	_check("сухая кисть по умолчанию красит кромки (relief 1), виды: кромки и выступы, впадины и тени", float(PaintBrushes.preset("dry")["relief"]) == 1.0 and float(PaintBrushes.preset("brush")["relief"]) == 0.0 and PaintBrushes.RELIEF_KINDS.size() == 2 and float(PaintBrushes.RELIEF_KINDS[0][0]) == 1.0 and float(PaintBrushes.RELIEF_KINDS[1][0]) == -1.0 and float(PaintBrushes.preset("dry")["relief_sens"]) > 0.0 and float(PaintBrushes.preset("dry")["relief_width"]) >= 1.0)
+	_check("смывки как отдельного инструмента нет", not PaintBrushes.PRESETS.has("wash") and not PaintBrushes.PRESETS.has("flat") and not PaintBrushes.PRESETS.has("sponge") and not PaintBrushes.PRESETS.has("splatter") and not PaintBrushes.PRESETS.has("square"))
 	_check("неизвестный id даёт «Кисть»", PaintBrushes.preset("nope")["name"] == "Кисть")
 	var mod := PaintBrushes.preset("brush")
 	mod["size"] = 0.5
 	_check("правка копии не портит пресет", PaintBrushes.preset("brush")["size"] == 0.04)
+
+	# apply_tip: щётка прямоугольная с полосами, брызги разбрасываются и крупнее, губка вращается случайно, квадрат без текстуры
+	var p := PaintBrushes.preset("brush")
+	PaintBrushes.apply_tip(p, "flat", 0.04)
+	_check("apply_tip щётка: текстура bristle, прямоугольник 0.35 x 1, поворот по мазку, размер x1.5", p["end"] == "flat" and p["tip"] == "bristle" and p["shape"] == "box" and p["box"] == Vector2(0.35, 1.0) and p["rotate"] == "stroke" and is_equal_approx(float(p["size"]), 0.06))
+	PaintBrushes.apply_tip(p, "splatter", 0.04)
+	_check("apply_tip брызги: разброс, случайный поворот, размер x2.5", float(p["scatter"]) > 0.0 and p["rotate"] == "random" and p["tip"] == "splatter" and is_equal_approx(float(p["size"]), 0.1))
+	PaintBrushes.apply_tip(p, "sponge", 0.04)
+	_check("apply_tip губка: случайный поворот, текстура sponge, разброс сброшен", p["rotate"] == "random" and p["tip"] == "sponge" and float(p["scatter"]) == 0.0)
+	PaintBrushes.apply_tip(p, "square", 0.04)
+	_check("apply_tip квадрат: без текстуры, форма box, поворот по мазку", p["tip"] == "" and p["shape"] == "box" and p["rotate"] == "stroke")
+	PaintBrushes.apply_tip(p, "round", 0.04)
+	_check("apply_tip круг возвращает исходные параметры, неизвестный конец тоже даёт круг", p["tip"] == "" and p["shape"] == "round" and p["rotate"] == "none" and float(p["scatter"]) == 0.0 and is_equal_approx(float(p["size"]), 0.04))
+	PaintBrushes.apply_tip(p, "nope", 0.04)
+	_check("apply_tip: неизвестный id", p["end"] == "round")
+	_check("ластик с концом губка: конец применяется и к ластику", _eraser_sponge())
+
+
+func _eraser_sponge() -> bool:
+	var e := PaintBrushes.preset("eraser")
+	PaintBrushes.apply_tip(e, "sponge", float(PaintBrushes.PRESETS["eraser"]["size"]))
+	return e["erase"] == true and e["tip"] == "sponge" and is_equal_approx(float(e["size"]), 0.09)
 
 
 func _perp_unit(t: Vector3, n: Vector3) -> bool:
@@ -150,14 +180,18 @@ func _test_helpers() -> void:
 	var dry := {"dry": 0.9, "dry_len": 100.0}
 	_check("запас краски: без сухой кисти всегда 1", PaintBrushes.load_left({"dry": 0.0}, 5000.0) == 1.0)
 	_check("запас краски убывает по длине мазка", PaintBrushes.load_left(dry, 0.0) == 1.0 and is_equal_approx(PaintBrushes.load_left(dry, 50.0), 0.5) and PaintBrushes.load_left(dry, 400.0) == 0.0)
-	var o := PaintBrushes.stamp_opts(PaintBrushes.preset("flat"), Vector3(0, 1, 0), 0.7)
+	var flat := PaintBrushes.preset("brush")
+	PaintBrushes.apply_tip(flat, "flat", 0.04)
+	var o := PaintBrushes.stamp_opts(flat, Vector3(0, 1, 0), 0.7)
 	_check("stamp_opts: текстура, форма, box, направление, запас", o["tip"] == "bristle" and o["shape"] == "box" and o["box"] == Vector2(0.35, 1.0) and o["tan"] == Vector3(0, 1, 0) and is_equal_approx(o["load"], 0.7) and o["dry"] == 0.0 and o["relief"] == 0.0)
 	var dec := PaintBrushes.preset("decal")
 	_check("декаль: инструмент-декаль, один штамп на нажатие, уровень 3, у обычных кистей декалей нет", dec["decal_tool"] == true and dec["single"] == true and dec["level"] == 3 and str(dec["decal"]) == "star" and PaintBrushes.preset("brush")["decal_tool"] == false and PaintBrushes.preset("brush")["single"] == false)
 	var dop := PaintBrushes.stamp_opts(dec, Vector3(1, 0, 0), 1.0)
 	_check("stamp_opts декали: id, зеркало, цвет палитры; у обычной кисти этих полей нет", dop["decal"] == "star" and dop["decal_mirror"] == false and dop["decal_tint"] == true and not PaintBrushes.stamp_opts(PaintBrushes.preset("brush"), Vector3.RIGHT, 1.0).has("decal"))
-	var od := PaintBrushes.stamp_opts(PaintBrushes.preset("wash"), Vector3(0, 1, 0), 1.0)
-	_check("stamp_opts: рельеф и чувствительность смывки", od["relief"] == -1.0 and od["relief_sens"] == 1.0)
+	var wash := PaintBrushes.preset("dry")
+	wash["relief"] = -1.0           # переключатель вида сухой кисти: впадины и тени
+	var od := PaintBrushes.stamp_opts(wash, Vector3(0, 1, 0), 1.0)
+	_check("stamp_opts: сухая кисть с видом «впадины и тени» даёт relief -1 и чувствительность", od["relief"] == -1.0 and od["relief_sens"] == 1.0)
 
 
 func _check(title: String, cond: bool) -> void:
