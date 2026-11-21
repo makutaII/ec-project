@@ -23,7 +23,7 @@ var connected_entities: Array[Entity] = []
 ## Чужие сокеты, снап к которым отклонён (излом или подземное положение). Пока список не пуст,
 ## призрак или трак в драге красный (C_Invalid) и не ставится. Только жесткие траки: у flex свой C_Invalid
 var _snap_rejected: Array[Area3D] = []
-## Причина последнего отказа: "kink" (излом по вертикали), "underground" (трак уходит под землю) или "".
+## Причина последнего отказа: "kink" (излом по вертикали), "bank" (крен не совпадает, ATTN_27), "underground" (трак уходит под землю) или "".
 ## Нужна для подсказки про разворот на 180°
 var snap_reject_reason := ""
 ## Строка общей метки TrackNote с причиной отказа (создается по требованию)
@@ -84,11 +84,15 @@ func _parse_curve(c: Curve3D, p: Path3D, leg: int = 0):
 	if d_last.is_zero_approx():
 		d_last = -(c.get_point_position(c.get_point_count() - 2) - p_last).normalized()
 		
-	_add_socket_if_unique(p_first, d_first, true, leg)
+	# XX claude-coaster C5.4: «верх» поверхности на концах (у траков без крена это перпендикуляр к уклону, как у репера меша)
+	var total := c.get_baked_length()
+	var up_first := TrackMeshBuilder.frame(c, 0.0, total).u
+	var up_last := TrackMeshBuilder.frame(c, total, total).u
+	_add_socket_if_unique(p_first, d_first, true, leg, up_first)
 	_add_cone(p.transform * p_first, Color.CHARTREUSE)  #debug
 	
 	
-	_add_socket_if_unique(p_last, d_last, false, leg)
+	_add_socket_if_unique(p_last, d_last, false, leg, up_last)
 	_add_cone(p.transform * p_last, Color.DEEP_PINK)#debug
 
 
@@ -97,12 +101,13 @@ func _parse_curve(c: Curve3D, p: Path3D, leg: int = 0):
 
 # Добавляем сокет в массив, только если в этой точке его еще нет (слияние для стрелок)
 ## XX claude-switch: is_start = начало маршрута. Нужен PGM для полярности: у кросса два начала (сокеты 0 и 2)
-func _add_socket_if_unique(pos: Vector3, dir: Vector3, is_start: bool = false, leg: int = 0):
+func _add_socket_if_unique(pos: Vector3, dir: Vector3, is_start: bool = false, leg: int = 0, up: Vector3 = Vector3.UP):
 	for s in sockets:
 		if s.pos.distance_to(pos) < 0.01:
 			return # Сокет уже зарегистрирован
 			
 	var new_socket =  _add_socked_area( pos, dir)
+	new_socket.set_meta(&"joint_up", up)   # XX claude-coaster C5.4: «верх» сокета в кадре Entity, для проверки крена на стыке
 	sockets.append({
 		"pos": pos,
 		"out_dir": dir,
@@ -504,6 +509,11 @@ func _snap_transform(s_socket: Area3D, d_socket: Area3D) -> Variant:
 	# поворот вокруг Y на угол a меняет угол вектора в (x,z) на -a
 	var yaw := have.angle() - want.angle()
 	var b := Basis(Vector3.UP, yaw)
+	# XX claude-coaster C5.4: крен на стыке. Мировые «верха» сокетов, разница вокруг оси стыка (излом по вертикали в неё не входит)
+	var bank := JointMath.bank_diff_deg(t_dir, _joint_up_world(s_socket), b * _joint_up_local(d_socket))
+	if bank > Global.settings.joint_bank_max_deg:
+		snap_reject_reason = "bank"
+		return null
 	var xf := Transform3D(b, s_socket.global_position - b * d_socket.position)
 	# XX claude-terra снап, при котором трак уходит под землю, отклоняем (пандус вниз к траку на столе: развернуть на 180°)
 	var path := get_comp(C_Path) as C_Path
@@ -511,6 +521,18 @@ func _snap_transform(s_socket: Area3D, d_socket: Area3D) -> Variant:
 		snap_reject_reason = "underground"
 		return null
 	return xf
+
+
+## «Верх» сокета в кадре Entity-владельца (meta joint_up, пишет _add_socket_if_unique и on_curve_changed). Vector3.UP, если не задан
+func _joint_up_local(area: Area3D) -> Vector3:
+	return area.get_meta(&"joint_up", Vector3.UP)
+
+
+## «Верх» сокета в мире: кадр Entity-владельца (родитель области) поворачивает его
+func _joint_up_world(area: Area3D) -> Vector3:
+	var parent := area.get_parent() as Node3D
+	var up := _joint_up_local(area)
+	return parent.global_basis * up if parent else up
 
 
 # XX claude-terra 13.1.4
@@ -553,6 +575,8 @@ func _update_reject_hint() -> void:
 		_hint.position = Vector3(0.0, 6.0, 0.0)
 	if snap_reject_reason == "underground":
 		_hint.text = "Под землёй: разверни на 180° (Q/E ×4)"
+	elif snap_reject_reason == "bank":
+		_hint.text = "Крен не совпадает: больше %.0f°" % Global.settings.joint_bank_max_deg   # XX claude-coaster C5.4
 	else:
 		_hint.text = "Излом по вертикали больше %.0f°" % Global.settings.joint_kink_max_deg
 
@@ -598,6 +622,7 @@ func on_curve_changed(_data: Dictionary) -> void:
 		sockets[i].out_dir = ends[i][1]
 		#_orient_area(sockets[i].socket, xf * ends[i][0], ends[i][1])
 		_orient_area(sockets[i].socket, xf * ends[i][0] + Vector3(0.0, _surface_lift(), 0.0), ends[i][1])
+		sockets[i].socket.set_meta(&"joint_up", TrackMeshBuilder.frame(c, 0.0 if i == 0 else length, length).u)   # XX claude-coaster C5.4
 
 # XX claude-terra
 ## Включает/выключает конкретный сокет (index 0 начало, 1 конец, -1 все). Шлет flex-призрак:
