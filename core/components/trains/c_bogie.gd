@@ -12,6 +12,8 @@ class BogieData:
 	## XX claude-coaster C2: знак движения при current_speed > 0 вдоль сплайна (+1 к концу, −1 к началу) на траке БЕЗ C_PowerTrack.
 	## На траке с питанием его не читают: там знак даёт полярность (см. C_Bogie.dir_of)
 	var dir_sign: float = 1.0
+	## XX claude-coaster C5.3: «верх» поверхности трака под тележкой в мире (Vector3.UP, пока у трака нет крена)
+	var up: Vector3 = Vector3.UP
 	var calculated_global_pos: Vector3
 	var calculated_global_basis: Basis
 	#var is_front: bool = false # уже не надо
@@ -254,11 +256,13 @@ func _assist_check_transition(bogie: BogieData) -> void:
 		# Раньше look_ahead_pos + Vector3(0, sensor_pos.y, 0) складывало высоту дважды (на траке выше стола луч
 		# стартовал слишком высоко), а датчик навсегда оставался смещенным относительно тележки.
 		var track_h = path_comp.head_height()
-		
+
 		## моя‼️Замена b_offset на b_offset_z
 		var b_off_y = bogie.config.wheel_pair_position.y if bogie.config else 0.0
 		var lift = track_h + b_off_y + bogie.ray_home.y
-		bogie.raycast.global_position = Vector3(look_ahead_pos.x, look_ahead_pos.y + lift, look_ahead_pos.z)
+		# XX claude-coaster C5.3: подъём датчика вдоль «верха» трака (без крена это Vector3.UP: прежнее смещение по Y)
+		var ray_up: Vector3 = path_comp.surface_up_at(bogie.track_distance, bogie.route)
+		bogie.raycast.global_position = look_ahead_pos + ray_up * lift
 		bogie.raycast.force_raycast_update()
 		var ray_hit = bogie.raycast.is_colliding()
 		var ray_collider = bogie.raycast.get_collider() if ray_hit else null
@@ -319,6 +323,10 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 	var curve_len = path_comp.curve_of(bogie.route).get_baked_length()   # XX claude-switch
 	var track_h = path_comp.head_height()
 	var wp_z = bogie.config.wheel_pair_position.z  if bogie.config else 0.0
+	# XX claude-coaster C5.3: «верх» поверхности под тележкой. Без крена ровно Vector3.UP: подъём на head_height по Y и
+	# Basis.looking_at(…, UP) остаются прежними; с креном подъём и поворот идут вдоль повёрнутого «верха»
+	var up: Vector3 = path_comp.surface_up_at(bogie.track_distance, bogie.route)
+	bogie.up = up
 	
 	# --- ИСПРАВЛЕНИЕ: Получаем данные о развороте трака ---
 	var is_track_flipped := dir_of(bogie) < 0.0   # XX claude-switch (питание), XX claude-coaster C2 (без питания)
@@ -331,7 +339,7 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 		
 		# Центр тележки — точка посередине между осями
 		bogie.calculated_global_pos = (front_pos + rear_pos) / 2.0
-		bogie.calculated_global_pos.y += track_h
+		bogie.calculated_global_pos += up * track_h
 		
 		# Поворот pivot тележки строго по вектору между осями
 		var forward_dir = (front_pos - rear_pos).normalized()
@@ -342,11 +350,11 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 		# ----------------------------------------------------------------------------------------
 		
 		if is_instance_valid(bogie.pivot) and forward_dir.length_squared() > 0.001:
-			bogie.pivot.global_basis = Basis.looking_at(forward_dir, Vector3.UP)
+			bogie.pivot.global_basis = Basis.looking_at(forward_dir, up)
 	else:
 		# Одноосная тележка: расчет по центральной точке
 		bogie.calculated_global_pos = _assist_sample_pos_with_extrapolation(path_comp, bogie.track_distance, curve_len, bogie.route)
-		bogie.calculated_global_pos.y += track_h
+		bogie.calculated_global_pos += up * track_h
 		
 		if is_instance_valid(bogie.pivot):
 			var transform_baked = path_comp.curve_of(bogie.route).sample_baked_with_rotation(clampf(bogie.track_distance, 0.0, curve_len))
@@ -358,7 +366,7 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 			# --------------------------------------------------------------------------------
 			
 			if global_forward.length_squared() > 0.001:
-				bogie.pivot.global_basis = Basis.looking_at(global_forward, Vector3.UP)
+				bogie.pivot.global_basis = Basis.looking_at(global_forward, up)
 				
 				
 				

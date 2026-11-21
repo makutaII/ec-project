@@ -123,6 +123,15 @@ static func roll_at(curve: Curve3D, s: float, L: float) -> float:
 	return lerpf(t0, t1, f - float(i))
 
 
+## «Верх» поверхности трака в локальных координатах кривой в точке s. Пока крена нет это ровно Vector3.UP (так вагоны
+## ориентировались всегда, в том числе на подъёмах: Basis.looking_at сам берёт составляющую UP, перпендикулярную ходу),
+## при крене репер с креном (frame().u). XX claude-coaster C5.3
+static func surface_up_local(curve: Curve3D, s: float, L: float) -> Vector3:
+	if roll_at(curve, s, L) == 0.0:
+		return Vector3.UP
+	return frame(curve, s, L).u
+
+
 ## Крен меняется вдоль кривой (начало и конец различаются больше чем на 0.6°): прямая с таким креном «скручивается»
 static func is_twisted(curve: Curve3D, L: float) -> bool:
 	return absf(roll_at(curve, 0.0, L) - roll_at(curve, L, L)) > 0.01

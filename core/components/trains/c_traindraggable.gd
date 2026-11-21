@@ -253,10 +253,12 @@ func _snap_to_track(track_entity: Entity, world_mouse_pos: Vector3) -> void:
 
 	# 6. Устанавливаем позицию и выравниваем базис (поворот).Прибавляем высоту от drag_offset
 	#entity.global_position = global_point_pos + Vector3(0,  Global.settings.get_track_height(), 0) 
-	entity.global_position = global_point_pos + Vector3(0, path_comp.head_height(), 0)
+	# XX claude-coaster C5.3: «верх» трака (без крена ровно Vector3.UP: прежние подъём по Y и поворот)
+	var surf_up: Vector3 = path_comp.surface_up_at(current_curve_point, current_route)
+	entity.global_position = global_point_pos + surf_up * path_comp.head_height()
 	# Защита от коллинеарности с вектором UP (если рельсы идут строго вертикально)
 	if abs(final_forward.dot(Vector3.UP)) < 0.99:
-		entity.global_transform.basis = Basis.looking_at(final_forward, Vector3.UP)
+		entity.global_transform.basis = Basis.looking_at(final_forward, surf_up)
 
 	# 7. Отправляем приказ физике подтянуть кузов
 	entity.send_event("on_force_rotate_physics", {"basis": entity.global_basis})

@@ -50,6 +50,20 @@ var _radii_step := 1.0
 var _head_h := -1.0   # < 0: не задана, берём из конфига при первом обращении
 
 
+## «Верх» поверхности трака в мире в точке offset маршрута route. Vector3.UP, пока крена нет (как всегда было), иначе вектор,
+## повёрнутый креном вокруг оси трака. На него опираются тележка, кузов и посадка вагона (ATTN_27, шаг C5.3).
+## Не зависит от направления движения: у соседей на стыке совпадает один и тот же мировой вектор
+func surface_up_at(offset: float, route: int = 0) -> Vector3:
+	var crv := curve_of(route)
+	if crv == null or path_node == null:
+		return Vector3.UP
+	var total := crv.get_baked_length()
+	var up := TrackMeshBuilder.surface_up_local(crv, clampf(offset, 0.0, total), total)
+	if up == Vector3.UP:
+		return up   # без крена: точно UP, без поворота в мировые координаты
+	return (path_node.global_basis * up).normalized()
+
+
 ## Высота поверхности катания над origin пути, ю. Все, кто ездит по траку или садится на него, читают только это.
 func head_height() -> float:
 	if _head_h < 0.0:

@@ -64,6 +64,24 @@ func _run() -> void:
 	var plain_arc := RideShape.build(12.0, 0.0, 15.0, 0.0)
 	_expect_v(errors, "дуга: ось не зависит от крена", TrackMeshBuilder.frame(arc, 6.0, La).p, TrackMeshBuilder.frame(plain_arc, 6.0, plain_arc.get_baked_length()).p)
 
+	# 6. «Верх» для вагонов (surface_up_local, шаг C5.3): без крена ровно Vector3.UP даже на подъёме и дуге
+	# (так вагоны ориентировались всегда, поведение обычных траков не меняется), с креном повёрнутый репер
+	_expect_bool(errors, "прямая без крена: верх == UP", TrackMeshBuilder.surface_up_local(plain, 5.0, Lp) == Vector3.UP, true)
+	var up_arc := RideShape.build(12.0, 0.0, 15.0, 0.0)
+	var Lu := up_arc.get_baked_length()
+	_expect_bool(errors, "дуга вверх без крена: верх == UP", TrackMeshBuilder.surface_up_local(up_arc, 6.0, Lu) == Vector3.UP, true)
+	var slope := RideShape.build(10.0, 15.0, 15.0, 0.0)
+	_expect_bool(errors, "уклон без крена: верх == UP", TrackMeshBuilder.surface_up_local(slope, 5.0, slope.get_baked_length()) == Vector3.UP, true)
+	_expect_v(errors, "прямая с креном 0 → 30°: верх в середине", TrackMeshBuilder.surface_up_local(twist, 5.0, L), Vector3(sin(deg_to_rad(15.0)), cos(deg_to_rad(15.0)), 0))
+	_expect_v(errors, "верх совпадает с frame().u", TrackMeshBuilder.surface_up_local(arc, 6.0, La), TrackMeshBuilder.frame(arc, 6.0, La).u)
+	# Basis.looking_at с этим «верхом» даёт ось Y, равную «верху» (вагон наклоняется вместе с лотком)
+	var up_roll := TrackMeshBuilder.surface_up_local(bank, 5.0, Lb)
+	var bas := Basis.looking_at(Vector3(0, 0, -1), up_roll)
+	_expect_v(errors, "вагон: ось Y корпуса = верх лотка", bas.y, up_roll)
+	_expect_v(errors, "вагон: ось Z корпуса назад", bas.z, Vector3(0, 0, 1))
+	# Среднее «верха» двух тележек на соседних точках: нормированная сумма ровно UP, когда оба UP
+	_expect_bool(errors, "среднее двух UP == UP", (Vector3.UP + Vector3.UP).normalized() == Vector3.UP, true)
+
 	if errors.is_empty():
 		print("OK: репер трака с креном: правый крен + опускает правый край, без крена репер прежний")
 	else:

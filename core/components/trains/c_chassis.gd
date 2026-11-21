@@ -536,7 +536,12 @@ func _physics_process(delta: float) -> void:
 	# Защита от схлопывания точек (если дистанция вдруг стала нулевой)
 	if forward_dir.length_squared() > 0.001:
 		# Выравниваем локальный -Z (морду) по вектору движения
-		entity.global_basis = Basis.looking_at(forward_dir, Vector3.UP)
+		# XX claude-coaster C5.3: «верх» кузова это среднее «верха» крайних тележек (без крена ровно Vector3.UP)
+		var body_up := Vector3.UP
+		var tb = bogie_comp.bogies_data
+		if tb.size() > 0:
+			body_up = (tb[0].up + tb[tb.size() - 1].up).normalized()
+		entity.global_basis = Basis.looking_at(forward_dir, body_up)
 
 	# --- ИНТЕГРАЦИЯ ПОДВЕСКИ ---
 	_assist_suspension_dynamics(delta)
