@@ -84,6 +84,14 @@ func occupied_height() -> float:
 	return h
 
 
+## Высота ToolDock от нижнего края окна с учетом растягивания (0: ряд или ToolDock спрятан). Выше стоят подсказки внизу
+func dock_height() -> float:
+	if not is_visible_in_tree():
+		return 0.0
+	var column := %DockColumn as Control
+	return column.size.y if column.visible else 0.0
+
+
 ## Размеры детей обновляет контейнер позже, чем приходит сигнал: сообщаем один раз после раскладки
 func _queue_occupied() -> void:
 	if _occupied_queued:
@@ -95,6 +103,7 @@ func _queue_occupied() -> void:
 func _emit_occupied() -> void:
 	_occupied_queued = false
 	occupied_changed.emit()
+	Hints.set_bottom_lift(dock_height())   # подсказки внизу экрана стоят над ToolDock
 
 
 func _viewport_h() -> float:

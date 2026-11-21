@@ -2,9 +2,11 @@ extends Node
 # class_name не задаём: это синглтон Hints (autoload)
 
 ###########################
-##💡 Hints - подсказки игроку внизу экрана (TDD §16)
+##💡 Hints - подсказки игроку: внизу экрана над ToolDock или справа сверху (TDD §16)
 ############################
-## Показывает одну-две строки с клавишами для текущего режима и инструмента.
+## Внизу: одна строка через разделитель, над ToolDock (он сообщает свою высоту: set_bottom_lift). Справа: каждое действие
+## в отдельной строке под TopBar (при выбранной группе левее ее панели). Расположение: Settings [ui] hints_position (bottom, right).
+## Показывает клавиши для текущего режима и инструмента. Без выбранного объекта подсказок нет.
 ## Источники состояния (никто сюда не пишет текст, только сообщает контекст):
 ##   set_mode(mode)        ToolController при смене режима (build, operate, observe, library)
 ##   set_tool(tool_name)   ToolController при смене инструмента (SelectTool, BuildTool, DragTool, ObserveTool)
@@ -18,64 +20,71 @@ extends Node
 signal enabled_changed(on: bool)
 
 const KEY_COLOR := "#ffd54a"
-const DIM_COLOR := "#9aa4b2"
 const BOTTOM_MARGIN := 14.0
+## Расположение: внизу (над ToolDock) или справа сверху. По умолчанию справа (решение U7a: HintBarTopRight)
+const POS_BOTTOM := &"bottom"
+const POS_RIGHT := &"right"
+## Справа: под TopBar (40) с отступом, отступ от правого края
+const RIGHT_TOP := 52.0
+const RIGHT_MARGIN := 12.0
+## Справа при выбранной группе подсказки стоят левее панели группы (GroupSelectionPanel справа сверху)
+const GROUP_PANEL_SHIFT := 250.0
+## Внизу: зазор между подсказкой и верхом ToolDock
+const DOCK_GAP := 8.0
 const MAX_WIDTH := 960.0
 ## По бокам нижней подсказки не заходим на DC (417) и правую колонку: ширина DC + отступ с каждой стороны.
 const SIDE_RESERVE := 429.0
 const SEPARATOR := "   ·   "
 
-## Пары [клавиша, действие]
+## Пары [клавиша, действие]. Правила состава (21.11.2026): нет строк про камеру; нет действий мыши без модификаторов
+## (ЛКМ, ПКМ, Тащить ЛКМ: очевидны); без выбранного объекта подсказок нет (ключи select_none не заведены). Жесты с Shift,
+## Ctrl, Alt остаются; у «ЛКМ / клавиша» остается клавиша
 const HINTS := {
-	"select_group": [["@gesture_add_select", "добавить / убрать объект"], ["@gesture_marquee_add", "добавить рамкой"], ["@delete", "удалить выбранное"], ["Галки в панели", "какие категории в группе"], ["ПКМ", "снять выбор"], ["Тащить ЛКМ по объекту группы", "двигать группу"], ["@gesture_marquee", "новая рамка"]],
-	"select_none": [["ЛКМ", "выбрать объект"], ["ЛКМ по рычагу", "переложить стрелку (ручную)"], ["Рамка", "ЛКМ тащить по пустому месту (Ctrl: поверх объектов)"], ["Категория → объект", "построить новый"], ["@duplicate_last", "дубль последнего"]],
-	"operate/select_none": [["ЛКМ", "выбрать вагон или локомотив"], ["ЛКМ по рычагу", "переложить стрелку (ручную)"], ["Тащить ЛКМ", "переместить выбранный"]],
-	"select_sel": [["Тащить ЛКМ", "переместить"], ["@gesture_add_select", "добавить к выбору"], ["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["@tunnel_toggle", "тоннель (трак)"], ["@embankment_toggle", "насыпь (трак)"], ["@flex_zones_toggle", "зоны flex"]],
-	"select_switch": [["Тащить ЛКМ", "переместить"], ["@gesture_add_select", "добавить к выбору"], ["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["@tunnel_toggle", "тоннель (трак)"], ["@embankment_toggle", "насыпь (трак)"], ["@flex_zones_toggle", "зоны flex"], ["@switch_throw", "переложить стрелку (дистанционную)"], ["ЛКМ по рычагу", "переложить стрелку (ручную)"]],
-	"operate/select_sel": [["Ручка на панели", "ЛКМ вращать, ПКМ обнулить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["Тащить ЛКМ", "переместить"], ["@delete", "удалить"]],
-	"operate/select_switch": [["Ручка на панели", "ЛКМ вращать, ПКМ обнулить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["Тащить ЛКМ", "переместить"], ["@delete", "удалить"], ["@switch_throw", "переложить стрелку (дистанционную)"], ["ЛКМ по рычагу", "переложить стрелку (ручную)"]],
-	"build": [["ЛКМ", "построить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@duplicate_last", "дубль последнего"], ["@tunnel_toggle", "тоннель"], ["@flex_limits_toggle", "лимиты flex"], ["@flex_zones_toggle", "зоны flex"]],
-	"build_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / @shape_confirm", "замкнуть"], ["@shape_undo", "убрать вершину"], ["ПКМ", "сбросить"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@depth_up/@depth_down", "толщина (Shift ×5)"]],
-	"build_strip": [["ЛКМ", "точка оси"], ["ЛКМ по последней точке / @shape_confirm", "закончить"], ["@width_down и @width_up", "ширина (Shift ×5)"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@depth_up/@depth_down", "толщина (Shift ×5)"]],
-	"cut_rect": [["ЛКМ", "угол, второй клик режет"], ["@shape_undo", "отменить рисунок"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
-	"cut_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / @shape_confirm", "вырезать"], ["@shape_undo", "убрать вершину"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
-	"cut_strip": [["ЛКМ", "точка оси"], ["ЛКМ по последней точке / @shape_confirm", "вырезать"], ["@width_down и @width_up", "ширина (Shift ×5)"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
-	"cut_line": [["ЛКМ", "две точки прямой, третий клик отсекает сторону курсора"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
-	"cut_bevel": [["ЛКМ", "две точки гребня, третий клик режет скос в сторону курсора"], ["@width_down и @width_up", "ступень (Shift ×5)"], ["@depth_up/@depth_down", "высота скоса, слоёв"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@shape_undo", "убрать точку"], ["ПКМ", "сбросить / выйти"], ["@tool_undo", "отменить скос"]],
-	"table_place": [["ЛКМ", "поставить секцию"], ["@rotate_left/@rotate_right", "повернуть на 90°"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["@tool_undo", "убрать последнюю"], ["ПКМ", "выйти"]],
-	"sections/select_none": [["ЛКМ", "выбрать секцию"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["Кнопка секции внизу", "поставить новую"]],
+	"select_group": [["@gesture_add_select", "добавить / убрать объект"], ["@gesture_marquee_add", "добавить рамкой"], ["@delete", "удалить выбранное"], ["Галки в панели", "какие категории в группе"]],
+	"select_sel": [["@gesture_add_select", "добавить к выбору"], ["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["@tunnel_toggle", "тоннель (трак)"], ["@embankment_toggle", "насыпь (трак)"], ["@flex_zones_toggle", "зоны flex"]],
+	"select_switch": [["@gesture_add_select", "добавить к выбору"], ["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["@tunnel_toggle", "тоннель (трак)"], ["@embankment_toggle", "насыпь (трак)"], ["@flex_zones_toggle", "зоны flex"], ["@switch_throw", "переложить стрелку (дистанционную)"]],
+	"operate/select_sel": [["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["@delete", "удалить"]],
+	"operate/select_switch": [["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"], ["@delete", "удалить"], ["@switch_throw", "переложить стрелку (дистанционную)"]],
+	"build": [["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@duplicate_last", "дубль последнего"], ["@tunnel_toggle", "тоннель"], ["@flex_limits_toggle", "лимиты flex"], ["@flex_zones_toggle", "зоны flex"]],
+	"build_polygon": [["@shape_confirm", "замкнуть"], ["@shape_undo", "убрать вершину"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@depth_up/@depth_down", "толщина (Shift ×5)"]],
+	"build_strip": [["@shape_confirm", "закончить"], ["@width_down и @width_up", "ширина (Shift ×5)"], ["@shape_undo", "убрать точку"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@depth_up/@depth_down", "толщина (Shift ×5)"]],
+	"cut_rect": [["@shape_undo", "отменить рисунок"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
+	"cut_polygon": [["@shape_confirm", "вырезать"], ["@shape_undo", "убрать вершину"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
+	"cut_strip": [["@shape_confirm", "вырезать"], ["@width_down и @width_up", "ширина (Shift ×5)"], ["@shape_undo", "убрать точку"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
+	"cut_line": [["@shape_undo", "убрать точку"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@depth_up/@depth_down", "глубина (Shift ×5)"], ["@cut_through", "насквозь"], ["@tool_undo", "отменить вырез"]],
+	"cut_bevel": [["@width_down и @width_up", "ступень (Shift ×5)"], ["@depth_up/@depth_down", "высота скоса, слоёв"], ["@level_up/@level_down", "плоскость (Shift ×5)"], ["@shape_undo", "убрать точку"], ["@tool_undo", "отменить скос"]],
+	"table_place": [["@rotate_left/@rotate_right", "повернуть на 90°"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["@tool_undo", "убрать последнюю"]],
 	"sections/select_sel": [["@delete", "убрать секцию (последнюю и с объектами на ней нельзя)"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["Кнопка секции внизу", "поставить новую"]],
 	"sections/select_switch": [["@delete", "убрать секцию"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"]],
 	# XX claude-coaster C1: подсказки режима «Coaster» (ATTN_27). Без V и Z: дубль и зоны flex работают только в Build
-	"coaster/select_none": [["ЛКМ", "выбрать трак или вагон"], ["ЛКМ удержать на вагоне", "пинок: сзади вперёд, спереди назад (дольше, сильнее)"], ["Категория → объект", "построить новый"]],
-	"coaster/select_sel": [["Тащить ЛКМ", "переместить"], ["@delete", "удалить"], ["ЛКМ удержать на вагоне", "пинок: сзади вперёд, спереди назад (дольше, сильнее)"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"]],
-	"coaster/build": [["ЛКМ", "построить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"]],
-	"field_rect": [["ЛКМ", "угол, второй клик кладёт слой"], ["Ctrl+ЛКМ", "снять слой"], ["@shape_undo", "отменить рисунок"], ["@tool_undo", "отменить правку"], ["ПКМ", "сбросить / выйти"]],
-	"field_polygon": [["ЛКМ", "вершина"], ["ЛКМ по первой вершине / @shape_confirm", "положить слой"], ["Ctrl+ЛКМ или Ctrl+@shape_confirm", "снять слой"], ["@shape_undo", "убрать вершину"], ["@tool_undo", "отменить правку"], ["ПКМ", "сбросить / выйти"]],
-	"field_table": [["ЛКМ", "слой на всю столешницу"], ["Ctrl+ЛКМ", "снять слой со всей столешницы"], ["@tool_undo", "отменить правку"], ["ПКМ", "выйти"]],
-	"water_pour": [["ЛКМ", "налить воду (область видна до клика)"], ["Shift+ЛКМ", "осушить"], ["@level_up/@level_down", "глубина воды (Shift ×5)"], ["@level_up_x5/@level_down_x5", "глубина ±5"], ["@tool_undo", "отменить налив"], ["ПКМ", "выйти"]],
-	"plaster": [["ЛКМ", "сгладить весь холм под курсором"], ["Shift+ЛКМ", "только этот лист"], ["Ctrl+ЛКМ", "снять (Shift: только лист)"], ["@width_down и @width_up", "ступень пандуса, ю на слой"], ["@tool_undo", "отменить"], ["ПКМ", "выйти"]],
-	"paint": [["ЛКМ", "красить (тянуть)"], ["Ctrl+ЛКМ", "стереть"], ["@width_down и @width_up", "радиус кисти, ю (Shift ×5)"], ["@tool_undo", "отменить мазок"], ["ПКМ", "выйти"]],
-	"drag": [["Отпустить ЛКМ", "поставить"], ["ПКМ", "отмена"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@reset_transform", "сброс"]],
-	"wire": [["ЛКМ по клемме", "начать провод"], ["ЛКМ по столу", "точка излома"], ["ЛКМ по второй клемме", "соединить"], ["ПКМ / @wire_cancel", "отмена, повторно выход"]],
-	"wire_started": [["ЛКМ по клемме", "соединить"], ["ЛКМ по столу", "точка излома"], ["ПКМ / @wire_cancel", "отмена провода"]],
+	"coaster/select_sel": [["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"]],
+	"coaster/build": [["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"]],
+	"field_rect": [["Ctrl+ЛКМ", "снять слой"], ["@shape_undo", "отменить рисунок"], ["@tool_undo", "отменить правку"]],
+	"field_polygon": [["@shape_confirm", "положить слой"], ["Ctrl+ЛКМ или Ctrl+@shape_confirm", "снять слой"], ["@shape_undo", "убрать вершину"], ["@tool_undo", "отменить правку"]],
+	"field_table": [["Ctrl+ЛКМ", "снять слой со всей столешницы"], ["@tool_undo", "отменить правку"]],
+	"water_pour": [["Shift+ЛКМ", "осушить"], ["@level_up/@level_down", "глубина воды (Shift ×5)"], ["@level_up_x5/@level_down_x5", "глубина ±5"], ["@tool_undo", "отменить налив"]],
+	"plaster": [["Shift+ЛКМ", "только этот лист"], ["Ctrl+ЛКМ", "снять (Shift: только лист)"], ["@width_down и @width_up", "ступень пандуса, ю на слой"], ["@tool_undo", "отменить"]],
+	"paint": [["Ctrl+ЛКМ", "стереть"], ["@width_down и @width_up", "радиус кисти, ю (Shift ×5)"], ["@tool_undo", "отменить мазок"]],
+	"drag": [["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"], ["@reset_transform", "сброс"]],
+	"wire": [["@wire_cancel", "отмена, повторно выход"]],
+	"wire_started": [["@wire_cancel", "отмена провода"]],
 	"library": [["Режим в разработке", ""]],
-	"observe": [["ЛКМ по вагону", "камера Follow"], ["@bookmark_1-@bookmark_5", "перейти к закладке (пустая: сохранить)"], ["Ctrl+@bookmark_1-@bookmark_5 или Shift+карточка", "перезаписать закладку"], ["@photo_hide_ui", "скрыть UI"], ["@photo_snap", "снимок"]],
-	"observe_follow": [["@observe_cancel", "выйти из Follow"], ["ЛКМ по другому вагону", "сменить"], ["СКМ + мышь", "вращать камеру вагона"]],
-	"observe_pov": [["@observe_cancel", "выйти из POV"], ["POV ↔", "развернуть камеру"], ["ЛКМ по другому вагону", "перенести камеру"]],
+	"observe": [["@bookmark_1-@bookmark_5", "перейти к закладке (пустая: сохранить)"], ["Ctrl+@bookmark_1-@bookmark_5 или Shift+карточка", "перезаписать закладку"], ["@photo_hide_ui", "скрыть UI"], ["@photo_snap", "снимок"]],
+	"observe_follow": [["@observe_cancel", "выйти из Follow"]],
+	"observe_pov": [["@observe_cancel", "выйти из POV"], ["POV ↔", "развернуть камеру"]],
 	"observe_orbit": [["@observe_cancel", "выйти из Orbit"], ["Orbit", "ещё раз, чтобы остановить"]],
 	"observe_photo": [["@photo_snap", "снимок"], ["@photo_hide_ui или @observe_cancel", "вернуть интерфейс"]],
 }
 
-## Управление камерой Gimbal, вторая строка, где камерой управляет игрок
-const CAMERA_LINE := [["СКМ", "поворот"], ["ПКМ", "сдвиг"], ["Колесо", "зум"], ["@key_w@key_a@key_s@key_d", "перемещение"]]
-
 var enabled := true
+## Где стоят подсказки: POS_BOTTOM или POS_RIGHT
+var position_mode: StringName = POS_RIGHT
 var mode: StringName = &"build"
 var tool: StringName = &"SelectTool"
 var extra: StringName = &""
 
 var _ctx := {}
+var _bottom_lift := 0.0   # высота ToolDock снизу (сообщает ToolDockView)
 var _suspended := false
 var _last_text := ""
 var _layer: CanvasLayer
@@ -90,6 +99,9 @@ func _ready() -> void:
 	Actions.binding_changed.connect(_on_binding_changed)
 	Global.build_options.option_changed.connect(func(_k: StringName) -> void: _on_binding_changed(&""))   # шаг поворота в тексте (U12)
 	enabled = bool(Settings.get_value("ui", "hints_enabled", true))
+	position_mode = StringName(String(Settings.get_value("ui", "hints_position", String(POS_RIGHT))))
+	if position_mode != POS_BOTTOM:
+		position_mode = POS_RIGHT
 	_build_ui()
 	_refresh()
 
@@ -107,6 +119,27 @@ func set_enabled(on: bool) -> void:
 	_refresh()
 
 
+## Расположение подсказок: POS_BOTTOM или POS_RIGHT
+func set_position_mode(p: StringName) -> void:
+	if p != POS_BOTTOM and p != POS_RIGHT:
+		return
+	if p == position_mode:
+		return
+	position_mode = p
+	Settings.set_value("ui", "hints_position", String(p))
+	_last_text = ""
+	_apply_layout()
+	_refresh()
+
+
+## Высота ToolDock снизу, выше нее стоят подсказки внизу (0: ряд спрятан). Зовет ToolDockView
+func set_bottom_lift(px: float) -> void:
+	if is_equal_approx(px, _bottom_lift):
+		return
+	_bottom_lift = px
+	_apply_layout()
+
+
 func set_mode(m: StringName) -> void:
 	mode = m
 	_refresh()
@@ -121,6 +154,8 @@ func set_context(key: StringName, on: bool) -> void:
 	if _ctx.get(key, false) == on:
 		return
 	_ctx[key] = on
+	if key == &"group":
+		_apply_layout()   # справа подсказки сдвигаются левее панели группы
 	_refresh()
 
 
@@ -198,10 +233,8 @@ func _compose() -> String:
 	if items.is_empty():
 		return ""
 	var text := _format(items)
-	# Вторая строка про камеру: когда ею управляет игрок (не Follow, POV, Orbit и не фоторежим)
-	var own_camera := key in ["select_none", "select_group", "select_sel", "build", "build_polygon", "build_strip", "cut_rect", "cut_polygon", "cut_strip", "cut_line", "cut_bevel", "field_rect", "field_polygon", "field_table", "water_pour", "table_place", "plaster", "wire", "wire_started", "drag", "observe"]
-	if own_camera:
-		text += "\n[color=%s]%s[/color]" % [DIM_COLOR, _format(CAMERA_LINE, false)]
+	if position_mode == POS_RIGHT:
+		return text   # справа: каждое действие в своей строке, по левому краю
 	return "[center]" + text + "[/center]"
 
 
@@ -216,7 +249,7 @@ func _format(items: Array, highlight := true) -> String:
 			parts.append(("[b][color=%s]%s[/color][/b] %s" % [KEY_COLOR, k, t]).strip_edges())
 		else:
 			parts.append("%s %s" % [k, t])
-	return SEPARATOR.join(parts)
+	return ("\n" if position_mode == POS_RIGHT else SEPARATOR).join(parts)
 
 
 # ==========================================
@@ -278,10 +311,6 @@ func _build_ui() -> void:
 	sb.content_margin_top = 8.0
 	sb.content_margin_bottom = 8.0
 	_panel.add_theme_stylebox_override("panel", sb)
-	_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_panel.offset_bottom = -BOTTOM_MARGIN
 	_layer.add_child(_panel)
 
 	_label = RichTextLabel.new()
@@ -295,6 +324,44 @@ func _build_ui() -> void:
 	_label.add_theme_font_size_override("bold_font_size", 15)
 	_panel.add_child(_label)
 	get_viewport().size_changed.connect(_on_viewport_resized)
+	_apply_layout()
+
+
+## Якоря и отступы панели по расположению. Внизу: по центру, над ToolDock. Справа: под TopBar у правого края
+func _apply_layout() -> void:
+	if _panel == null:
+		return
+	if position_mode == POS_RIGHT:
+		_panel.anchor_left = 1.0
+		_panel.anchor_right = 1.0
+		_panel.anchor_top = 0.0
+		_panel.anchor_bottom = 0.0
+		var right := RIGHT_MARGIN + (GROUP_PANEL_SHIFT if _ctx.get(&"group", false) else 0.0)
+		_panel.offset_right = -right
+		_panel.offset_left = -right
+		_panel.offset_top = RIGHT_TOP
+		_panel.offset_bottom = RIGHT_TOP
+		_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		_panel.grow_vertical = Control.GROW_DIRECTION_END
+		_label.autowrap_mode = TextServer.AUTOWRAP_OFF   # ширина по самой длинной строке
+		_label.custom_minimum_size = Vector2.ZERO
+	else:
+		_panel.anchor_left = 0.5
+		_panel.anchor_right = 0.5
+		_panel.anchor_top = 1.0
+		_panel.anchor_bottom = 1.0
+		_panel.offset_left = 0.0
+		_panel.offset_right = 0.0
+		_panel.offset_top = 0.0
+		# Над ToolDock: его высота и зазор; ряд спрятан (Observe): обычный отступ от низа окна
+		_panel.offset_bottom = -((_bottom_lift + DOCK_GAP) if _bottom_lift > 0.0 else BOTTOM_MARGIN)
+		_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_label.custom_minimum_size = Vector2(_label_width(), 0.0)
+	_last_text = ""   # вид строк зависит от расположения
+	_panel.reset_size()
+	_refresh()
 
 
 func _label_width() -> float:
@@ -303,7 +370,7 @@ func _label_width() -> float:
 
 
 func _on_viewport_resized() -> void:
-	if _label == null:
+	if _label == null or position_mode == POS_RIGHT:
 		return
 	_label.custom_minimum_size.x = _label_width()
 	_panel.reset_size()
