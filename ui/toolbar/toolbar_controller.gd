@@ -196,6 +196,7 @@ func _show_category(cat: StringName) -> void:
 	if cat == &'idle':
 		_dock.hide()
 		_view.category_label().text = ""
+		_view.refresh_crumbs()
 		return
 	var provider: CatalogProvider = _providers.get(_mode)
 	_clear(_grid)   # У категории без тегов не должно остаться кнопок прежней
@@ -219,6 +220,7 @@ func _show_category(cat: StringName) -> void:
 			if i == 0:
 				btn.select_as_default()   # первый тег нажат по умолчанию, он же наполнит сетку
 	_title.text = str(cat)
+	_view.refresh_crumbs()
 	_dock.show()
 
 
@@ -226,6 +228,7 @@ func _show_category(cat: StringName) -> void:
 func _on_tag_selected(new_tag: StringName) -> void:
 	current_tag = new_tag
 	_view.tag_label().text = _tag_name(new_tag)
+	_view.refresh_crumbs()
 	if current_cat != &'idle':
 		_fill_grid(current_cat, new_tag)
 
@@ -252,6 +255,7 @@ func _fill_grid(cat: StringName, tag: StringName) -> void:
 		_grid.add_child(btn)
 	_filter_bar.set_empty(buttons.is_empty() and not values.is_empty())
 	_view.count_label().text = "Объектов: %d" % buttons.size() if not buttons.is_empty() else ""
+	_view.refresh_crumbs()
 	_view.empty_label().visible = buttons.is_empty() and values.is_empty()
 
 

@@ -56,6 +56,17 @@ func objects_flow() -> Container: return %ObjectsFlow
 func empty_label() -> Label: return %EmptyObjects
 
 
+## Заголовок читается справа налево: [Дубль] категория ‹ тег ‹ количество; кнопки тегов слева, название режима скрыто.
+## Стрелки стоят там, где с обеих сторон есть текст. Зовет ToolbarController после смены категории, тега и числа объектов
+## (по сигналу Label это не сделать: скрытый Label при смене текста сигнала не шлет, а колонка ToolDock бывает скрыта)
+func refresh_crumbs() -> void:
+	var has_category := (%CategoryLabel as Label).text != ""
+	var has_tag := (%TagLabel as Label).text != ""
+	var has_count := (%CountLabel as Label).text != ""
+	(%ArrowTag as Control).visible = has_category and has_tag
+	(%ArrowCount as Control).visible = has_count and (has_category or has_tag)
+
+
 ## Высота от нижнего края окна до верха того, что стоит у левого края: панель категорий или ToolDock
 ## (что выше, только видимое). 0, если ряд спрятан (Observe, фоторежим).
 ## ToolDock считается по минимальной высоте, а не по растянутой: когда игрок тянет его вверх, он накрывает DC-панель
