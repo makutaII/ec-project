@@ -106,7 +106,30 @@ static func ensure_materials() -> void:
 # Репер кривой
 # ==========================================
 
-## Локальный репер кривой в точке s: right, up, forward (вперед = -Z на прямой)
+## Крен кривой в точке s, радианы, + правый край ниже (правая тройка вокруг направления движения: «верх» уходит вправо).
+## Берётся из наклона контрольных точек (Curve3D.set_point_tilt), которые у траков горок стоят через равные длины (RideShape),
+## поэтому интерполяция по индексу равна линейной по длине. У остальных кривых наклон нулевой и функция даёт 0.
+## XX claude-coaster C5.2
+static func roll_at(curve: Curve3D, s: float, L: float) -> float:
+	var n := curve.get_point_count()
+	if n < 2:
+		return 0.0
+	var f := clampf(s / maxf(L, 0.0001), 0.0, 1.0) * float(n - 1)
+	var i := mini(int(f), n - 2)
+	var t0 := curve.get_point_tilt(i)
+	var t1 := curve.get_point_tilt(i + 1)
+	if t0 == 0.0 and t1 == 0.0:
+		return 0.0
+	return lerpf(t0, t1, f - float(i))
+
+
+## Крен меняется вдоль кривой (начало и конец различаются больше чем на 0.6°): прямая с таким креном «скручивается»
+static func is_twisted(curve: Curve3D, L: float) -> bool:
+	return absf(roll_at(curve, 0.0, L) - roll_at(curve, L, L)) > 0.01
+
+
+## Локальный репер кривой в точке s: right, up, forward (вперед = -Z на прямой).
+## Крен (roll_at) поворачивает right и up вокруг направления движения; у кривых без наклона репер прежний
 static func frame(curve: Curve3D, s: float, L: float) -> Fr:
 	var fr := Fr.new()
 	fr.p = curve.sample_baked(clampf(s, 0.0, L))
@@ -123,6 +146,10 @@ static func frame(curve: Curve3D, s: float, L: float) -> Fr:
 	fr.f = fwd
 	fr.r = right
 	fr.u = right.cross(fwd).normalized()
+	var roll := roll_at(curve, s, L)   # XX claude-coaster C5.2
+	if roll != 0.0:
+		fr.r = right.rotated(fwd, roll)
+		fr.u = fr.u.rotated(fwd, roll)
 	return fr
 
 
@@ -296,7 +323,7 @@ static func place_sleepers(mm: MultiMesh, style: TrackStyle, curve: Curve3D, L: 
 ## (каждая форма стоит физике тика: Area3D с мониторингом на сотнях траков)
 static func collision_cuts(curve: Curve3D, L: float, preview: bool, single_if_straight := false) -> PackedFloat32Array:
 	var span := maxf(L - 2.0 * COL_END_INSET, 0.2)
-	if single_if_straight and frame(curve, COL_END_INSET, L).f.angle_to(frame(curve, COL_END_INSET + span, L).f) < 0.01:
+	if single_if_straight and not is_twisted(curve, L) and frame(curve, COL_END_INSET, L).f.angle_to(frame(curve, COL_END_INSET + span, L).f) < 0.01:
 		return PackedFloat32Array([COL_END_INSET, COL_END_INSET + span])
 	var gs = Global.settings
 	var k := 2.0 if preview else 1.0
@@ -307,12 +334,15 @@ static func collision_cuts(curve: Curve3D, L: float, preview: bool, single_if_st
 	var seg_start := COL_END_INSET
 	var acc := 0.0
 	var prev: Vector3 = frame(curve, seg_start, L).f
+	var prev_roll := roll_at(curve, seg_start, L)   # XX claude-coaster C5.2: скручивание считается как поворот
 	var s := seg_start
 	while s < s_end - 0.001:
 		s = minf(s + 1.0, s_end)
 		var cur: Vector3 = frame(curve, s, L).f
-		acc += prev.angle_to(cur)
+		var cur_roll := roll_at(curve, s, L)
+		acc += prev.angle_to(cur) + absf(cur_roll - prev_roll)
 		prev = cur
+		prev_roll = cur_roll
 		if acc >= deg_max or s - seg_start >= len_max:
 			cuts.append(s)
 			seg_start = s

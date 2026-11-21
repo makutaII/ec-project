@@ -18,4 +18,6 @@ class_name RideProfile extends Resource
 @export var kick_charge_time: float = 1.2
 ## Сила пинка в тех же единицах, что у PgUp и PgDn (там 10). Δv вагона массой 2 равно силе: 10 → около 10 ед/с
 @export var kick_power_min: float = 3.0
-@export var kick_power_max: float = 20.0
+@export var kick_power_max: float = 50.0
+## Короткое нажатие PgUp и PgDn (быстрее kick_hold_min), без зарядки; мышью короткий клик только выбирает вагон
+@export var kick_short_power: float = 2.0

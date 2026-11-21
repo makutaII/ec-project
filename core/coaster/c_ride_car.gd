@@ -12,7 +12,7 @@ class_name C_RideCar extends Component
 ## Работает и на сошедшем вагоне на столе: событие тогда ловит C_Kinematics (импульс жёсткому телу вдоль носа).
 ## Числа зарядки (KickCharge) вагон берёт из профиля заезда: клавиши PgUp и PgDn зарядки тоже его используют (on_kick_params).
 ## Тянуть вагон мышью (драг) можно как раньше: сдвинули курсор дальше CANCEL_PX и зарядка отменяется.
-## Клавиши PgUp и PgDn при выбранном вагоне пинают, как у остальных вагонов (SelectTool): короткое нажатие силой 10,
+## Клавиши PgUp и PgDn при выбранном вагоне пинают, как у остальных вагонов (SelectTool): короткое нажатие силой kick_short_power,
 ## зажатие сильнее (та же зарядка и те же числа профиля).
 
 ## На сколько пикселей можно сдвинуть курсор при зарядке (дальше это драг, а не пинок)
@@ -112,6 +112,7 @@ func on_kick_params(p: Dictionary) -> void:
 	p.charge_time = prof.kick_charge_time
 	p.power_min = prof.kick_power_min
 	p.power_max = prof.kick_power_max
+	p.short_power = prof.kick_short_power
 
 
 func _cancel_charge() -> void:

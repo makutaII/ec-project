@@ -14,8 +14,8 @@ class_name KickCharge extends RefCounted
 const HOLD_MIN := 0.25
 const CHARGE_TIME := 1.2
 const POWER_MIN := 3.0
-const POWER_MAX := 20.0
-const SHORT_POWER := 10.0
+const POWER_MAX := 50.0
+const SHORT_POWER := 2.0
 
 
 ## Параметры по умолчанию. Словарь изменяемый: компоненты вагона правят его в on_kick_params
