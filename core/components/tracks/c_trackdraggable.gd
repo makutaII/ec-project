@@ -115,7 +115,9 @@ func _update_level_label() -> void:
 ## Обычное движение: только yaw, высота = поверхность + уровни, затем вертикальный магнит
 func _apply_regular_movement(target_pos: Vector3) -> void:
 	var T: float = Global.settings.layer_height
-	var pos := Vector3(target_pos.x, target_pos.y + elevation * T + _anchor_offset(), target_pos.z)
+	# XX claude-terra 13.14 H5: на поле высот трак встаёт на уровень, кратный слою (ложе подровняет землю под ним)
+	var gy := TGM.field_track_level(target_pos.x, target_pos.z, target_pos.y)
+	var pos := Vector3(target_pos.x, gy + elevation * T + _anchor_offset(), target_pos.z)
 	pos = _apply_vertical_magnet(pos)
 	entity.global_transform = Transform3D(Basis(Vector3.UP, rotation_euler.y), pos)
 

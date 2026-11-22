@@ -295,7 +295,7 @@ func _apply_collision_state() -> void:
 
 
 ## NAN: под нами чужой трак, значит пролет без опоры. Нет попадания: стол (y = 0).
-## Лист пенопласта берем еще и аналитически (TGM.surface_y): луч стартует на 0,02 ниже балласта,
+## Лист пенопласта и поле высот берем еще и аналитически (TGM.surface_y, TGM.field_shown_y): луч стартует на 0,02 ниже балласта,
 ## и если балласт заглублен в лист (в пределах underground_tolerance), старт оказывается внутри
 ## выпуклого шейпа листа, и луч проходит насквозь. Аналитика не зависит от физического кадра
 func _ground_y(space: PhysicsDirectSpaceState3D, p: Vector3, path: C_Path) -> float:
@@ -316,7 +316,8 @@ func _ground_y(space: PhysicsDirectSpaceState3D, p: Vector3, path: C_Path) -> fl
 			return NAN
 		y = hit.position.y
 	var tol: float = Global.settings.underground_tolerance
-	return maxf(y, TGM.surface_y(p.x, p.z, p.y + tol))
+	# XX claude-terra 13.14 H5: поле высот (с ложем трака) берём так же аналитически: стойка кончается у земли, а не у стола
+	return maxf(maxf(y, TGM.surface_y(p.x, p.z, p.y + tol)), TGM.field_shown_y(p.x, p.z, p.y + tol))
 
 
 func _ensure_nodes() -> void:

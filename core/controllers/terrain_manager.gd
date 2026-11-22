@@ -62,6 +62,7 @@ func _ready() -> void:
 	add_child(field_collision)
 	field_collision.bind(field)
 	terrain_changed.connect(_on_terrain_changed_field)
+	field.changed.connect(_on_field_changed_bed)
 	_connect_layout.call_deferred()   # LYM стоит в autoload ниже TGM
 
 
@@ -247,6 +248,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_debug_print_surface()
 	elif event.is_action_pressed(&"debug_field_toggle", false, false):
 		_debug_toggle_field()
+	elif event.is_action_pressed(&"debug_field_bed", false, false):
+		Global.settings.field_bed_enabled = not Global.settings.field_bed_enabled
+		print("[TGM] автоложе трака: %s" % ("вкл" if Global.settings.field_bed_enabled else "выкл"))
+		bed_refresh()
 
 
 func _debug_print_surface() -> void:
@@ -297,6 +302,7 @@ func _on_layout_changed_field() -> void:
 func _on_terrain_changed_field(aabb: AABB) -> void:
 	_field_floor_prepare()   # кэш листов нужен и пересчёту пола, и floor_at без чанка
 	field.refresh_floor(Rect2(aabb.position.x, aabb.position.z, aabb.size.x, aabb.size.z).grow(TerrainField.STEP))
+	_bed_request()
 
 
 ## После отмены правки: слой, который стол уже не держит, снова обрезать (обрезка в историю не пишется)
@@ -316,6 +322,8 @@ func field_dirty() -> void:
 	if b.size.x > 0.0:
 		field.refresh_floor(b)
 	_on_layout_changed_field()
+	_bed_cache.clear()
+	_bed_request()
 
 
 ## Внешние контуры стола (объединение секций) или прямоугольник стола v1, если секций нет
@@ -434,6 +442,109 @@ func field_objects(area: Rect2) -> Array[Dictionary]:
 		if tc != null:
 			root = tc.get("entities_root") as Node
 	return FieldObjects.collect(root, area)
+
+
+# ===== H5. Автоложе трака =====
+## Ложе считается по образцам балласта (C_Path.ballast_samples) каждого обычного трака (тоннельные и призраки не берутся) и кладётся
+## поверх поля (TerrainField.set_bed). Пересчёт с задержкой BED_DELAY после последнего изменения трака, листа или поля;
+## считаются только новые и изменившиеся траки, остальное берётся из кэша
+
+const BED_DELAY := 0.12
+const BED_SAMPLE_STEP := 2.0
+## Охват откоса по высоте, слоёв (дальше выемка обрывается)
+const BED_MAX_DH_LAYERS := 6.0
+
+var _bed_cache := {}       # Entity -> {"s": образцы, "n": ложе трака, "rect": Rect2 влияния}
+var _bed_stale := {}       # Entity -> true: пересчитать, даже если образцы те же (изменилось поле)
+var _bed_dirty := false
+var _bed_wait := 0.0
+
+
+func _process(delta: float) -> void:
+	if _bed_dirty:
+		_bed_wait += delta
+		if _bed_wait >= BED_DELAY:
+			bed_refresh()
+
+
+func _bed_request() -> void:
+	_bed_dirty = true
+	_bed_wait = 0.0
+
+
+## Поле изменилось (штрих кисти, отмена): траки рядом получают новое ложе
+func _on_field_changed_bed(keys: Array) -> void:
+	for key: Vector2i in keys:
+		var r := Rect2(Vector2(key) * float(TerrainField.CHUNK) * TerrainField.STEP, Vector2.ONE * float(TerrainField.CHUNK) * TerrainField.STEP)
+		for e: Variant in _bed_cache:
+			if r.intersects((_bed_cache[e] as Dictionary)["rect"]):
+				_bed_stale[e] = true
+	_bed_request()
+
+
+func _bed_params() -> Dictionary:
+	var T: float = Global.settings.layer_height
+	return FieldBed.params(Global.settings.embankment_shoulder, Global.settings.field_bed_run,
+			Global.settings.field_bed_fill_max * T, BED_MAX_DH_LAYERS * T)
+
+
+## Пересчитать ложе траков сейчас (проверки, отладочная клавиша)
+func bed_refresh() -> void:
+	_bed_dirty = false
+	if not Global.settings.field_bed_enabled or field.is_empty():
+		_bed_cache.clear()
+		_bed_stale.clear()
+		field.set_bed({})
+		return
+	var p := _bed_params()
+	var raw := Callable(field, "surface_at")
+	var has := Callable(field, "has_layer")
+	var reach: float = Global.settings.embankment_shoulder + float(p["run"]) * float(p["max_dh"]) + 4.0
+	var alive := {}
+	var results: Array = []
+	for e in get_tracks():
+		var path := e.get_comp(C_Path) as C_Path
+		if path == null or path.allows_underground():
+			continue
+		var s := path.ballast_samples(BED_SAMPLE_STEP)
+		if s.size() < 2:
+			continue
+		alive[e] = true
+		var c: Dictionary = _bed_cache.get(e, {})
+		if c.is_empty() or _bed_stale.has(e) or c["s"] != s:
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for d: Dictionary in s:
+				lo = lo.min(d["l"]).min(d["r"])
+				hi = hi.max(d["l"]).max(d["r"])
+			c = {"s": s, "n": FieldBed.build_track(s, raw, has, p), "rect": Rect2(lo, hi - lo).grow(reach)}
+			_bed_cache[e] = c
+		results.append(c["n"])
+	for e: Variant in _bed_cache.keys():
+		if not alive.has(e):
+			_bed_cache.erase(e)
+	_bed_stale.clear()
+	field.set_bed(FieldBed.to_chunks(FieldBed.merge(results), has))
+
+
+## Высота показанной поверхности поля под точкой (с ложем трака), если она не выше y_max; иначе NO_FIELD.
+## Для опор трака: стойка кончается у поля, а не у стола
+func field_shown_y(x: float, z: float, y_max: float = INF) -> float:
+	if field.is_empty():
+		return NO_FIELD
+	var y := field.shown_sample(x, z)
+	if y > y_max + EPS or (not field.covered(x, z) and not field.has_bed()):
+		return NO_FIELD
+	return y
+
+
+## Уровень, на котором трак ложится на поле: высота под курсором, округлённая до слоя (трак стоит по уровням, кратным
+## layer_height). Вне поля высота не меняется: листы и стол и так кратны слою
+func field_track_level(x: float, z: float, y: float) -> float:
+	if field.is_empty() or not field.covered(x, z):
+		return y
+	var T: float = Global.settings.layer_height
+	return roundf(y / T) * T
 
 
 ## Ctrl+Shift+F: слой 1 на весь стол, повторно снять всё поле (отладка H1a, вместо инструмента)

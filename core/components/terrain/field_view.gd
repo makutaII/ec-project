@@ -71,6 +71,7 @@ func set_materials(m: FieldMaterials) -> void:
 func bind(f: TerrainField) -> void:
 	field = f
 	field.changed.connect(_on_changed)
+	field.bed_changed.connect(_on_changed)
 
 
 ## Окно по текущему столу. Вызывать при смене подмакетника (LYM.layout_changed) и при загрузке сейва
@@ -105,6 +106,9 @@ func rebuild_all() -> void:
 	_buf_t.fill(0)
 	for key: Vector2i in field.chunk_keys():
 		_copy_chunk(key)
+	for key: Vector2i in field.bed_keys():
+		if not field.has_chunk(key):
+			_copy_chunk(key)   # чанк только с ложем трака
 	_dirty = true
 	_update_visible()
 
@@ -189,7 +193,8 @@ static func _make_grid(origin: Vector2i, dims: Vector2i) -> ArrayMesh:
 	return m
 
 
-## Чанк поля в буферы окна (отсутствующий чанк обнуляет свою область)
+## Чанк поля в буферы окна (отсутствующий чанк обнуляет свою область). Ложе трака (H5) поверх: высота ложа вместо слоя,
+## тип каменистый (бит 4 в тип: шейдер не добавляет шум высоты). Узлу ложа без данных поля пол берётся у floor_at
 func _copy_chunk(key: Vector2i) -> void:
 	var ci0 := key.x * CHUNK - _origin.x
 	var cj0 := key.y * CHUNK - _origin.y
@@ -197,21 +202,36 @@ func _copy_chunk(key: Vector2i) -> void:
 		return
 	var words := field.chunk_words(key)
 	var fl := field.chunk_floor(key)
+	var bed := field.chunk_bed(key)
+	var bh := PackedFloat32Array()
+	var bt := PackedByteArray()
+	if not bed.is_empty():
+		bh = bed["h"]
+		bt = bed["t"]
 	var lh := field.layer_height
 	var have := not words.is_empty()
 	for rz in range(CHUNK):
 		var row := (cj0 + rz) * _dims.x + ci0
 		for rx in range(CHUNK):
 			var o := row + rx
+			var k := rz * CHUNK + rx
+			var f0 := 0.0
+			var th := 0.0
+			var ty := 0
 			if have:
-				var w := words[rz * CHUNK + rx]
-				_buf_f[o * 2] = fl[rz * CHUNK + rx]
-				_buf_f[o * 2 + 1] = float(w & TerrainField.TH_MASK) / float(TerrainField.UNITS) * lh
-				_buf_t[o] = (w >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
-			else:
-				_buf_f[o * 2] = 0.0
-				_buf_f[o * 2 + 1] = 0.0
-				_buf_t[o] = 0
+				var w := words[k]
+				f0 = fl[k]
+				th = float(w & TerrainField.TH_MASK) / float(TerrainField.UNITS) * lh
+				ty = (w >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+			if not bh.is_empty() and bh[k] > TerrainField.BED_NONE * 0.5:
+				if not have:
+					f0 = field.floor_at(key.x * CHUNK + rx, key.y * CHUNK + rz)
+				th = maxf(bh[k] - f0, 0.0)
+				if bt[k] != FieldBed.NO_TYPE:
+					ty = bt[k]
+			_buf_f[o * 2] = f0
+			_buf_f[o * 2 + 1] = th
+			_buf_t[o] = ty
 
 
 func _upload() -> void:

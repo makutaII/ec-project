@@ -1,6 +1,6 @@
 // XX claude-terra 13.14 H1 (новый файл)
 // Поверхность поля высот шпатлёвки (ATTN_13 §13.14). Сетка плоская: высоту вершины, нормаль и цвет считает шейдер.
-// fmap: R пол, G толщина слоя, ю (по узлам окна). tmap: R тип поверхности / 255. Узел окна = узел мировой сетки минус origin.
+// fmap: R пол, G толщина слоя, ю (по узлам окна). tmap: R тип поверхности (и бит 4 ложа трака) / 255. Узел окна = узел мировой сетки минус origin.
 // Где толщины нет, вершины остаются на полу, а фрагмент отбрасывается. Шум высоты считается по мировому индексу узла,
 // поэтому не зависит от окна. Те же формулы высоты, что в tests/field_spike (режим GPU).
 // H4: цвет это материалы по типу узла (tex0..tex3, tint0..tint3, tile): веса четырёх ближайших узлов билинейно, граница
@@ -74,8 +74,13 @@ float amp_of(int t) {
 	return noise_amp.x;
 }
 
-int type_at(ivec2 g) {
+// tmap: младшие два бита тип поверхности, бит 4 (значение 4) полоса ложа трака: без шума высоты
+int type_raw(ivec2 g) {
 	return int(texelFetch(tmap, g, 0).r * 255.0 + 0.5);
+}
+
+int type_at(ivec2 g) {
+	return type_raw(g) & 3;
 }
 
 // Высота поверхности узла g (индекс в окне): пол плюс слой плюс шум, затухающий к нулевой толщине
@@ -84,7 +89,9 @@ float height_at(ivec2 g) {
 	vec2 fl = texelFetch(fmap, q, 0).rg;
 	float th = fl.y;
 	float k = smoothstep(0.0, 0.5, th);
-	return fl.x + max(th + amp_of(type_at(q)) * node_noise(q + origin) * k, 0.0);
+	int tr = type_raw(q);
+	float amp = (tr & 4) != 0 ? 0.0 : amp_of(tr & 3);
+	return fl.x + max(th + amp * node_noise(q + origin) * k, 0.0);
 }
 
 void vertex() {

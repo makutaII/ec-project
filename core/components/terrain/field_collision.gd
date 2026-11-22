@@ -6,7 +6,8 @@ class_name FieldCollision extends Node3D
 ###################################
 ## Обновляется по отпусканию: пока поле меняют, пересборка ждёт паузы COLL_IDLE (замер H0: 0,10 мс на чанк).
 ## Карта высот чанка квадратная (Jolt другую не принимает): CHUNK + 1 узлов по стороне, крайний ряд берётся у соседнего чанка.
-## Высота узла = пол + слой, поэтому у узлов без слоя карта лежит на полу (стол или верх листа).
+## Высота узла = пол + слой, поэтому у узлов без слоя карта лежит на полу (стол или верх листа). Ложе трака (H5) заменяет высоту узла
+## (показанная поверхность), чанки только с ложем тоже получают тело.
 
 const STEP := TerrainField.STEP
 const CHUNK := TerrainField.CHUNK
@@ -30,6 +31,7 @@ func _ready() -> void:
 func bind(f: TerrainField) -> void:
 	field = f
 	field.changed.connect(_on_changed)
+	field.bed_changed.connect(_on_changed)
 
 
 func _on_changed(keys: Array) -> void:
@@ -57,7 +59,7 @@ func flush() -> void:
 	var t0 := Time.get_ticks_usec()
 	var n := 0
 	for key: Vector2i in _dirty.keys():
-		if field.has_chunk(key):
+		if field.has_chunk(key) or not field.chunk_bed(key).is_empty():
 			_build(key)
 			n += 1
 		else:
@@ -91,7 +93,7 @@ func _build(key: Vector2i) -> void:
 	data.resize(n * n)
 	for rz in range(n):
 		for rx in range(n):
-			data[rz * n + rx] = field.surface_at(i0 + rx, j0 + rz)
+			data[rz * n + rx] = field.shown_surface_at(i0 + rx, j0 + rz)
 	var hs := HeightMapShape3D.new()
 	hs.map_width = n
 	hs.map_depth = n

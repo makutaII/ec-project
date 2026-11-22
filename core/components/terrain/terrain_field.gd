@@ -33,6 +33,10 @@ const PROBES: Array[float] = [-0.001, 0.001]
 
 ## Изменились чанки: keys это Array[Vector2i] (данные или пол, в том числе чанки, которые исчезли)
 signal changed(keys: Array)
+## H5: ложе трака (set_bed) изменилось в этих чанках. Показ и коллизия слушают и его, и changed
+signal bed_changed(keys: Array)
+## В массиве высот ложа: узел без ложа
+const BED_NONE := -1.0e9
 
 ## Высота слоя, ю (GlobalSetting.layer_height). Выставляет TGM
 var layer_height := 1.0
@@ -47,6 +51,7 @@ var _depth := 0
 var _no_history := false   # правка не пишется в историю (обрезка по столу)
 var _pending := {}           # Vector2i -> PackedInt32Array до правки (пустой массив: чанка не было)
 var _history: Array = []     # Array из словарей _pending
+var _bed: Dictionary = {}      # чанк -> {"h": PackedFloat32Array (высота ложа или BED_NONE), "t": PackedByteArray (тип с битом 4 или 255)}
 var _pending_hooks: Array = []   # Callable'ы, привязанные к открытой правке (attach_undo)
 var _hooks: Array = []           # по записи истории: Array из Callable, вызываются при её отмене
 
@@ -212,6 +217,68 @@ func end_edit() -> void:
 		_history.pop_front()
 		_hooks.pop_front()
 	changed.emit(keys)
+
+
+## H5. Ложе трака (FieldBed.to_chunks): выемка и насыпь, считаются поверх поля и в нём не хранятся. Заменяет прежнее целиком.
+## bed_changed получают только чанки, в которых что-то поменялось
+func set_bed(chunks: Dictionary) -> void:
+	var keys: Array = []
+	for k: Vector2i in chunks:
+		if not _bed.has(k) or not _same_bed(_bed[k], chunks[k]):
+			keys.append(k)
+	for k: Vector2i in _bed:
+		if not chunks.has(k):
+			keys.append(k)
+	_bed = chunks
+	if not keys.is_empty():
+		bed_changed.emit(keys)
+
+
+func _same_bed(a: Dictionary, b: Dictionary) -> bool:
+	return (a["h"] as PackedFloat32Array) == (b["h"] as PackedFloat32Array) and (a["t"] as PackedByteArray) == (b["t"] as PackedByteArray)
+
+
+func has_bed() -> bool:
+	return not _bed.is_empty()
+
+
+## Чанки, в которых есть ложе (Array из Vector2i)
+func bed_keys() -> Array:
+	return _bed.keys()
+
+
+## Ложе чанка: {"h", "t"} или пустой словарь
+func chunk_bed(key: Vector2i) -> Dictionary:
+	return _bed.get(key, {})
+
+
+## Высота ложа в узле, BED_NONE если ложа нет
+func bed_height_at(i: int, j: int) -> float:
+	var key := key_of(i, j)
+	if not _bed.has(key):
+		return BED_NONE
+	return ((_bed[key] as Dictionary)["h"] as PackedFloat32Array)[index_in_chunk(i, j)]
+
+
+## Высота того, что видно и на чём стоят: ложе трака (не ниже пола) или поверхность поля
+func shown_surface_at(i: int, j: int) -> float:
+	var h := bed_height_at(i, j)
+	if h <= BED_NONE * 0.5:
+		return surface_at(i, j)
+	return maxf(h, floor_at(i, j))
+
+
+## Высота показанной поверхности в точке мира (билинейно)
+func shown_sample(x: float, z: float) -> float:
+	var fx := x / STEP
+	var fz := z / STEP
+	var i := floori(fx)
+	var j := floori(fz)
+	var tx := fx - float(i)
+	var tz := fz - float(j)
+	var a := lerpf(shown_surface_at(i, j), shown_surface_at(i + 1, j), tx)
+	var b := lerpf(shown_surface_at(i, j + 1), shown_surface_at(i + 1, j + 1), tx)
+	return lerpf(a, b, tz)
 
 
 ## Привязать к открытой правке действие отмены: cb вызывается, когда эту правку отменяют (Ctrl+Z). Так вместе с полем возвращаются

@@ -17,6 +17,8 @@ const LIST: Array[Dictionary] = [
 		"text": "Печатает surface_y под курсором. С выбранным листом террейна: ниша; Shift: окно; Alt: тоннель; Ctrl: убрать последний вырез"},
 	{"action": &"debug_field_toggle", "label": "Ctrl+Shift+F", "press": true,
 		"text": "Поле высот (13.14 H1): положить слой шпатлёвки на весь стол или снять всё поле"},
+	{"action": &"debug_field_bed", "label": "Ctrl+Shift+G", "press": true,
+		"text": "Автоложе трака на поле высот (13.14 H5): включить или выключить, чтобы сравнить рельеф с ложем и без"},
 	{"action": &"debug_vsync_toggle", "label": "Ctrl+Shift+V", "press": true,
 		"text": "V-Sync вкл/выкл. Раньше был F8, но в редакторе Godot это «Остановить игру»"},
 	{"action": &"debug_load_reference", "label": "F9", "press": true, "text": "Загрузить эталонную диораму (заменяет макет)"},
