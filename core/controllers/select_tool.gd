@@ -465,7 +465,7 @@ func _update_hover():
 		hovered_entity = new_hover
 		if hovered_entity: 
 			hovered_entity.add_component(C_Hovered.new())
-	InfoTips.hover(hovered_entity)   # подсказка при наведении (U20a.5): задержку и показ ведет сервис
+	InfoTips.hover(hovered_entity if is_instance_valid(hovered_entity) else null)   # подсказка при наведении (U20a.5): задержку и показ ведет сервис
 
 
 

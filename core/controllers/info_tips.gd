@@ -93,8 +93,10 @@ func line(text: String, kind: int) -> InfoToolTip.Line:
 # ПУБЛИЧНЫЙ API
 # ==========================================
 
-## Набор строк источника. Пустой набор то же, что clear
-func show_lines(owner: Object, lines: Array) -> void:
+## Набор строк источника. Пустой набор то же, что clear.
+## alive_with: узел, с которым живет набор (призрак трака, объект в драге): пока он не в дереве или освобожден,
+## набор снимается сам. Нужен источникам без своего узла (TrackNote), у которых нет случая вызвать clear при отмене
+func show_lines(owner: Object, lines: Array, alive_with: Node = null) -> void:
 	if owner == null:
 		return
 	if lines.is_empty():
@@ -106,6 +108,7 @@ func show_lines(owner: Object, lines: Array) -> void:
 	if entry.is_empty() or entry["sig"] != sig:
 		_stamp += 1
 		_entries[id] = {"lines": lines, "sig": sig, "stamp": _stamp}
+	_entries[id]["alive_id"] = alive_with.get_instance_id() if alive_with != null else 0
 	set_process(true)
 
 
@@ -116,8 +119,11 @@ func clear(owner: Object) -> void:
 	_entries.erase(owner.get_instance_id())
 
 
-## Объект под курсором (SelectTool зовет каждый кадр); null: курсор ушел. Тот же объект подряд ничего не меняет
-func hover(target: Node) -> void:
+## Объект под курсором (SelectTool зовет каждый кадр); null: курсор ушел. Тот же объект подряд ничего не меняет.
+## Тип аргумента не указан: объект могли освободить (удалили объект под курсором), типизированный Node такой вызов отвергает
+func hover(target: Variant) -> void:
+	if target != null and not is_instance_valid(target):
+		target = null
 	if target == _hover_target:
 		return
 	_hover_target = target
@@ -150,7 +156,7 @@ func suspend(on: bool) -> void:
 
 func _process(delta: float) -> void:
 	for id: int in _entries.keys():
-		if not is_instance_id_valid(id):
+		if not is_instance_id_valid(id) or not _alive(_entries[id]):
 			_entries.erase(id)
 	var best: Dictionary = {}
 	for entry: Dictionary in _entries.values():
@@ -165,6 +171,17 @@ func _process(delta: float) -> void:
 	_tip.set_lines(lines)
 	_place_at_cursor()
 	_tip.fade(true)
+
+
+## Узел, с которым живет набор, еще в дереве (alive_id 0: набор ни к какому узлу не привязан)
+func _alive(entry: Dictionary) -> bool:
+	var alive_id: int = entry.get("alive_id", 0)
+	if alive_id == 0:
+		return true
+	if not is_instance_id_valid(alive_id):
+		return false
+	var node := instance_from_id(alive_id) as Node
+	return node != null and node.is_inside_tree()
 
 
 ## Строки подсказки при наведении, когда задержка прошла; пусто, если показывать нечего

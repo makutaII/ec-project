@@ -98,7 +98,9 @@ func _refresh() -> void:
 		if not l.visible or l.text == "":
 			continue
 		lines.append(InfoTips.line(l.text, _kind_of(l.modulate)))
-	InfoTips.show_lines(self, lines)   # пустой набор снимает подсказку
+	# Призрак отменили или объект удалили: строки не успевают снять сами (RefCounted держит цикл Line и TrackNote),
+	# поэтому набор привязан к узлу трака и уходит вместе с ним
+	InfoTips.show_lines(self, lines, _entity)   # пустой набор снимает подсказку
 
 
 ## Вид строки по цвету, который задал компонент
