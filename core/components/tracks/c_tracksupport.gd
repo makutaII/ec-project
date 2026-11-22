@@ -201,12 +201,24 @@ func _rebuild() -> void:
 			if (i == 0 and skip_start) or (i == n and skip_end):
 				continue
 			var yaw := Basis.looking_at(fwd.normalized(), Vector3.UP)
+			# XX claude-coaster: у трака с креном ригель наклонён вместе с лотком (вращение вокруг низа балласта p),
+			# иначе один край трака уходил в горизонтальный ригель, а другой висел над ним. Без крена всё прежнее
+			var roll := TrackMeshBuilder.roll_at(crv, length * i / n, length)
+			var beam := yaw
+			var beam_c := p - Vector3(0, 0.15, 0)
+			var beam_drop := 0.3                  # на сколько ниже p кончается низ ригеля по центру
+			var beam_extra := 0.0                 # просадка нижнего конца ригеля от наклона (полуширина 1.5)
+			if roll != 0.0:
+				beam = yaw * Basis(Vector3(0, 0, -1), roll)
+				beam_c = p - beam.y * 0.15
+				beam_drop = 0.3 * beam.y.y
+				beam_extra = 1.5 * absf(sin(roll))
 			var ground := _ground_y(space, p, path)
-			if is_nan(ground) or p.y - ground < gs.support_min_clearance:
+			if is_nan(ground) or p.y - ground < gs.support_min_clearance + beam_extra:
 				continue
-			var col_h := p.y - ground - 0.3
+			var col_h := p.y - ground - beam_drop
 			# ригель под балластом
-			_add_box(xf, bt, bs, inv, yaw, Vector3(3.0, 0.3, 0.8), p - Vector3(0, 0.15, 0))
+			_add_box(xf, bt, bs, inv, beam, Vector3(3.0, 0.3, 0.8), beam_c)
 			# столб
 			if col_h > 0.05:
 				_add_box(xf, bt, bs, inv, yaw, Vector3(1.0, col_h, 0.8), Vector3(p.x, ground + col_h * 0.5, p.z))
