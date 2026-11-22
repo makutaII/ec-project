@@ -1,23 +1,25 @@
 class_name InfoTerrainTab extends InfoTab
 
 ###########################
-## Вкладка «Материал» листа пенопласта (T7, XX claude-terra)
+## Блок «Лист пенопласта» во вкладке «Вид»: толщина листа и стадия отделки (T7, XX claude-terra, U5a.3)
 ###########################
-## Создается кодом. Видна только у настоящего листа (C_TerrainLayer без C_Ghost). Стадия: C_TerrainLayer.FoamStage.
+## Встроен в InfoVisualTab (embed), создаётся кодом. Виден только у настоящего листа (C_TerrainLayer без C_Ghost).
+## Стадия: C_TerrainLayer.FoamStage. Размер, слои и уровни показывает вкладка «Сведения» (info_text).
+## Причина отказа в изменении толщины идёт в подвал вкладки.
 
 const STAGE_NAMES := ["Сырой пенопласт", "Шпаклёвка", "Краска", "Трава"]
 
 var _stage_option: OptionButton
-var _terrain_info: Label
 # XX claude-terra 13.2 B4: толщина листа
 var _levels_spin: SpinBox
-var _terrain_msg: Label
 
 
 func _setup() -> void:
-	var box := make_page("Материал")
-	_terrain_info = Label.new()
-	box.add_child(_terrain_info)
+	var box := make_page("Лист")
+	var head := Label.new()
+	head.text = "Лист пенопласта"
+	head.theme_type_variation = &"LabelDim"
+	box.add_child(head)
 	# XX claude-terra 13.2 B4: толщина листа в слоях (верх растёт, низ на месте)
 	var row := HBoxContainer.new()
 	var row_lbl := Label.new()
@@ -31,9 +33,6 @@ func _setup() -> void:
 	_levels_spin.value_changed.connect(_on_levels_changed)
 	row.add_child(_levels_spin)
 	box.add_child(row)
-	_terrain_msg = Label.new()
-	_terrain_msg.modulate = Color(1.0, 0.35, 0.35)
-	box.add_child(_terrain_msg)
 	var lbl := Label.new()
 	lbl.text = "Стадия отделки листа"
 	box.add_child(lbl)
@@ -58,40 +57,42 @@ func _get_terrain_layer() -> C_TerrainLayer:
 	return _layer_of(target)
 
 
-## Живая подпись (размер, слои, уровни): форма и толщина меняются ручками и инструментами
+## Толщина меняется ручками и инструментами: поле следует за ней, пока в нём не идёт ввод
 func refresh() -> void:
 	var layer := _get_terrain_layer()
 	if layer:
-		_refresh_terrain_info(layer)
+		set_spin(_levels_spin, layer.levels)
 
 
 func _on_bind() -> void:
 	var layer := _get_terrain_layer()
 	if layer:
 		_stage_option.select(layer.stage)
-		_terrain_msg.text = ""
-		_refresh_terrain_info(layer)
+		footer_message(&"terrain", "")
+		_levels_spin.set_value_no_signal(layer.levels)
 
 
-## Размер в плане, толщина и положение по уровням. Живые значения: вкладка обновляется при смене цели и стадии
-func _refresh_terrain_info(layer: C_TerrainLayer) -> void:
+## Размер в плане, толщина и положение по уровням одной подписью (для вкладки «Сведения»).
+## Пустая строка, если у цели нет настоящего листа
+static func info_text(entity: Entity) -> String:
+	var layer := _layer_of(entity)
+	if layer == null:
+		return ""
 	var T: float = Global.settings.layer_height
 	# XX claude-terra 13.2 B1: размер берем из контура листа, а не из TerrainConfig (лист может быть любой формы)
-	var contour := target.get_comp(C_Contour) as C_Contour
+	var contour := entity.get_comp(C_Contour) as C_Contour
 	var _size := Vector2.ZERO
 	if contour:
 		_size = contour.size()
 	else:
-		var tcfg := TerrainConfig.from_entity(target)
+		var tcfg := TerrainConfig.from_entity(entity)
 		_size = tcfg.size if tcfg else Vector2.ZERO
 	var base := roundi(layer.base_y() / T)
 	var shape_text := ""
 	if contour and not contour.is_rect():
 		shape_text = "Вершин: %d, площадь: %.0f u²\n" % [contour.points.size(), contour.area()]
-	_terrain_info.text = "Размер: %d × %d u\n%sСлоёв: %d (высота %.1f u)\nНижний уровень: %d, верхний: %d\nВырезов: %d" % [
+	return "Размер: %d × %d u\n%sСлоёв: %d (высота %.1f u)\nНижний уровень: %d, верхний: %d\nВырезов: %d" % [
 		roundi(_size.x), roundi(_size.y), shape_text, layer.levels, layer.levels * T, base, base + layer.levels, layer.cuts.size()]
-	if _levels_spin and int(_levels_spin.value) != layer.levels:   # не трогаем, пока значение то же (идет ввод)
-		_levels_spin.set_value_no_signal(layer.levels)
 
 
 ## XX claude-terra 13.2 B4. Толщина из SpinBox: C_TerrainLayer либо принимает, либо пишет причину отказа в "error"
@@ -101,8 +102,8 @@ func _on_levels_changed(value: float) -> void:
 		return
 	var d := {"levels": int(value)}
 	target.send_event("on_terrain_levels_set", d)
-	_terrain_msg.text = String(d.get("error", ""))
-	_refresh_terrain_info(layer)   # при отказе вернёт в SpinBox прежнее значение
+	footer_message(&"terrain", String(d.get("error", "")), &"bad")
+	_levels_spin.set_value_no_signal(layer.levels)   # при отказе вернёт в поле прежнее значение
 
 
 func _on_stage_selected(index: int) -> void:

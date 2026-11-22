@@ -1,11 +1,16 @@
 class_name InfoVisualTab extends InfoTab
 
 # U13 (ATTN_17 D13): новый файл
-## Вкладка Visual: рисует секции компонентов цели (InfoSection из get_info_sections()).
-## Показывается, только если хоть один компонент цели описал секцию. Пилот: стиль трака
+## Вкладка «Вид»: рисует секции компонентов цели (InfoSection из get_info_sections()).
+## Показывается, если хоть один компонент цели описал секцию или есть блок (U5a.3). Секции: стиль трака
 ## (C_StyleVisual) и камера вагона (C_CameraTarget). Строки с живыми значениями обновляются в refresh().
+## Блоки (U5a.3): готовые вкладки, встроенные в эту (InfoTab.embed): механизмы и свет (InfoMechTab), толщина и
+## стадия листа (InfoTerrainTab). Их сообщения и действия идут в подвал этой вкладки.
 
 var _box: VBoxContainer
+## Контейнер блоков под секциями; блоки: см. заголовок файла
+var _blocks_box: VBoxContainer
+var _blocks: Array[InfoTab] = []
 ## Контролы, которым нужно обновление: [{type, row, control}]
 var _live: Array[Dictionary] = []
 ## Строки типа note (InfoSection.note): в тело не попадают, идут в подвал вкладки
@@ -20,32 +25,69 @@ func _setup() -> void:
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 10)
 	control.add_child(margin)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 6)
+	margin.add_child(root)
 	_box = VBoxContainer.new()
 	_box.add_theme_constant_override("separation", 6)
-	margin.add_child(_box)
+	root.add_child(_box)
+	_blocks_box = VBoxContainer.new()
+	_blocks_box.add_theme_constant_override("separation", 6)
+	root.add_child(_blocks_box)
+	for block: InfoTab in [InfoMechTab.new(), InfoTerrainTab.new()]:
+		block.embed(panel, self)
+		_blocks.append(block)
+
+
+## Контейнер под новый блок (зовёт InfoTab.make_page у встроенной вкладки)
+func add_block() -> VBoxContainer:
+	var block := VBoxContainer.new()
+	block.add_theme_constant_override("separation", 6)
+	_blocks_box.add_child(block)
+	return block
 
 
 func can_show(entity: Entity) -> bool:
-	return entity != null and not _collect(entity).is_empty()
+	if entity == null:
+		return false
+	for block in _blocks:
+		if block.can_show(entity):
+			return true
+	return not _collect(entity).is_empty()
 
 
 func _on_bind() -> void:
 	_rebuild()
+	_bind_blocks()
 
 
 func _on_unbind() -> void:
 	_clear()
+	for block in _blocks:
+		block.unbind()
+		block.control.visible = false
 
 
 func components_changed() -> void:
 	if target != null:
 		_rebuild()
+		_bind_blocks()
 		panel.refresh_tab_visibility()
+
+
+## Привязывает блоки к цели и показывает только те, что подходят ей
+func _bind_blocks() -> void:
+	for block in _blocks:
+		block.bind(target)
+		block.control.visible = block.can_show(target)
 
 
 func refresh() -> void:
 	for v in _live:
 		_refresh_row(v)
+	for block in _blocks:
+		if block.control.visible:
+			block.refresh()
 	for i in _notes.size():
 		var val: Variant = _notes[i].text
 		footer_message(StringName("note%d" % i), str((val as Callable).call() if val is Callable else val), _notes[i].kind)

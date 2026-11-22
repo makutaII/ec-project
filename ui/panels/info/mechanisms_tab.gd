@@ -1,9 +1,10 @@
 class_name InfoMechTab extends InfoTab
 
 ###########################
-## Вкладка «Механизмы» (и «Свет»): слайдеры, открыть всё, яркость, авто
+## Блок «Механизмы» и «Свет» во вкладке «Вид»: слайдеры, открыть всё, яркость, авто (U5a.3)
 ###########################
-## Создается кодом. Видна только у сущностей с C_Mechanisms, у которых есть механизмы или источники света.
+## Встроен в InfoVisualTab (embed), создается кодом. Виден только у сущностей с C_Mechanisms, у которых есть механизмы
+## или источники света. Цвет статуса из темы (LampBad, LampWarn).
 
 var _mech_list: VBoxContainer
 var _mech_rows: Dictionary = {}      # StringName -> {slider, check, enabled, status}
@@ -57,6 +58,11 @@ func _rebuild_mech_tab() -> void:
 	if mechs.is_empty() and lamps.is_empty():
 		return
 
+	if not mechs.is_empty():
+		var mech_head := Label.new()
+		mech_head.text = "Механизмы"
+		mech_head.theme_type_variation = &"LabelDim"
+		_mech_list.add_child(mech_head)
 	for item in mechs:
 		_add_mech_row(item)
 
@@ -77,6 +83,7 @@ func _rebuild_mech_tab() -> void:
 			_mech_list.add_child(HSeparator.new())
 		var head := Label.new()
 		head.text = "Свет"
+		head.theme_type_variation = &"LabelDim"
 		_mech_list.add_child(head)
 		for item in lamps:
 			_add_light_row(item)
@@ -208,11 +215,9 @@ func _update_mech_tab() -> void:
 		r.enabled.set_pressed_no_signal(item.enabled)
 		r.enabled.disabled = not item.found
 		if not item.found:
-			r.status.text = "нет части"
-			r.status.modulate = Color(1.0, 0.302, 0.043, 1.0)
+			_set_status(r.status, "нет части", &"LampBad")
 		else:
-			r.status.text = "..." if item.moving else "%d%%" % roundi(item.t * 100.0)
-			r.status.modulate = Color.WHITE
+			_set_status(r.status, "..." if item.moving else "%d%%" % roundi(item.t * 100.0))
 
 
 func _update_light_rows(comp: C_Mechanisms) -> void:
@@ -231,23 +236,26 @@ func _update_light_rows(comp: C_Mechanisms) -> void:
 		r.auto.disabled = not (usable and has_rule and item.manual)
 		r.enabled.set_pressed_no_signal(item.enabled)
 		r.enabled.disabled = not item.found
-		r.status.modulate = Color.WHITE
 		if not item.found:
-			r.status.text = "нет света"
-			r.status.modulate = Color(1.0, 0.302, 0.043)
+			_set_status(r.status, "нет света", &"LampBad")
 		elif item.no_power and item.target > 0.5:
-			r.status.text = "нет питания"
-			r.status.modulate = Color(1.0, 0.75, 0.2)
+			_set_status(r.status, "нет питания", &"LampWarn")
 		elif item.culled:
 			var q: QualityPreset = GFX.get_quality()
-			r.status.text = "свечение" if (q and q.entity_light_emissive_only) else "бюджет"
-			r.status.modulate = Color(1.0, 0.75, 0.2)
+			_set_status(r.status, "свечение" if (q and q.entity_light_emissive_only) else "бюджет", &"LampWarn")
 		elif item.changing:
-			r.status.text = "..."
+			_set_status(r.status, "...")
 		elif has_rule:
-			r.status.text = "ручн." if item.manual else "авто"
+			_set_status(r.status, "ручн." if item.manual else "авто")
 		else:
-			r.status.text = "%d%%" % roundi(item.t * 100.0)
+			_set_status(r.status, "%d%%" % roundi(item.t * 100.0))
+
+
+## Подпись статуса: текст и вариация темы (пусто = обычный цвет)
+static func _set_status(label: Label, text: String, variation: StringName = &"") -> void:
+	label.text = text
+	if label.theme_type_variation != variation:
+		label.theme_type_variation = variation
 
 
 func _send_light(id: StringName, state: float) -> void:

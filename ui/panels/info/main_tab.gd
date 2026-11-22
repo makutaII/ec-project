@@ -15,6 +15,9 @@ var _lvl_label: Label
 var _rise_label: Label
 var _slope_label: Label
 var _style_label: Label
+## Размер, слои и уровни листа террейна (бывшая вкладка «Материал», U5a.3)
+var _terrain_box: Control
+var _terrain_label: Label
 
 var _chassis: C_Chassis
 var _coupler: C_Coupler
@@ -32,6 +35,7 @@ func _setup() -> void:
 	_rise_label = _add_track_row(grid, "Rise: ")
 	_slope_label = _add_track_row(grid, "Slope: ")
 	_style_label = _add_track_row(grid, "Style: ")
+	_build_terrain_label()
 	_build_pose_block()
 
 
@@ -51,6 +55,18 @@ func _add_track_row(grid: GridContainer, title: String) -> Label:
 	var v := Label.new()
 	grid.add_child(v)
 	return v
+
+
+## Подпись листа террейна под описанием: скрыта у остальных объектов
+func _build_terrain_label() -> void:
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.visible = false
+	control.add_child(margin)
+	_terrain_label = Label.new()
+	margin.add_child(_terrain_label)
+	_terrain_box = margin
 
 
 ## Блок положения под описанием: позиция, поворот, «на траке», сцепки спереди и сзади
@@ -101,6 +117,7 @@ func refresh() -> void:
 		return
 	_refresh_pose()
 	_refresh_track()
+	_refresh_terrain()
 
 
 func _refresh_pose() -> void:
@@ -153,6 +170,12 @@ func _on_record_pressed() -> void:
 		footer_message(&"record", "Записано: %s" % res["name"], &"ok")
 	else:
 		footer_message(&"record", "Не записано: %s" % res["error"], &"bad")
+
+
+func _refresh_terrain() -> void:
+	var text := InfoTerrainTab.info_text(target)
+	_terrain_box.visible = text != ""
+	_terrain_label.text = text
 
 
 ## Уровень, подъем и уклон трака. Жесткий трак: подъем rise из TrackConfig, длина вдоль уклона.

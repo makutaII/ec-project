@@ -14,6 +14,8 @@ var panel: InfoPanel
 var control: Control
 ## Выбранная сущность, null пока вкладка не привязана
 var target: Entity
+## Вкладка-хозяин, если эта вкладка встроена блоком в другую (U5a.3): её подвал общий с хозяином
+var host: InfoTab
 
 ## Типы сообщений подвала и вариации темы для них (цвета задаёт тема, в коде их нет)
 const FOOTER_VARIATIONS := {&"info": &"LabelDim", &"ok": &"LampOn", &"warn": &"LampWarn", &"bad": &"LampBad"}
@@ -34,6 +36,20 @@ func setup(p: InfoPanel, control_in_scene: Control = null) -> void:
 	_setup_footer()
 
 
+## Встраивает вкладку блоком в другую вкладку: интерфейс строится в контейнере хозяина (add_block),
+## сообщения и действия идут в подвал хозяина. Хозяин сам зовёт bind, unbind, refresh и can_show блока
+func embed(p: InfoPanel, host_tab: InfoTab) -> void:
+	panel = p
+	host = host_tab
+	_setup()
+	_setup_footer()
+
+
+## Для хозяина блоков: создаёт контейнер под новый блок. Базовая вкладка блоков не держит
+func add_block() -> VBoxContainer:
+	return null
+
+
 ## Показывать ли вкладку у этой сущности. Определяется компонентами цели, а не номером вкладки
 func can_show(_entity: Entity) -> bool:
 	return true
@@ -47,7 +63,8 @@ func bind(entity: Entity) -> void:
 func unbind() -> void:
 	target = null
 	_on_unbind()
-	footer_clear()   # сообщения относились к прежней цели
+	if host == null:
+		footer_clear()   # сообщения относились к прежней цели (у блока их снимает хозяин)
 
 
 ## Периодическое обновление живых значений (10 Гц, только активная вкладка). Команд не шлет
@@ -86,6 +103,10 @@ func _n(node_name: String) -> Variant:
 
 ## Создает код-вкладку: страницу в TabContainer с отступами. Возвращает контейнер для содержимого
 func make_page(title: String) -> VBoxContainer:
+	if host != null:   # блок внутри другой вкладки: свой контейнер у хозяина, без отступов и подвала
+		var block := host.add_block()
+		control = block
+		return block
 	var page := VBoxContainer.new()
 	page.name = title
 	panel.tab_container.add_child(page)
@@ -131,6 +152,9 @@ func _build_footer() -> void:
 ## Сообщение в подвале по ключу: тот же ключ обновляет строку, пустой текст убирает её.
 ## kind: info, ok, warn, bad (цвет из темы). Сообщения снимаются при смене цели
 func footer_message(key: StringName, text: String, kind: StringName = &"info") -> void:
+	if host != null:
+		host.footer_message(key, text, kind)
+		return
 	if _footer_messages == null:
 		return
 	var label := _footer_labels.get(key) as Label
@@ -156,6 +180,9 @@ func footer_message(key: StringName, text: String, kind: StringName = &"info") -
 
 ## Кнопка или другой контрол действия вкладки: ставится в ряд подвала, подвал виден, пока виден хоть один
 func footer_add_action(action: Control) -> void:
+	if host != null:
+		host.footer_add_action(action)
+		return
 	if _footer_actions == null:
 		return
 	_footer_actions.add_child(action)
@@ -164,6 +191,9 @@ func footer_add_action(action: Control) -> void:
 
 ## Убирает все сообщения подвала (действия остаются)
 func footer_clear() -> void:
+	if host != null:
+		host.footer_clear()
+		return
 	for label in _footer_labels.values():
 		if is_instance_valid(label):
 			_footer_messages.remove_child(label)
@@ -175,6 +205,9 @@ func footer_clear() -> void:
 ## Показывает подвал, если в нём есть сообщение или видимое действие. Зовут сами footer_*,
 ## вкладка зовёт, когда сама меняет видимость своей кнопки действия
 func refresh_footer() -> void:
+	if host != null:
+		host.refresh_footer()
+		return
 	if _footer == null:
 		return
 	var has := not _footer_labels.is_empty()
