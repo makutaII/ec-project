@@ -69,6 +69,20 @@ static func is_level(pitch_start_deg: float, pitch_end_deg: float, roll_start_de
 			and absf(roll_start_deg) < 0.01 and absf(roll_end_deg) < 0.01
 
 
+## Самая низкая точка трака в координатах кривой: ось кривой и нижний край основания при крене (край шириной half_width
+## от оси уходит вниз на half_width·|sin(крен)|). Нужна для якоря высоты: трак с уклоном, дугой или креном должен стоять
+## на земле нижней точкой, а не серединой оси (C_RidePath.ground_anchor)
+static func lowest_y(curve: Curve3D, half_width: float) -> float:
+	var total := curve.get_baked_length()
+	var n := maxi(2, ceili(total) + 1)
+	var lowest := INF
+	for i in n:
+		var s := total * float(i) / float(n - 1)
+		var roll := TrackMeshBuilder.roll_at(curve, s, total)
+		lowest = minf(lowest, curve.sample_baked(s).y - half_width * absf(sin(roll)))
+	return lowest
+
+
 ## Крен (градусы) в точке s вдоль оси трака длиной length: линейно от roll_start до roll_end. + = правый край ниже
 static func roll_at(s: float, length: float, roll_start_deg: float, roll_end_deg: float) -> float:
 	return lerpf(roll_start_deg, roll_end_deg, clampf(s / maxf(length, 0.0001), 0.0, 1.0))

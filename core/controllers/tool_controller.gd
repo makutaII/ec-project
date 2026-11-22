@@ -114,7 +114,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# XX claude-terra 13.1.4: V - дубль последнего объекта (в Build, из SelectTool и BuildTool)
 	if Actions.pressed(event, &"duplicate_last"):
 		duplicate_last_object()
-		if build_tool.can_duplicate() and Global.current_mode == &'build':
+		if build_tool.can_duplicate() and _duplicate_mode_ok():   # XX claude-coaster C6.1
 			get_viewport().set_input_as_handled()
 			return
 	if active_tool: 
@@ -149,7 +149,7 @@ func switch_tool(new_tool: Node):
 ## Дубль последнего поставленного объекта. Только в режиме Build и только из SelectTool или BuildTool
 ## (в драге, Observe и т.п. клавиша ничего не делает)
 func duplicate_last_object() -> void:
-	if Global.current_mode != &'build':
+	if not _duplicate_mode_ok():   # XX claude-coaster C6.1: Build и Coaster
 		return
 	if active_tool != select_tool and active_tool != build_tool:
 		return
@@ -159,9 +159,25 @@ func duplicate_last_object() -> void:
 	# Выбран объект: дублируем его (копия на курсоре), иначе последний поставленный
 	var sel := selected_for_duplicate()
 	if sel != null:
-		build_tool.duplicate_entity(sel)
-	elif build_tool.can_duplicate():
+		var sel_idc := sel.get_comp(C_Identity) as C_Identity
+		if sel_idc != null and duplicate_fits_mode(sel_idc.setting, Global.current_mode):
+			build_tool.duplicate_entity(sel)
+	elif build_tool.can_duplicate() and duplicate_fits_mode(build_tool.last_setting, Global.current_mode):
 		build_tool.duplicate_last()
+
+
+## XX claude-coaster C6.1: дубль и клавиша V работают в Build и в Coaster
+func _duplicate_mode_ok() -> bool:
+	return Global.current_mode == &'build' or Global.current_mode == &'coaster'
+
+
+## XX claude-coaster C6.1: в Coaster копируется только объект горок, в Build объект горок не копируется
+## (категории режима в CatalogMeta.MODE_CATEGORIES). Без этого V в Coaster ставила бы последний рельс из Build, и наоборот
+static func duplicate_fits_mode(setting: EntitySetting, mode: StringName) -> bool:
+	if setting == null:
+		return false
+	var coaster_cats: Array = CatalogMeta.MODE_CATEGORIES.get(&"coaster", [])
+	return coaster_cats.has(setting.category) == (mode == &'coaster')
 
 
 ## Что дублировать по V и кнопке «Дубль»: выбранный в SelectTool настоящий объект (не призрак) с паспортом. null: ничего

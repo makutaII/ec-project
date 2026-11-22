@@ -126,7 +126,7 @@ func _apply_regular_movement(target_pos: Vector3) -> void:
 ## Origin жесткого трака в середине кривой. У пандуса нижний конец стоит на уровне, центр выше на |rise|/2
 func _anchor_offset() -> float:
 	var p := entity.get_comp(C_Path) as C_Path
-	return absf(p.rise) * 0.5 if (p and p.centered) else 0.0
+	return p.ground_anchor() if p else 0.0   # XX claude-coaster C6.1: у обычных путей прежнее |rise|/2
 
 
 # XX claude-terra
