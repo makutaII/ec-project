@@ -1,14 +1,29 @@
 class_name InfoMainTab extends InfoTab
 
 ###########################
-## Вкладка «Общее»: паспорт объекта, для трака радиус, длина, уровень, подъем, уклон
+## Вкладка «Сведения»: паспорт объекта, для трака радиус, длина, уровень, подъем, уклон, стиль,
+## а также положение, поворот, «на траке» и сцепки (бывшая вкладка «Положение», U5a.1)
 ###########################
-## Узлы в info_panel.tscn (MainTab). Строки Level, Rise, Slope создаются кодом (XX claude-terra 13.1.7).
+## Узлы в info_panel.tscn (MainTab). Строки Level, Rise, Slope, Style и блок положения создаются кодом
+## (XX claude-terra 13.1.7). Кнопка «Записать состав» и её результат живут в подвале вкладки.
+## Спидометр и тюнинг физики вагона убраны (DebugPanel, U14), скорость и центробежная сила из панели ушли совсем.
+
+## TODO U5a.6: цвет «да» и «вечная» взять из темы
+const ON_TRACK_COLOR := Color(0.4, 1.0, 0.5)
 
 var _lvl_label: Label
 var _rise_label: Label
 var _slope_label: Label
 var _style_label: Label
+
+var _chassis: C_Chassis
+var _coupler: C_Coupler
+var _pos_label: Label
+var _rot_label: Label
+var _on_track_label: Label
+## Строки «Сцепка спереди / сзади»: пары [подпись, значение] (индекс = торец)
+var _coupler_rows: Array = []
+var _record_button: Button
 
 
 func _setup() -> void:
@@ -17,6 +32,16 @@ func _setup() -> void:
 	_rise_label = _add_track_row(grid, "Rise: ")
 	_slope_label = _add_track_row(grid, "Slope: ")
 	_style_label = _add_track_row(grid, "Style: ")
+	_build_pose_block()
+
+
+func _setup_footer() -> void:
+	_record_button = Button.new()
+	_record_button.text = "Записать состав"
+	_record_button.tooltip_text = "Сохранить все сцепленные вагоны как кнопку «Составы» в каталоге"
+	_record_button.visible = false
+	_record_button.pressed.connect(_on_record_pressed)
+	footer_add_action(_record_button)
 
 
 func _add_track_row(grid: GridContainer, title: String) -> Label:
@@ -28,11 +53,113 @@ func _add_track_row(grid: GridContainer, title: String) -> Label:
 	return v
 
 
-## Живые строки: уровень (низ балласта в слоях над столом), подъем и уклон выбранного трака, призрака или трака в драге.
-## Жесткий трак: подъем rise из TrackConfig, длина вдоль уклона. Flex: подъем и уклон из C_FlexShape (максимальный)
+## Блок положения под описанием: позиция, поворот, «на траке», сцепки спереди и сзади
+func _build_pose_block() -> void:
+	control.add_child(HSeparator.new())
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	control.add_child(margin)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	margin.add_child(grid)
+	_pos_label = _add_pose_row(grid, "Позиция:")[1]
+	_rot_label = _add_pose_row(grid, "Поворот:")[1]
+	_on_track_label = _add_pose_row(grid, "На траке:")[1]
+	for title in ["Сцепка спереди:", "Сцепка сзади:"]:
+		_coupler_rows.append(_add_pose_row(grid, title))
+
+
+## Добавляет в сетку пару подпись и значение, возвращает [подпись, значение]
+func _add_pose_row(grid: GridContainer, title: String) -> Array:
+	var caption := Label.new()
+	caption.text = title
+	grid.add_child(caption)
+	var value := Label.new()
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(value)
+	return [caption, value]
+
+
+func components_changed() -> void:
+	if target == null:
+		return
+	_chassis = target.get_comp(C_Chassis) as C_Chassis
+	_coupler = target.get_comp(C_Coupler) as C_Coupler
+
+
+func _on_unbind() -> void:
+	_chassis = null
+	_coupler = null
+
+
+## Живые строки: положение и сцепки; для трака еще уровень (низ балласта в слоях над столом), подъем и уклон
+## выбранного трака, призрака или трака в драге
 func refresh() -> void:
-	var path := target.get_comp(C_Path) as C_Path if target else null
-	if path == null or not is_instance_valid(path) or not target.is_inside_tree():
+	if target == null or not is_instance_valid(target) or not target.is_inside_tree():
+		return
+	_refresh_pose()
+	_refresh_track()
+
+
+func _refresh_pose() -> void:
+	var pos := target.global_position
+	var rot := target.rotation_degrees
+	_pos_label.text = "(%.2f, %.2f, %.2f)" % [pos.x, pos.y, pos.z]
+	_rot_label.text = "(%.2f, %.2f, %.2f)" % [rot.x, rot.y, rot.z]
+	_set_on_track()
+	_set_couplers()
+
+
+## «На траке»: да (зеленым) или нет (цвет по умолчанию). У объектов без шасси прочерк
+func _set_on_track() -> void:
+	if _chassis == null:
+		_on_track_label.text = "-"
+		_on_track_label.remove_theme_color_override(&"font_color")
+	elif _chassis.is_on_rails:
+		_on_track_label.text = "Да"
+		_on_track_label.add_theme_color_override(&"font_color", ON_TRACK_COLOR)
+	else:
+		_on_track_label.text = "Нет"
+		_on_track_label.remove_theme_color_override(&"font_color")
+
+
+## Статус сцепки: у объектов без C_Coupler строки скрыты, вечная сцепка выделена цветом.
+## Кнопка «Записать состав» в подвале видна, когда сцеплено два вагона и больше
+func _set_couplers() -> void:
+	var chain_len := _coupler.get_consist().size() if _coupler else 0
+	_record_button.visible = chain_len >= 2
+	refresh_footer()
+	for end in _coupler_rows.size():
+		var caption := _coupler_rows[end][0] as Label
+		var value := _coupler_rows[end][1] as Label
+		caption.visible = _coupler != null
+		value.visible = _coupler != null
+		if _coupler == null:
+			continue
+		value.text = _coupler.end_status(end)
+		if _coupler.is_permanent(end):
+			value.add_theme_color_override(&"font_color", ON_TRACK_COLOR)
+		else:
+			value.remove_theme_color_override(&"font_color")
+
+
+func _on_record_pressed() -> void:
+	if target == null:
+		return
+	var res := ConsistStore.record(target)
+	if res["ok"]:
+		footer_message(&"record", "Записано: %s" % res["name"], &"ok")
+	else:
+		footer_message(&"record", "Не записано: %s" % res["error"], &"bad")
+
+
+## Уровень, подъем и уклон трака. Жесткий трак: подъем rise из TrackConfig, длина вдоль уклона.
+## Flex: подъем и уклон из C_FlexShape (максимальный)
+func _refresh_track() -> void:
+	var path := target.get_comp(C_Path) as C_Path
+	if path == null or not is_instance_valid(path):
 		return
 	var T: float = Global.settings.layer_height
 
@@ -80,12 +207,13 @@ func _style_text() -> String:
 
 
 func _on_bind() -> void:
+	components_changed()
 	var identity = target.get_comp(C_Identity)
 	if identity:
 		_n("CategoryLabel").text = identity.get_category()
 		_n("TagLabel").text =  identity.get_tag()
 		_n("HeaderLabel").text = '  ' + identity.get_name_e() 
-		_n("HeaderRLabel").text ='node : ' + target.name 
+		_n("HeaderRLabel").text = ('node : ' + target.name) if Global.debug_mode else ""   # имя узла только в отладке
 		_n("DescriptionLabel").text = identity.get_description()
 		_n("IconRect").texture = identity.get_icon()
 		
@@ -99,10 +227,6 @@ func _on_bind() -> void:
 					_n("DegLabel").text = str(_path.deg) + '°'
 					_n("LengthLabel").text = str(_path.get_length()) + ' u/sm'
 				_style_label.text = _style_text()
-				refresh()   # XX claude-terra 13.1.7
-			&'terrain':
-				_n("TrackContainer").hide()
-				_n("TrainContainer").hide()
 			&'train', &'coaster_car':   # XX claude-coaster C3: те же поля вагона
 				_n("TrackContainer").hide()
 				_n("TrainContainer").show()
@@ -113,6 +237,13 @@ func _on_bind() -> void:
 					_n("MassLabel").text = str(wc.mass)
 					_n("PowerLabel").text = str(wc.max_tractive_force) if is_loco else "-"
 					_n("MaxSpeedLabel").text = str(wc.max_theoretical_speed) if is_loco else "-"
+			_:   # terrain, table, building, dc_controller и прочее: числа трака и вагона не показываем
+				_n("TrackContainer").hide()
+				_n("TrainContainer").hide()
 	else:
 		# Если это какой-то системный объект без паспорта
 		_n("HeaderLabel").text = "Системный объект"
+		_n("HeaderRLabel").text = ""
+		_n("TrackContainer").hide()
+		_n("TrainContainer").hide()
+	refresh()

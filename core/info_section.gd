@@ -12,6 +12,8 @@ class_name InfoSection extends RefCounted
 ##   button(text, action)                    кнопка: action()
 ##   slider(title, min, max, step, getter, setter)   ползунок: getter -> float, setter(float)
 ##   list(title, ids, titles, getter, setter)        выбор: getter -> id, setter(id)
+##   note(text, kind)                        оперативное сообщение: идёт в подвал вкладки, а не в тело (U5a);
+##                                           text: String или Callable -> String (пустая строка убирает), kind: info, ok, warn, bad
 
 var title := ""
 var rows: Array[Dictionary] = []
@@ -35,6 +37,10 @@ static func toggle(p_title: String, getter: Callable, setter: Callable) -> Dicti
 
 static func button(p_text: String, action: Callable) -> Dictionary:
 	return {"type": &"button", "title": p_text, "action": action}
+
+
+static func note(p_text: Variant, p_kind: StringName = &"info") -> Dictionary:
+	return {"type": &"note", "text": p_text, "kind": p_kind}
 
 
 static func slider(p_title: String, min_value: float, max_value: float, step: float, getter: Callable, setter: Callable) -> Dictionary:

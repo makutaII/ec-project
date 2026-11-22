@@ -8,6 +8,8 @@ class_name InfoVisualTab extends InfoTab
 var _box: VBoxContainer
 ## Контролы, которым нужно обновление: [{type, row, control}]
 var _live: Array[Dictionary] = []
+## Строки типа note (InfoSection.note): в тело не попадают, идут в подвал вкладки
+var _notes: Array[Dictionary] = []
 
 
 func _setup() -> void:
@@ -44,6 +46,9 @@ func components_changed() -> void:
 func refresh() -> void:
 	for v in _live:
 		_refresh_row(v)
+	for i in _notes.size():
+		var val: Variant = _notes[i].text
+		footer_message(StringName("note%d" % i), str((val as Callable).call() if val is Callable else val), _notes[i].kind)
 
 
 ## Секции всех компонентов цели, у которых есть get_info_sections()
@@ -59,6 +64,8 @@ static func _collect(entity: Entity) -> Array[InfoSection]:
 
 func _clear() -> void:
 	_live.clear()
+	_notes.clear()
+	footer_clear()
 	for c in _box.get_children():
 		_box.remove_child(c)
 		c.queue_free()
@@ -69,11 +76,19 @@ func _rebuild() -> void:
 	if target == null:
 		return
 	for section in _collect(target):
+		var body_rows: Array[Dictionary] = []
+		for row in section.rows:
+			if row.type == &"note":
+				_notes.append(row)
+			else:
+				body_rows.append(row)
+		if body_rows.is_empty():
+			continue
 		var head := Label.new()
 		head.text = section.title
 		head.theme_type_variation = &"LabelDim"
 		_box.add_child(head)
-		for row in section.rows:
+		for row in body_rows:
 			_box.add_child(_make_row(row))
 	refresh()
 

@@ -43,18 +43,16 @@ text = "2222222"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-current_tab = 2
 clip_tabs = false
-tab_0/title = "Общее"
+tab_0/title = "Сведения"
 tab_1/title = "Питание"
-tab_2/title = "Положение"
+tab_2/title = "Вид"
 
 [node name="MainTab" type="VBoxContainer" parent="VBoxContainer/TabContainer" unique_id=1696650871]
-visible = false
 layout_mode = 2
 size_flags_vertical = 17
 metadata/_tab_index = 0
-metadata/_tab_name = "Общее"
+metadata/_tab_name = "Сведения"
 
 [node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/TabContainer/MainTab" unique_id=499516534]
 layout_mode = 2
@@ -154,9 +152,8 @@ size_flags_horizontal = 4
 
 [node name="DescriptionLabel" type="RichTextLabel" parent="VBoxContainer/TabContainer/MainTab" unique_id=223979196]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 55)
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
-size_flags_vertical = 19
 text = "jkljlпро ап"
 
 [node name="HSeparator2" type="HSeparator" parent="VBoxContainer/TabContainer/MainTab" unique_id=1036426703]
@@ -365,84 +362,10 @@ custom_minimum_size = Vector2(0, 55)
 layout_mode = 2
 text = "разное"
 
-[node name="TransformTab" type="VBoxContainer" parent="VBoxContainer/TabContainer" unique_id=358071816]
-layout_mode = 2
-metadata/_tab_index = 2
-metadata/_tab_name = "Положение"
-
-[node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/TabContainer/TransformTab" unique_id=908692305]
-layout_mode = 2
-
-[node name="HBoxContainer2" type="HBoxContainer" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer" unique_id=236792591]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="Control3" type="Control" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=34483507]
-custom_minimum_size = Vector2(10, 0)
-layout_mode = 2
-size_flags_stretch_ratio = 0.5
-
-[node name="Label" type="Label" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=122170970]
-layout_mode = 2
-text = "Position:"
-
-[node name="PosLabel" type="Label" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=1461773938]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
-layout_mode = 2
-text = "0"
-
-[node name="Control" type="Control" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=2038790071]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_stretch_ratio = 0.5
-
-[node name="Label2" type="Label" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=1823190114]
-layout_mode = 2
-text = "Rotation:"
-
-[node name="RotLabel" type="Label" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=25999539]
-unique_name_in_owner = true
-layout_mode = 2
-text = "0"
-
-[node name="Control2" type="Control" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer2" unique_id=765848490]
-custom_minimum_size = Vector2(10, 0)
-layout_mode = 2
-size_flags_stretch_ratio = 0.5
-
-[node name="HSeparator" type="HSeparator" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer" unique_id=947258248]
-custom_minimum_size = Vector2(200, 0)
-layout_mode = 2
-size_flags_horizontal = 4
-
-[node name="HBoxContainer3" type="HBoxContainer" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer" unique_id=1493116159]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="Control3" type="Control" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer3" unique_id=1599429424]
-custom_minimum_size = Vector2(10, 0)
-layout_mode = 2
-size_flags_stretch_ratio = 0.5
-
-[node name="GridContainer" type="GridContainer" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer3" unique_id=1550384492]
-layout_mode = 2
-size_flags_horizontal = 3
-columns = 2
-
-[node name="Label" type="Label" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer3/GridContainer" unique_id=1980250078]
-layout_mode = 2
-text = "On track:"
-
-[node name="OnTrackLabel" type="Label" parent="VBoxContainer/TabContainer/TransformTab/VBoxContainer/HBoxContainer3/GridContainer" unique_id=1567603876]
-unique_name_in_owner = true
-layout_mode = 2
-text = "0"
-
 [node name="VisualTab" type="VBoxContainer" parent="VBoxContainer/TabContainer" unique_id=1874121866]
 visible = false
 layout_mode = 2
-metadata/_tab_index = 3
+metadata/_tab_index = 2
 
 [node name="HBoxContainer4" type="HBoxContainer" parent="VBoxContainer/TabContainer/VisualTab" unique_id=139177770]
 layout_mode = 2

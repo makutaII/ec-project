@@ -27,6 +27,9 @@ var _acc := 0.0
 func _ready() -> void:
 	add_to_group(&"info_panel")   # по группе её находит спидометр
 	# U13: плавающая панель (внизу справа по умолчанию, тянется за заголовок, сворачивается, запоминает место)
+	# U5a: размер по умолчанию 360×440, минимум 320×220, меняется ручкой в углу
+	min_panel_size = Vector2(320, 220)
+	default_panel_size = Vector2(360, 440)
 	var vbox := $VBoxContainer
 	var grip_row := HBoxContainer.new()
 	vbox.add_child(grip_row)
@@ -43,7 +46,6 @@ func _ready() -> void:
 	# Вкладки из сцены, в порядке сцены; затем вкладки, создаваемые кодом
 	_add_tab(_main, tab_container.get_node("MainTab"))
 	_add_tab(_power, tab_container.get_node("PowerTab"))
-	_add_tab(InfoTransformTab.new(), tab_container.get_node("TransformTab"))
 	_add_tab(InfoVisualTab.new(), tab_container.get_node("VisualTab"))   # U13: секции компонентов (D13)
 	_add_tab(InfoMechTab.new())
 	_add_tab(InfoTerrainTab.new())

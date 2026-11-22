@@ -235,7 +235,7 @@ func _end_of(l: Link) -> int:
 	return FRONT if links[FRONT] == l else REAR
 
 
-## Статус торца для вкладки «Положение» в InfoPanel: нет / контакт / сцеплен / вечная и имя соседа
+## Статус торца для вкладки «Сведения» в InfoPanel: нет / контакт / сцеплен / вечная и имя соседа
 func end_status(end: int) -> String:
 	var l: Link = links[end]
 	if l == null:
