@@ -70,7 +70,13 @@ var _decal_angle_slider: HSlider
 var _decal_mirror_cb: CheckBox
 var _decal_tint_cb: CheckBox
 var _decal_stroke_cb: CheckBox
-var _plain_rows: Array = []            # строки обычных кистей (у декали скрыты)
+var _sample_rows: Array = []           # строки образца (у декали и маски скрыты)
+var _decal_label: Label
+var _mask_kind_opt: OptionButton        # маска: скотч мазком или трафарет картинкой
+var _mask_action_opt: OptionButton      # скотч: закрыть или открыть (снять)
+var _stencil_cover_opt: OptionButton    # трафарет: что накрывает, рисунок или фон
+var _mask_note: Label
+var _mask_clear_btn: Button
 var _decal_rows: Array = []            # строки декали (у остальных скрыты)
 var _sample_shift := Vector2.ZERO # сдвиг образца текущего мазка
 var _relief_note: Label
@@ -529,8 +535,8 @@ func _build_brush_box() -> void:
 	_relief_width_slider = _add_slider("Ширина кромки, px", 1.0, 10.0, 1.0, "relief_width", 1.0)
 	_relief_width_slider.tooltip_text = "Радиус перехода в пикселях слоя краски: чем больше, тем шире полоса вдоль кромки"
 	_build_decal_rows()
-	_plain_rows = [_hard_slider.get_parent(), _scatter_slider.get_parent(), _spacing_slider.get_parent(),
-		_sample_opt.get_parent(), _sample_random_cb, _sample_size_slider.get_parent()]
+	_build_mask_rows()
+	_sample_rows = [_sample_opt.get_parent(), _sample_random_cb, _sample_size_slider.get_parent()]
 
 	var row := HBoxContainer.new()
 	_brush_box.add_child(row)
@@ -594,6 +600,55 @@ func _build_relief_kind_row() -> void:
 	row.add_child(_relief_kind_opt)
 
 
+## Строка с выпадающим списком: подпись слева, список справа. Возвращает список (строка это его родитель)
+func _option_row(caption: String, items: Array, tooltip: String) -> OptionButton:
+	var row := HBoxContainer.new()
+	_brush_box.add_child(row)
+	var l := Label.new()
+	l.text = caption
+	l.custom_minimum_size = Vector2(100, 0)
+	row.add_child(l)
+	var opt := OptionButton.new()
+	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt.tooltip_text = tooltip
+	for it in items:
+		opt.add_item(str(it))
+	row.add_child(opt)
+	return opt
+
+
+## Инструмент «Маска»: скотч (мазком) и трафарет (картинкой) пишут в одну карту закрытых участков. Краска и ластик не
+## действуют там, где закрыто. Закрытое показано красным; маска временная (в исполнение не сохраняется)
+func _build_mask_rows() -> void:
+	_mask_kind_opt = _option_row("Тип", ["Скотч (мазком)", "Трафарет (картинкой)"],
+		"Скотч: закрывает участок мазком, как малярная лента. Трафарет: накрывает участок по картинке (звезда, цифра, своя картинка)")
+	_mask_kind_opt.item_selected.connect(func(i: int) -> void:
+		if not _silent:
+			_tool_params[_tool]["mask_kind"] = "tape" if i == 0 else "stencil"
+			_sync_tool_sliders())
+	_mask_action_opt = _option_row("Действие", ["Закрыть краску", "Открыть (снять скотч)"],
+		"Открыть: стирает маску под мазком. Вся маска: кнопка «Очистить маску»")
+	_mask_action_opt.item_selected.connect(func(i: int) -> void:
+		if not _silent:
+			_tool_params[_tool]["mask_close"] = i == 0)
+	_stencil_cover_opt = _option_row("Накрывает", ["Рисунок", "Фон"],
+		"У трафарета два «цвета»: рисунок и фон. Какой накрывает, тот закрыт для краски, другой открыт. Если у картинки есть прозрачность, рисунок это непрозрачная часть, а прозрачная открыта; если картинка сплошная (два цвета), рисунок это её тёмная часть")
+	_stencil_cover_opt.item_selected.connect(func(i: int) -> void:
+		if not _silent:
+			_tool_params[_tool]["stencil_cover"] = "ink" if i == 0 else "bg")
+	_mask_note = Label.new()
+	_mask_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_mask_note.text = "Закрытое маской показано красным: краска и ластик туда не действуют. Маска временная и в исполнение не сохраняется."
+	_mask_note.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
+	_brush_box.add_child(_mask_note)
+	_mask_clear_btn = Button.new()
+	_mask_clear_btn.text = "Очистить маску"
+	_mask_clear_btn.pressed.connect(func() -> void:
+		if screen != null and screen.paint_engine != null:
+			screen.paint_engine.clear_mask())
+	_brush_box.add_child(_mask_clear_btn)
+
+
 ## Строки инструмента «Декаль»: выбор картинки, поворот, зеркало, цвет палитры. Видны только у него
 func _build_decal_rows() -> void:
 	var row := HBoxContainer.new()
@@ -602,6 +657,7 @@ func _build_decal_rows() -> void:
 	l.text = "Декаль"
 	l.custom_minimum_size = Vector2(100, 0)
 	row.add_child(l)
+	_decal_label = l
 	_decal_opt = OptionButton.new()
 	_decal_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_decal_opt.tooltip_text = "Клик ставит картинку на модель. Свои декали: картинки png, jpg, webp в папке data/library/paint_decals или файл decal_*.png в data/library/paint_samples (форма по альфа-каналу)"
@@ -721,30 +777,43 @@ func _sync_tool_sliders() -> void:
 	_sample_size_slider.value = float(p["sample_size"]) * 100.0
 	_relief_sens_slider.value = float(p["relief_sens"]) * 100.0
 	_relief_width_slider.value = float(p["relief_width"])
-	var has_relief := float(p["relief"]) != 0.0
+	var is_decal := bool(p["decal_tool"])
+	var is_mask := bool(p["mask_tool"])
+	var stencil := is_mask and str(p["mask_kind"]) == "stencil"
+	var picture := is_decal or stencil                        # инструмент ставит картинку (декаль, трафарет)
+	var has_relief := float(p["relief"]) != 0.0 and not picture and not is_mask
 	_relief_sens_slider.get_parent().visible = has_relief
 	_relief_width_slider.get_parent().visible = has_relief
 	_relief_note.visible = has_relief
 	_relief_kind_row.visible = has_relief
 	_relief_kind_opt.select(0 if float(p["relief"]) >= 0.0 else 1)
-	_end_row.visible = bool(p["tips"])
+	_end_row.visible = bool(p["tips"]) and not stencil
 	_end_opt.select(maxi(PaintBrushes.TIP_ORDER.find(str(p["end"])), 0))
-	var is_decal := bool(p["decal_tool"])
-	for c in _plain_rows:
-		c.visible = not is_decal
-	for c in _decal_rows:
-		c.visible = is_decal
-	if is_decal:
-		_relief_kind_row.visible = false
-		_relief_sens_slider.get_parent().visible = false
-		_relief_width_slider.get_parent().visible = false
-		_relief_note.visible = false
-		_decal_angle_slider.value = float(p["decal_angle"])
-		_decal_mirror_cb.button_pressed = bool(p["decal_mirror"])
-		_decal_tint_cb.button_pressed = bool(p["decal_tint"])
-		_decal_stroke_cb.button_pressed = bool(p["decal_stroke"])
-		_spacing_slider.get_parent().visible = bool(p["decal_stroke"])      # шаг нужен только цепочке
-		_decal_opt.select(maxi(_decal_ids.find(str(p["decal"])), 0))
+	_hard_slider.get_parent().visible = not picture
+	_scatter_slider.get_parent().visible = not picture
+	_spacing_slider.get_parent().visible = not picture or (is_decal and bool(p["decal_stroke"]))      # у декали шаг нужен только цепочке
+	for c in _sample_rows:
+		c.visible = not is_decal and not is_mask
+	# картинка: список, поворот, зеркало (у декали ещё цвет палитры и цепочка)
+	_decal_rows[0].visible = picture
+	_decal_rows[1].visible = picture
+	_decal_rows[2].visible = picture
+	_decal_rows[3].visible = is_decal
+	_decal_rows[4].visible = is_decal
+	_decal_label.text = "Декаль" if is_decal else "Рисунок"
+	_decal_angle_slider.value = float(p["decal_angle"])
+	_decal_mirror_cb.button_pressed = bool(p["decal_mirror"])
+	_decal_tint_cb.button_pressed = bool(p["decal_tint"])
+	_decal_stroke_cb.button_pressed = bool(p["decal_stroke"])
+	_decal_opt.select(maxi(_decal_ids.find(str(p["decal"])), 0))
+	_mask_kind_opt.get_parent().visible = is_mask
+	_mask_action_opt.get_parent().visible = is_mask and not stencil
+	_stencil_cover_opt.get_parent().visible = stencil
+	_mask_note.visible = is_mask
+	_mask_clear_btn.visible = is_mask
+	_mask_kind_opt.select(1 if stencil else 0)
+	_mask_action_opt.select(0 if bool(p["mask_close"]) else 1)
+	_stencil_cover_opt.select(0 if str(p["stencil_cover"]) == "ink" else 1)
 	_sample_random_cb.button_pressed = bool(p["sample_random"])
 	_sample_opt.select(_sample_ids.find(str(p["sample"])) + 1)
 	_silent = false
@@ -975,8 +1044,9 @@ func _update_cursor() -> void:
 	# направление конца: у «по мазку» последнее направление мазка, иначе по оси Y модели (случайный угол заранее неизвестен)
 	var mode := "stroke" if str(p["rotate"]) == "stroke" else "fixed"
 	var t_root := PaintBrushes.tangent(_preview_normal, mode, Vector3.ZERO, null, 0.0, _stroke_tan)
-	if bool(p["decal_tool"]):
-		# декаль: рамка по пропорциям картинки, сама картинка полупрозрачно, как ляжет с текущими поворотом и зеркалом
+	var stencil_preview := bool(p["mask_tool"]) and str(p["mask_kind"]) == "stencil"
+	if bool(p["decal_tool"]) or stencil_preview:
+		# декаль и трафарет: рамка по пропорциям картинки, сама картинка полупрозрачно, как ляжет с текущими поворотом и зеркалом
 		var did := str(p["decal"])
 		p = p.duplicate()
 		p["shape"] = "box"
@@ -984,7 +1054,7 @@ func _update_cursor() -> void:
 		p["hardness"] = 0.0
 		p["scatter"] = 0.0
 		p["decal_tex"] = PaintDecals.flipped_texture(did) if bool(p["decal_mirror"]) else PaintDecals.texture(did)
-		p["decal_color"] = _color_btn.color if bool(p["decal_tint"]) else Color.WHITE
+		p["decal_color"] = Color(1.0, 0.35, 0.35) if stencil_preview else (_color_btn.color if bool(p["decal_tint"]) else Color.WHITE)
 		t_root = PaintBrushes.decal_right(_preview_normal, float(p["decal_angle"]))
 	var sc := xf.basis.get_scale()
 	var radius := eng.radius_for(float(p["size"])) * (sc.x + sc.y + sc.z) / 3.0
@@ -1030,8 +1100,11 @@ func _stroke_begin(pos: Vector2) -> void:
 
 ## Штампы вдоль отрезка мыши с шагом spacing инструмента (остаток шага переносится на следующее движение)
 func _stroke_move(pos: Vector2) -> void:
-	if bool(_tool_params[_tool]["single"]) and not bool(_tool_params[_tool]["decal_stroke"]):
+	var tp: Dictionary = _tool_params[_tool]
+	if bool(tp["single"]) and not bool(tp["decal_stroke"]):
 		return                                  # декаль: один штамп на нажатие (если не включена цепочка)
+	if bool(tp["mask_tool"]) and str(tp["mask_kind"]) == "stencil":
+		return                                  # трафарет: один штамп на нажатие
 	var dist := pos.distance_to(_last_pos)
 	if dist <= 0.0:
 		return
@@ -1066,7 +1139,7 @@ func _stamp_at(pos: Vector2, step_px := 0.0) -> void:
 	var p: Dictionary = _tool_params[_tool]
 	var n: Vector3 = hit["normal"]
 	var at: Vector3 = hit["position"]
-	if bool(p["decal_tool"]):
+	if bool(p["decal_tool"]) or (bool(p["mask_tool"]) and str(p["mask_kind"]) == "stencil"):
 		var angle := float(p["decal_angle"])
 		var right := PaintBrushes.decal_right(n, angle)
 		if bool(p["decal_stroke"]):
@@ -1093,7 +1166,8 @@ func _stamp_at(pos: Vector2, step_px := 0.0) -> void:
 	var center := at + PaintBrushes.scatter_offset(n, tan_dir, radius, float(p["scatter"]), _rng)
 	var opts := PaintBrushes.stamp_opts(p, tan_dir, PaintBrushes.load_left(p, _travel_px))
 	opts["sample_shift"] = _sample_shift
-	eng.stamp(center, n, radius, _color_btn.color, float(p["flow"]), float(p["hardness"]), bool(p["erase"]), opts)
+	var erase := bool(p["erase"]) or (bool(p["mask_tool"]) and not bool(p["mask_close"]))     # открыть скотч стирает маску
+	eng.stamp(center, n, radius, _color_btn.color, float(p["flow"]), float(p["hardness"]), erase, opts)
 
 
 func _on_undo() -> void:

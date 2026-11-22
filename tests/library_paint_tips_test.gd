@@ -91,7 +91,7 @@ func _test_presets() -> void:
 		all_ok = all_ok and str(p["name"]) != "" and PaintBrushes.PRESETS.has(id)
 		levels_ok = levels_ok and int(p["level"]) >= 2 and int(p["level"]) <= 3
 		tips_ok = tips_ok and (str(p["tip"]) == "" or PaintTips.has(str(p["tip"]))) and (str(p["shape"]) == "round" or str(p["shape"]) == "box")
-	_check("инструменты по порядку: кисть, аэрограф, ластик, сухая кисть, декаль (концы кисти это не инструменты)", PaintBrushes.ORDER == ["brush", "airbrush", "eraser", "dry", "decal"])
+	_check("инструменты по порядку: кисть, аэрограф, ластик, сухая кисть, маска, декаль (концы кисти это не инструменты)", PaintBrushes.ORDER == ["brush", "airbrush", "eraser", "dry", "mask", "decal"])
 	_check("концы кисти по порядку: круг, щётка, губка, брызги, квадрат", PaintBrushes.TIP_ORDER == ["round", "flat", "sponge", "splatter", "square"])
 	_check("у каждого пресета есть все параметры и имя", all_ok)
 	_check("уровни правил 2..3, тексты концов и форма известны", levels_ok and tips_ok)
@@ -101,7 +101,7 @@ func _test_presets() -> void:
 		tip_ok = tip_ok and str(t["name"]) != "" and (str(t["tip"]) == "" or PaintTips.has(str(t["tip"]))) and (str(t["shape"]) == "round" or str(t["shape"]) == "box") \
 			and int(t["level"]) >= 2 and int(t["level"]) <= 3 and float(t["size_mul"]) > 0.0 and float(t["spacing"]) > 0.0
 	_check("концы кисти: названия, текстуры и формы известны, размер и шаг положительные", tip_ok)
-	_check("кисть, аэрограф, ластик и сухая кисть выбирают конец, декаль нет", PaintBrushes.preset("brush")["tips"] == true and PaintBrushes.preset("airbrush")["tips"] == true and PaintBrushes.preset("eraser")["tips"] == true and PaintBrushes.preset("dry")["tips"] == true and PaintBrushes.preset("decal")["tips"] == false)
+	_check("кисть, аэрограф, ластик и сухая кисть выбирают конец, декаль нет", PaintBrushes.preset("brush")["tips"] == true and PaintBrushes.preset("airbrush")["tips"] == true and PaintBrushes.preset("eraser")["tips"] == true and PaintBrushes.preset("dry")["tips"] == true and PaintBrushes.preset("mask")["tips"] == true and PaintBrushes.preset("decal")["tips"] == false)
 	_check("уровни: кисть, аэрограф, ластик и круг, квадрат с уровня 2; сухая кисть, декаль, щётка, губка, брызги с уровня 3", PaintBrushes.preset("brush")["level"] == 2 and PaintBrushes.preset("airbrush")["level"] == 2 and PaintBrushes.preset("eraser")["level"] == 2 and PaintBrushes.TIPS["round"]["level"] == 2 and PaintBrushes.TIPS["square"]["level"] == 2 and PaintBrushes.preset("dry")["level"] == 3 and PaintBrushes.preset("decal")["level"] == 3 and PaintBrushes.TIPS["flat"]["level"] == 3 and PaintBrushes.TIPS["sponge"]["level"] == 3 and PaintBrushes.TIPS["splatter"]["level"] == 3)
 	_check("прежние инструменты не изменились (размер, жёсткость, поток)", PaintBrushes.preset("brush")["hardness"] == 0.8 and PaintBrushes.preset("airbrush")["accumulate"] == true and PaintBrushes.preset("airbrush")["flow"] == 0.12 and PaintBrushes.preset("eraser")["erase"] == true)
 	_check("у новой кисти конец «круг», круг совпадает с параметрами по умолчанию", PaintBrushes.preset("brush")["end"] == "round" and PaintBrushes.preset("brush")["shape"] == PaintBrushes.TIPS["round"]["shape"] and PaintBrushes.preset("brush")["rotate"] == PaintBrushes.TIPS["round"]["rotate"] and float(PaintBrushes.preset("brush")["spacing"]) == float(PaintBrushes.TIPS["round"]["spacing"]))
@@ -184,6 +184,14 @@ func _test_helpers() -> void:
 	PaintBrushes.apply_tip(flat, "flat", 0.04)
 	var o := PaintBrushes.stamp_opts(flat, Vector3(0, 1, 0), 0.7)
 	_check("stamp_opts: текстура, форма, box, направление, запас", o["tip"] == "bristle" and o["shape"] == "box" and o["box"] == Vector2(0.35, 1.0) and o["tan"] == Vector3(0, 1, 0) and is_equal_approx(o["load"], 0.7) and o["dry"] == 0.0 and o["relief"] == 0.0)
+	var mk := PaintBrushes.preset("mask")
+	_check("маска: инструмент маски уровня 3, по умолчанию скотч, закрывает, трафарет накрывает рисунок; у остальных масок нет", mk["mask_tool"] == true and mk["level"] == 3 and mk["mask_kind"] == "tape" and mk["mask_close"] == true and mk["stencil_cover"] == "ink" and PaintBrushes.preset("brush")["mask_tool"] == false)
+	var mo := PaintBrushes.stamp_opts(mk, Vector3(1, 0, 0), 1.0)
+	_check("stamp_opts скотча: штамп в маску, без образца и рельефа, без трафарета", mo["mask"] == true and mo["sample"] == "" and mo["relief"] == 0.0 and not mo.has("stencil") and not PaintBrushes.stamp_opts(PaintBrushes.preset("brush"), Vector3.RIGHT, 1.0).has("mask"))
+	mk["mask_kind"] = "stencil"
+	mk["stencil_cover"] = "bg"
+	var ms := PaintBrushes.stamp_opts(mk, Vector3(1, 0, 0), 1.0)
+	_check("stamp_opts трафарета: картинка, без цвета палитры, накрывает фон", ms["mask"] == true and ms["stencil"] == true and ms["stencil_ink"] == false and ms["decal"] == "star" and ms["decal_tint"] == false)
 	var dec := PaintBrushes.preset("decal")
 	_check("декаль: инструмент-декаль, один штамп на нажатие, уровень 3, у обычных кистей декалей нет", dec["decal_tool"] == true and dec["single"] == true and dec["level"] == 3 and str(dec["decal"]) == "star" and PaintBrushes.preset("brush")["decal_tool"] == false and PaintBrushes.preset("brush")["single"] == false)
 	var dop := PaintBrushes.stamp_opts(dec, Vector3(1, 0, 0), 1.0)

@@ -110,6 +110,12 @@ static func flipped_texture(id: String) -> Texture2D:
 	return e["flipped"]
 
 
+## У картинки есть прозрачность (хотя бы один неполностью непрозрачный пиксель): у трафарета рисунок это непрозрачная часть
+static func has_alpha(id: String) -> bool:
+	var img := image(id)
+	return img != null and img.detect_alpha() != Image.ALPHA_NONE
+
+
 ## Полуразмеры декали в долях радиуса штампа: большая сторона 1, меньшая по пропорции картинки
 static func aspect_box(id: String) -> Vector2:
 	var img := image(id)

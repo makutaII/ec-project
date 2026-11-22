@@ -23,6 +23,9 @@ uniform sampler2D decal_tex : filter_linear_mipmap, repeat_disable, hint_default
 uniform vec2 decal_box = vec2(1.0, 1.0);   // полуразмеры картинки в долях радиуса (большая сторона 1)
 uniform bool decal_mirror = false;
 uniform bool decal_tint = true;         // умножить цвет картинки на цвет палитры (белые формы)
+uniform bool decal_stencil = false;     // трафарет: картинка пишет в маску. Закрывает «рисунок» (цветом или альфой) или «фон»
+uniform bool decal_cover_ink = true;    // true: закрывает рисунок, false: закрывает фон
+uniform bool decal_has_alpha = false;   // у картинки есть прозрачность: рисунок это непрозрачная часть, иначе тёмная часть
 uniform float decal_lod = 0.0;          // уровень мипмапа: по размеру декали в текселях слоя (считает движок)
 uniform bool relief_on = false;         // сухая кисть и смывка: красить только по рельефу
 uniform sampler2D relief_tex : filter_nearest, repeat_disable;   // R: 0.5 + контраст яркости, G: тексель покрыт
@@ -76,6 +79,13 @@ vec4 decal_color(vec3 p, vec3 n) {
 	vec4 c = textureLod(decal_tex, clamp(tuv, vec2(0.0), vec2(1.0)), decal_lod);
 	float slab = abs(dot(q, sn)) <= r ? 1.0 : 0.0;
 	float facing = smoothstep(0.05, 0.35, dot(n, sn));
+	if (decal_stencil) {
+		// два «цвета» трафарета: рисунок и фон. Если у картинки есть прозрачность, рисунок это непрозрачная часть (цвет задан,
+		// фон не задан), иначе рисунок это тёмная часть, фон светлая. Закрывает то, что выбрано; вне картинки маски нет
+		float ink = decal_has_alpha ? c.a : 1.0 - dot(c.rgb, vec3(0.299, 0.587, 0.114));
+		float cover = smoothstep(0.35, 0.65, decal_cover_ink ? ink : 1.0 - ink);
+		return vec4(1.0, 1.0, 1.0, inside ? cover * slab * facing * flow : 0.0);
+	}
 	return vec4(c.rgb, inside ? c.a * slab * facing * flow : 0.0);
 }
 
@@ -89,7 +99,7 @@ void fragment() {
 	if (decal_on) {
 		vec4 d = decal_color(p.xyz, n);
 		vec3 dc = decal_tint ? d.rgb * brush_color.rgb : d.rgb;
-		COLOR = vec4(dc, d.a);
+		COLOR = vec4(dc, d.a * mask_open(UV));
 	} else {
 		float a = stamp_coverage(p.xyz, n);
 		if (relief_on) {
@@ -101,6 +111,6 @@ void fragment() {
 			col = s.rgb;
 			a *= s.a;
 		}
-		COLOR = vec4(col, a);
+		COLOR = vec4(col, a * mask_open(UV));
 	}
 }

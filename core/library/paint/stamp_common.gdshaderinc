@@ -11,6 +11,9 @@ uniform vec4 stamps[32];       // xyz: центр штампа (локальны
 uniform vec4 stamp_nrm[32];    // xyz: нормаль в точке попадания
 uniform vec4 stamp_tan[32];    // xyz: направление конца в касательной плоскости, w: запас краски
 uniform int stamp_count = 0;
+uniform bool mask_on = false;                                       // есть маска: краска не ложится там, где маска закрыта
+uniform sampler2D mask_tex : filter_nearest, repeat_disable, hint_default_transparent;   // A: насколько тексель закрыт
+
 uniform float flow : hint_range(0.0, 1.0) = 1.0;
 uniform float hardness : hint_range(0.0, 0.99) = 0.5;
 uniform bool tip_plain = true;             // обычный круглый штамп без текстуры и без tip_box (быстрый путь)
@@ -18,6 +21,11 @@ uniform int tip_shape = 0;                 // 0 круг (эллипс по tip_
 uniform vec2 tip_box = vec2(1.0, 1.0);     // полуразмеры конца вдоль направления штриха и поперёк, доли радиуса
 uniform bool tip_textured = false;         // умножать на текстуру tip_tex
 uniform float dry : hint_range(0.0, 1.0) = 0.0;   // сухая кисть: порог по текстуре растёт, пока запас краски убывает
+
+// Множитель маски: 1 открыто, 0 закрыто (маска это скотч и трафарет, ATTN_22 шаг C2.5)
+float mask_open(vec2 uv) {
+	return mask_on ? 1.0 - texture(mask_tex, uv).a : 1.0;
+}
 
 // Покрытие текселя всеми штампами пачки (штампы накладываются как «поверх»: a + c * (1 - a))
 float stamp_coverage(vec3 p, vec3 n) {

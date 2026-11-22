@@ -50,6 +50,13 @@ var _copy_mat: ShaderMaterial
 var texel_world := 0.01
 var relief_ready := false
 var relief_width := 0.0
+## Маска (скотч и трафарет): вторая карта в том же пространстве UV2, A это насколько тексель закрыт от краски.
+## Маска временная: в исполнение и в игру не попадает. Рисуется теми же штампами (opts.mask), стирается ластиком маски
+var mask_used := false
+var _mask_vp: SubViewport
+var _mask_rect: ColorRect
+var _mask_stamp_mat: ShaderMaterial
+var _mask_erase_mat: ShaderMaterial
 var _relief_vp: SubViewport
 var _relief_src: Array = []         # красимые поверхности: [{uv2, uv1, idx, texture, scale, offset}]
 var _entries: Array = []            # [{surfaces, verts, xform}] по кандидатам, только на время запекания
@@ -273,6 +280,23 @@ func _build_viewport() -> void:
 	_rect.color = Color.WHITE
 	_rect.material = _stamp_mat
 	_vp.add_child(_rect)
+	# карта маски: те же карты позиций и нормалей, свои материалы штампа и ластика (mask_on у них выключен)
+	_mask_vp = SubViewport.new()
+	_mask_vp.size = Vector2i(res, res)
+	_mask_vp.transparent_bg = true
+	_mask_vp.use_hdr_2d = true
+	_mask_vp.disable_3d = true
+	_mask_vp.gui_disable_input = true
+	_mask_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+	_mask_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(_mask_vp)
+	_mask_stamp_mat = _make_stamp_material(STAMP_SHADER, pos_tex, nrm_tex)
+	_mask_erase_mat = _make_stamp_material(ERASE_SHADER, pos_tex, nrm_tex)
+	_mask_rect = ColorRect.new()
+	_mask_rect.size = Vector2(res, res)
+	_mask_rect.color = Color.WHITE
+	_mask_rect.material = _mask_stamp_mat
+	_mask_vp.add_child(_mask_rect)
 
 
 func _make_stamp_material(shader: Shader, pos_tex: Texture2D, nrm_tex: Texture2D) -> ShaderMaterial:
@@ -287,7 +311,23 @@ func _make_stamp_material(shader: Shader, pos_tex: Texture2D, nrm_tex: Texture2D
 
 ## Материал накладки с этим слоем (на каждую поверхность делается копия: у каждой своя цепочка next_pass)
 func make_overlay() -> ShaderMaterial:
-	return PaintLayers.make_overlay(texture)
+	var m := PaintLayers.make_overlay(texture)
+	if _mask_vp != null:
+		m.set_shader_parameter("mask_tex", _mask_vp.get_texture())      # маска видна красным только в Library (в игре у накладки её нет)
+		m.set_shader_parameter("mask_show", true)
+	return m
+
+
+## Убрать маску целиком и все ещё не нарисованные штампы маски
+func clear_mask() -> void:
+	if not is_built:
+		return
+	_queue = _queue.filter(func(q: Dictionary) -> bool: return not q["mask"])
+	_mask_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+	_mask_stamp_mat.set_shader_parameter("stamp_count", 0)
+	_mask_rect.material = _mask_stamp_mat
+	_mask_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	mask_used = false
 
 
 # ==========================================
@@ -358,6 +398,8 @@ func end_stroke() -> void:
 ## sample (id образца из PaintSamples или ""), sample_size (повтор образца в долях габарита группы мешей),
 ## sample_shift (Vector2, сдвиг образца в тайлах: свой у каждого мазка),
 ## relief (0 нет, 1 красить выступы и светлые кромки, -1 впадины и тёмные тени), relief_sens (чувствительность);
+## mask (true: штамп пишет в карту маски, а не в слой краски; erase снимает маску), stencil (картинка decal как трафарет:
+## закрывает рисунок или фон, stencil_ink: true рисунок), у трафарета tint и цвет не нужны;
 ## decal (id декали из PaintDecals или ""), decal_mirror, decal_tint (умножать на цвет палитры); у декали tan это
 ## направление «вправо» по картинке, radius полуразмер большей стороны, одна декаль на пачку;
 ## со relief не равным 0 штампы игнорируются, пока карта рельефа не построена (build_relief)
@@ -385,6 +427,8 @@ func stamp(local_pos: Vector3, local_normal: Vector3, radius: float, color: Colo
 		"sshift": opts.get("sample_shift", Vector2.ZERO),
 		"decal": str(opts.get("decal", "")), "dmirror": bool(opts.get("decal_mirror", false)),
 		"dtint": bool(opts.get("decal_tint", true)),
+		"mask": bool(opts.get("mask", false)), "stencil": bool(opts.get("stencil", false)),
+		"sink": bool(opts.get("stencil_ink", true)),
 	})
 
 
@@ -406,7 +450,12 @@ func _flush() -> void:
 	if _queue.is_empty():
 		return
 	var first: Dictionary = _queue[0]
-	var mat := _erase_mat if first["erase"] else _stamp_mat
+	var is_mask: bool = first["mask"]
+	var mat: ShaderMaterial
+	if is_mask:
+		mat = _mask_erase_mat if first["erase"] else _mask_stamp_mat
+	else:
+		mat = _erase_mat if first["erase"] else _stamp_mat
 	var count := 0
 	for q in _queue:
 		# первый штамп входит всегда (декаль не равна даже себе: она одна на пачку), остальные только с теми же параметрами
@@ -437,7 +486,7 @@ func _flush() -> void:
 	mat.set_shader_parameter("tip_box", box)
 	mat.set_shader_parameter("tip_plain", first["shape"] == 0 and not PaintTips.has(tip_id) and box.is_equal_approx(Vector2.ONE))
 	mat.set_shader_parameter("dry", first["dry"])
-	if mat == _stamp_mat:
+	if mat == _stamp_mat or mat == _mask_stamp_mat:
 		var sample_id: String = first["sample"]
 		mat.set_shader_parameter("sample_on", PaintSamples.has(sample_id))
 		mat.set_shader_parameter("sample_tex", PaintSamples.texture(sample_id))
@@ -455,6 +504,9 @@ func _flush() -> void:
 			mat.set_shader_parameter("decal_mirror", first["dmirror"])
 			mat.set_shader_parameter("decal_tint", first["dtint"])
 			mat.set_shader_parameter("decal_lod", maxf(log(big / maxf(dpx, 1.0)) / log(2.0), 0.0))
+			mat.set_shader_parameter("decal_stencil", first["stencil"])
+			mat.set_shader_parameter("decal_cover_ink", first["sink"])
+			mat.set_shader_parameter("decal_has_alpha", PaintDecals.has_alpha(decal_id))
 		var on: bool = float(first["relief"]) != 0.0 and relief_ready and _relief_vp != null
 		mat.set_shader_parameter("relief_on", on)
 		if on:
@@ -464,6 +516,16 @@ func _flush() -> void:
 	mat.set_shader_parameter("brush_color", first["color"])
 	mat.set_shader_parameter("flow", first["flow"])
 	mat.set_shader_parameter("hardness", first["hardness"])
+	if is_mask:
+		# штамп маски: в карту маски, без истории слоя краски (отмены у маски нет: «Открыть» и «Очистить маску»)
+		_mask_rect.material = mat
+		_mask_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		if not first["erase"]:
+			mask_used = true
+		_queue = _queue.slice(count)
+		return
+	mat.set_shader_parameter("mask_on", mask_used)
+	mat.set_shader_parameter("mask_tex", _mask_vp.get_texture())
 	_rect.material = mat
 	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_queue = _queue.slice(count)
@@ -476,7 +538,7 @@ func _same_params(a: Dictionary, b: Dictionary) -> bool:
 	return a["erase"] == b["erase"] and a["flow"] == b["flow"] and a["hardness"] == b["hardness"] and a["color"] == b["color"] \
 		and a["tip"] == b["tip"] and a["shape"] == b["shape"] and a["box"] == b["box"] and a["dry"] == b["dry"] \
 		and a["sample"] == b["sample"] and a["ssize"] == b["ssize"] and a["relief"] == b["relief"] and a["rsens"] == b["rsens"] and a["sshift"] == b["sshift"] \
-		and a["decal"] == "" and b["decal"] == ""
+		and a["decal"] == "" and b["decal"] == "" and a["mask"] == b["mask"] and a["stencil"] == b["stencil"] and a["sink"] == b["sink"]
 
 
 # ==========================================

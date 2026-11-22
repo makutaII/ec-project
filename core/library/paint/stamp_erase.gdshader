@@ -14,6 +14,6 @@ void fragment() {
 		discard;
 	}
 	vec3 n = normalize(texture(nrm_tex, UV).xyz);
-	float k = 1.0 - stamp_coverage(p.xyz, n);
+	float k = 1.0 - stamp_coverage(p.xyz, n) * mask_open(UV);
 	COLOR = vec4(k, k, k, k);
 }

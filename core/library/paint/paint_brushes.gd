@@ -18,6 +18,10 @@ class_name PaintBrushes extends RefCounted
 ##   decal_tool: инструмент «Декаль»: клик ставит картинку (decal, id из PaintDecals) с поворотом decal_angle (градусы),
 ##   зеркалом decal_mirror и цветом палитры decal_tint; size это полуразмер большей стороны; single: один штамп на нажатие
 ##   (decal_stroke включает цепочку: декаль повторяется вдоль мазка с шагом spacing, картинка повёрнута по направлению мазка);
+##   mask_tool: инструмент «Маска» (пишет в карту маски, краска туда не ложится): mask_kind "tape" скотч мазком (с концом кисти
+##   и шагом, mask_close true закрывает, false открывает) или "stencil" трафарет картинкой decal (один клик, поворот и зеркало
+##   как у декали); stencil_cover "ink" закрывает рисунок, "bg" фон: у картинки с прозрачностью рисунок это непрозрачная
+##   часть, иначе тёмная (два «цвета» картинки, один накрывает);
 ##   relief: 1 красить только по рельефу, выступы и светлые кромки (сухая кисть), -1 только впадины и тёмные тени (переключатель вида сухой кисти),
 ##   0 без рельефа; relief_sens: чувствительность к рельефу; relief_width: ширина перехода в пикселях слоя;
 ##   dry: сила «сухой щетины» 0..1 по запасу краски (0 выключена; пресеты не используют); dry_len: длина запаса, пиксели;
@@ -26,7 +30,7 @@ class_name PaintBrushes extends RefCounted
 ##   привязан к модели и при каждом мазке «проявляется» одним и тем же);
 ##   level: с какого уровня правил (paint.level) инструмент доступен.
 
-const ORDER := ["brush", "airbrush", "eraser", "dry", "decal"]
+const ORDER := ["brush", "airbrush", "eraser", "dry", "mask", "decal"]
 const TIP_ORDER := ["round", "flat", "sponge", "splatter", "square"]
 ## Концы кисти: tip (текстура PaintTips), shape, box, rotate, scatter, jitter, spacing как у параметров инструмента;
 ## size_mul: во сколько раз размер штампа больше базового размера инструмента (брызги крупнее кисти); level правил
@@ -50,13 +54,15 @@ const DEFAULTS := {
 	"spacing": 6.0, "dry": 0.0, "dry_len": 300.0, "relief": 0.0, "relief_sens": 1.0, "relief_width": 3.0,
 	"sample": "", "sample_size": 0.25, "sample_random": true,
 	"decal_tool": false, "single": false, "decal": "", "decal_angle": 0.0, "decal_mirror": false, "decal_tint": true,
-	"decal_stroke": false, "level": 2,
+	"decal_stroke": false, "mask_tool": false, "mask_kind": "tape", "mask_close": true, "stencil_cover": "ink", "level": 2,
 }
 const PRESETS := {
 	"brush": {"name": "Кисть", "tips": true, "size": 0.04, "hardness": 0.8, "flow": 1.0},
 	"airbrush": {"name": "Аэрограф", "tips": true, "size": 0.09, "hardness": 0.0, "flow": 0.12, "accumulate": true},
 	"eraser": {"name": "Ластик", "tips": true, "size": 0.06, "hardness": 0.5, "flow": 1.0, "erase": true},
 	"dry": {"name": "Сухая кисть", "tips": true, "size": 0.05, "hardness": 0.6, "flow": 0.9, "relief": 1.0, "spacing": 5.0, "level": 3},
+	"mask": {"name": "Маска", "tips": true, "size": 0.04, "hardness": 0.95, "flow": 1.0, "mask_tool": true, "decal": "star",
+		"spacing": 4.0, "level": 3},
 	"decal": {"name": "Декаль", "size": 0.08, "hardness": 0.99, "flow": 1.0, "decal_tool": true, "single": true, "decal": "star",
 		"spacing": 40.0, "level": 3},
 }
@@ -92,6 +98,16 @@ static func stamp_opts(p: Dictionary, tangent_dir: Vector3, reserve: float) -> D
 		opts["decal"] = str(p.get("decal", ""))
 		opts["decal_mirror"] = bool(p.get("decal_mirror", false))
 		opts["decal_tint"] = bool(p.get("decal_tint", true))
+	if bool(p.get("mask_tool", false)):
+		opts["mask"] = true
+		opts["sample"] = ""
+		opts["relief"] = 0.0
+		if str(p.get("mask_kind", "tape")) == "stencil":
+			opts["decal"] = str(p.get("decal", ""))
+			opts["decal_mirror"] = bool(p.get("decal_mirror", false))
+			opts["decal_tint"] = false
+			opts["stencil"] = true
+			opts["stencil_ink"] = str(p.get("stencil_cover", "ink")) == "ink"
 	return opts
 
 
