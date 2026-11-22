@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://57xnplsftgls"]
 
-[ext_resource type="PackedScene" uid="uid://dcnqkqoa46nif" path="res://ui/dc_controllers/dc_controller_mini.tscn" id="1_bi8hs"]
+[ext_resource type="Script" uid="uid://7pycdybk266ox" path="res://ui/hud/dc_panel_host.gd" id="20_dchost"]
 [ext_resource type="Script" uid="uid://cvw0jh02ub51b" path="res://ui/mode_controller.gd" id="2_bi8hs"]
 [ext_resource type="Script" uid="uid://daixlawn7cjwi" path="res://ui/observe_controller.gd" id="4_ju45i"]
 [ext_resource type="Script" uid="uid://bm2guc8626oc2" path="res://ui/operate_controller.gd" id="4_mf2ns"]
@@ -82,17 +82,16 @@ offset_top = 44.0
 offset_right = 287.0
 offset_bottom = 293.0
 
-[node name="DCControlPanel" parent="HUD" unique_id=1088175003 instance=ExtResource("1_bi8hs")]
+[node name="DCPanelHost" type="Control" parent="HUD"]
 unique_name_in_owner = true
-layout_mode = 0
-anchors_preset = 0
-anchor_top = 0.0
-anchor_bottom = 0.0
-offset_left = 0.0
-offset_top = -610.0
-offset_right = 116.0
-offset_bottom = -291.0
-grow_vertical = 1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("20_dchost")
 
 [node name="SideDock" parent="HUD" unique_id=1311200830 instance=ExtResource("18_sidedock")]
 unique_name_in_owner = true

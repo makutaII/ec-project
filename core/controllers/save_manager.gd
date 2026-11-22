@@ -100,6 +100,11 @@ func _notification(what):
 
 
 
+## Хозяин 2D-контроллера питания (UI). null, если сцены UI нет
+func _dc_panel_host() -> DCPanelHost:
+	return get_tree().get_first_node_in_group(&"dc_panel_host") as DCPanelHost
+
+
 ## Комната мира. null в режиме быстрой загрузки (fast_debug): комнаты нет
 func _room() -> RoomBuilder:
 	return get_node_or_null("/root/GameRoot/RoomBuilder") as RoomBuilder
@@ -146,6 +151,11 @@ func save_game(slot_name: String ='savegame') -> bool:
 	# Источники питания и сеть: команды пультов, estop, защита (ATTN_10 D2)
 	_saved_game.power_state = PGM.save_state()
 
+	# 2D-контроллер питания: какой дизайн и открыта ли панель (ATTN_17 U15)
+	var _dc_host := _dc_panel_host()
+	# Нет UI (быстрая загрузка): панели нет, поле пишем явно, иначе при загрузке сейв сочтут старым и добавят mini
+	_saved_game.dc_panel = _dc_host.save_state() if _dc_host else {"setting_path": "", "open": true}
+
 	# Краска кистей (ATTN_13 §13.13)
 	_saved_game.paint = TGM.paint.save_data()
 	_saved_game.field = TGM.field.save_data()   # XX claude-terra 13.14 H1
@@ -185,6 +195,10 @@ func clear_scene() -> void:
 		child.queue_free()
 	# Сеть питания: напряжения в ноль, защита снята, пульты ставят ручки в ноль (ATTN_10 P5)
 	PGM.reset_state()
+	# Новая партия без 2D-контроллера: игрок ставит его из ToolDock Operate (ATTN_17 U15)
+	var _dc_host := _dc_panel_host()
+	if _dc_host:
+		_dc_host.clear()
 	# XX claude-table T1: очищен и стол: новый макет со стартовой секцией (убрать все секции игрок может и сам, T4b)
 	LYM.reset()
 	LYM.ensure_start_section(root_node)
@@ -320,6 +334,10 @@ func load_game(slot_name: String  ='savegame', dir: String = SAVE_DIR, style_ove
 
 	# Источники питания: команды и защита из сейва, пульты ставят ручки (старый сейв: словарь пуст, остаются нули)
 	PGM.load_state(_saved_game.power_state)
+	# 2D-контроллер: панель из сейва забирает загруженный источник; в старом сейве поля нет, панель mini (ATTN_17 U15)
+	var _dc_host_load := _dc_panel_host()
+	if _dc_host_load:
+		_dc_host_load.load_state(_saved_game.dc_panel)
 
 	# Краска кистей: после листов, чтобы оболочка уже была запрошена; пустой словарь очищает старую краску
 	TGM.paint.load_data(_saved_game.paint)

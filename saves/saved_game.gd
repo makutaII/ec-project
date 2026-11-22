@@ -35,6 +35,10 @@ class_name SavedGame extends Resource
 ## Пусто в сейвах до D2: после загрузки питание 0
 @export var power_state: Dictionary = {}
 
+## 2D-контроллер питания (DCPanelHost.save_state, ATTN_17 U15): {"setting_path": путь настройки или "" (контроллера нет), "open": панель открыта}.
+## Пусто = сейв до U15: панель mini, как раньше
+@export var dc_panel: Dictionary = {}
+
 ## Краска кистей (TGM.paint.save_data, ATTN_13 §13.13). Пусто = краски нет (в том числе сейвы до кистей)
 @export var paint: Dictionary = {}
 

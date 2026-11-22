@@ -41,6 +41,7 @@ var _mode: StringName = &""
 var _providers := {}   # режим -> CatalogProvider
 var _receivers := {}   # режим -> Callable(setting)
 var _dup_btn: Button
+var _del_dc_btn: Button       # Operate: вместо «Дубль» кнопка «Удалить 2D-контроллер» (U15)
 var _dup_has_last := false     # есть последний поставленный объект
 var _dup_sel_name := ""        # название выбранного настоящего объекта, пусто: ничего не выбрано
 var _dup_last_name := ""       # название последнего поставленного объекта
@@ -70,6 +71,24 @@ func _ready() -> void:
 	_dup_btn.theme_type_variation = &"ButtonSmall"
 	_dup_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_view.actions_strip().add_child(_dup_btn)   # ActionsStrip: правая часть хедера
+
+	# Operate: удалить 2D-контроллер (с подтверждением). Активна, пока панель есть (U15)
+	_del_dc_btn = Button.new()
+	_del_dc_btn.text = "Удалить 2D-контроллер"
+	_del_dc_btn.custom_minimum_size = Vector2(0, 24)
+	_del_dc_btn.focus_mode = Control.FOCUS_NONE
+	_del_dc_btn.disabled = true
+	_del_dc_btn.visible = false
+	_del_dc_btn.tooltip_text = "Убрать панель управления питанием с экрана. Источник питания и его команды остаются на столе"
+	_del_dc_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_del_dc_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_del_dc_btn.theme_type_variation = &"ButtonSmall"
+	var dc_host := get_node_or_null("%DCPanelHost") as DCPanelHost
+	if dc_host:
+		_del_dc_btn.pressed.connect(dc_host.request_remove)
+		dc_host.panel_changed.connect(func(has_panel: bool) -> void: _del_dc_btn.disabled = not has_panel)
+		_del_dc_btn.disabled = not dc_host.has_panel()
+	_view.actions_strip().add_child(_del_dc_btn)
 
 	# Ряд фильтров над объектами (первым в теле ToolDock)
 	_filter_bar = FilterBar.new()
@@ -115,6 +134,7 @@ func show_mode_ui(mode: StringName) -> void:
 	current_cat = &'idle'
 	current_tag = &'idle'
 	_dup_btn.visible = mode == &"build"   # дубль имеет смысл только в Build
+	_del_dc_btn.visible = mode == &"operate"
 	_view.mode_label().text = _mode_title(mode)
 	_rebuild_category_bar()
 	_view.show()

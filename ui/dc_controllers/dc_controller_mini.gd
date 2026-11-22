@@ -10,9 +10,8 @@ extends DCController
 
 func _ready() -> void:
 	_attach_source()
-	# Открыта или спрятана: помним между запусками, как в базовом классе (раньше здесь всегда стояло true
-	# и запись в настройки затирала спрятанное состояние)
-	%ShowControllerButton.button_pressed = bool(Settings.get_value("ui", "dc_panel_open", true))
+	# Открыта или спрятана: задает DCPanelHost из сейва или от прежней панели, как в базовом классе
+	%ShowControllerButton.button_pressed = open_on_start
 	_apply_visibility()
 	_follow_tool_dock()   # базовый _ready не вызывается: положение над ToolDock подключаем сами
 	

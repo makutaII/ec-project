@@ -37,6 +37,8 @@ var active_contour : int = -1
 
 ## Источник питания панели (PowerSource в PGM): команды, аварийный стоп и защита живут в нём, панель только ввод
 var source: PowerSource
+## Панель при создании открыта (true) или спрятана за левый край. Задает DCPanelHost до add_child (сейв, смена дизайна)
+var open_on_start := true
 ## Идет синхронизация ручки с источником (загрузка, смена панели): команды в сеть не шлются
 var _syncing := false
 var _indicators: DCIndicators
@@ -81,8 +83,8 @@ func _ready() -> void:
 	var _model_index = 'B' if rotation_with_direction else 'A'
 	$ModelLabel.text += str(handle_max_angle) + _model_index
 	
-	# Открыта или скрыта панель: помним между запусками и сменами дизайна панели (U15)
-	%ShowControllerButton.button_pressed = bool(Settings.get_value("ui", "dc_panel_open", true))
+	# Открыта или скрыта панель: задает DCPanelHost из сейва или от прежней панели (U15)
+	%ShowControllerButton.button_pressed = open_on_start
 	_apply_visibility()
 	_follow_tool_dock()
 	
@@ -126,6 +128,16 @@ func _place_indicators() -> void:
 func _exit_tree() -> void:
 	# Панель закрыта: источник остается на столе со своими командами, следующая панель его заберет
 	PGM.unregister_source(source)
+	# Снятая панель живет до конца кадра: сброс и загрузка сети ее больше не трогают
+	if PGM.state_reset.is_connected(reset_handle):
+		PGM.state_reset.disconnect(reset_handle)
+	if PGM.state_loaded.is_connected(sync_from_source):
+		PGM.state_loaded.disconnect(sync_from_source)
+
+
+## Открыта ли панель (кнопка у края экрана нажата)
+func is_open() -> bool:
+	return %ShowControllerButton.button_pressed
 
 
 ## Метка вывода по значению слайдера контура: -1 все, 0 никуда, дальше порядковый номер вывода источника
@@ -356,7 +368,6 @@ func _on_direction_slider_value_changed(value: float) -> void:
 
 ##Кнопка вкл\выкл видимости контроллера
 func _on_show_controller_button_pressed() -> void:
-	Settings.set_value("ui", "dc_panel_open", %ShowControllerButton.button_pressed)
 	_apply_visibility()
 
 
