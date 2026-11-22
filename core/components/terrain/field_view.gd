@@ -10,6 +10,8 @@ class_name FieldView extends Node3D
 ## Узел окна (i, j) лежит в мире в точке ((origin.x + i) * STEP, (origin.y + j) * STEP).
 
 const SHADER_PATH := "res://core/components/terrain/field_surface.gdshader"
+## Набор материалов поверхности (текстуры и оттенки каналов, H4)
+const MATERIALS_PATH := "res://data/terrain/field_materials.tres"
 const STEP := TerrainField.STEP
 const CHUNK := TerrainField.CHUNK
 ## Запас по краям окна, чанков
@@ -48,12 +50,21 @@ func _ready() -> void:
 	_mat.shader = sh
 	_mat.set_shader_parameter("step_len", STEP)
 	_mat.set_shader_parameter("max_h", MAX_H)
+	set_materials(load(MATERIALS_PATH) as FieldMaterials)
 	_mi = MeshInstance3D.new()
 	_mi.name = &"Surface"
 	_mi.material_override = _mat
 	_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_mi.visible = false
 	add_child(_mi)
+
+
+## Сменить набор материалов поверхности. null: шейдер рисует каналы цветами по умолчанию, без текстур
+func set_materials(m: FieldMaterials) -> void:
+	if m == null:
+		push_warning("FieldView: нет набора материалов %s, поверхность без текстур" % MATERIALS_PATH)
+		return
+	m.apply(_mat)
 
 
 ## Подключить данные. Вызывает TGM один раз

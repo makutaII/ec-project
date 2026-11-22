@@ -33,6 +33,9 @@ var controller: ToolController
 ## Описание кисти (TerrainBrush из карточки). Ставит ToolController до enter()
 var brush: TerrainBrush
 
+## Режим объектов в зоне, выбранный игроком клавишей X: помнится между включениями кисти (-1: не выбирали, берётся из карточки)
+static var last_objects_mode := -1
+
 var _fb := FieldBrush.new()
 var _hover := Vector3.ZERO
 var _hover_ok := false
@@ -56,6 +59,8 @@ var _imm: ImmediateMesh
 func enter() -> void:
 	_fb = FieldBrush.new()
 	_fb.load_brush(brush)
+	if last_objects_mode >= 0:
+		_fb.objects_mode = last_objects_mode
 	_fb.ceiling_fn = Callable(TGM, "field_ceilings")
 	_leveling = false
 	_hover_ok = false
@@ -110,6 +115,7 @@ func handle_input(event: InputEvent) -> void:
 		return
 	if Actions.pressed_shift_ok(event, &"brush_objects"):
 		_fb.objects_mode = (_fb.objects_mode + 1) % OBJ_NAMES.size()
+		last_objects_mode = _fb.objects_mode
 		_refresh_objects()
 		_prev_key = ""
 		_say("Объекты в зоне: %s" % OBJ_NAMES[_fb.objects_mode])

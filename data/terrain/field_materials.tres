@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="FieldMaterials" format=3 uid="uid://2tf35edikk3c"]
+
+[ext_resource type="Script" uid="uid://b07n82swkl2i" path="res://core/components/terrain/field_materials.gd" id="1_fm"]
+[ext_resource type="Texture2D" uid="uid://dx7rq5gw802uc" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_Color.webp" id="2_smooth"]
+[ext_resource type="Texture2D" uid="uid://cqgebjundm817" path="res://data/textures/track/Gravel024_1K-WebP/Gravel024_1K-WebP_Color.webp" id="3_rocky"]
+[ext_resource type="Texture2D" uid="uid://v00iusfgv46f" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="4_rock"]
+
+[resource]
+script = ExtResource("1_fm")
+albedo = Array[Texture2D]([ExtResource("2_smooth"), ExtResource("3_rocky"), ExtResource("4_rock"), null])
+tint = PackedColorArray(0.5, 0.78, 0.34, 1, 0.92, 0.86, 0.7, 1, 0.66, 0.64, 0.61, 1, 0.82, 0.74, 0.5, 1)
+tile = PackedFloat32Array(3, 2.5, 5, 3)
+edge_noise = 0.35
+edge_scale = 2.5

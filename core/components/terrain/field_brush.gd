@@ -14,6 +14,8 @@ class_name FieldBrush extends RefCounted
 ## (узлы под следом объекта не меняются, следы кладёт в obstacles инструмент), 2 поднимать (поднимает сам инструмент, кисть работает как при игнорировании).
 
 const STEP := TerrainField.STEP
+## Сторона блока узлов, в котором смесь типов даёт один тип (H4)
+const MIX_BLOCK := 3
 ## Скорость подтягивания ЛКМ при силе 1, 1/с
 const PULL_RATE := 12.0
 
@@ -98,7 +100,10 @@ func type_for(i: int, j: int) -> int:
 		return TerrainField.SMOOTH
 	if mix.x >= total:
 		return TerrainField.SMOOTH
-	var h := fposmod(sin(float(i) * 12.9898 + float(j) * 78.233) * 43758.5453, 1.0) * total
+	# тип выбирается по хешу блока MIX_BLOCK x MIX_BLOCK узлов: пятна материалов в 1,5 ю, а не пёстрая крошка по ячейкам
+	var bi := floori(float(i) / float(MIX_BLOCK))
+	var bj := floori(float(j) / float(MIX_BLOCK))
+	var h := fposmod(sin(float(bi) * 12.9898 + float(bj) * 78.233) * 43758.5453, 1.0) * total
 	if h < mix.x:
 		return TerrainField.SMOOTH
 	if h < mix.x + mix.y:

@@ -42,6 +42,7 @@ func _ready() -> void:
 	_test_clip()
 	_test_types()
 	_test_floor()
+	_test_materials()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
 
 
@@ -263,6 +264,22 @@ func _test_types() -> void:
 	check("тип: смешанная кисть даёт все три типа", kinds.size() == 3, str(kinds.keys()))
 	check("тип: подпись одного типа и смеси", b.type_label() == "гладкая" and m.type_label() == "смесь")
 	check("тип: тип узла стабилен", m.type_for(5, 7) == m.type_for(5, 7))
+	# H4: смесь пятнами (блок MIX_BLOCK x MIX_BLOCK узлов одного типа), а не по ячейкам
+	var blocks_ok := true
+	for bj in range(-3, 4):
+		for bi in range(-3, 4):
+			var t0 := m.type_for(bi * FieldBrush.MIX_BLOCK, bj * FieldBrush.MIX_BLOCK)
+			for dj in FieldBrush.MIX_BLOCK:
+				for di in FieldBrush.MIX_BLOCK:
+					if m.type_for(bi * FieldBrush.MIX_BLOCK + di, bj * FieldBrush.MIX_BLOCK + dj) != t0:
+						blocks_ok = false
+	check("тип: смесь даёт пятна, узлы блока одного типа", blocks_ok)
+	var same := 0
+	for j in range(0, 40):
+		for i in range(0, 40):
+			if m.type_for(i, j) == m.type_for(i + 1, j):
+				same += 1
+	check("тип: соседние узлы чаще одного типа, чем разных", same > 800, str(same))
 
 
 func _test_floor() -> void:
@@ -298,3 +315,20 @@ func _test_floor() -> void:
 	h.floor_fn = func(_x: float, _z: float) -> float: return 1.5
 	h.refresh_floor(Rect2(-1, -1, 10, 10))
 	check("пол: refresh_floor обновляет и чанки без данных", near(h.floor_at(2, 2), 1.5))
+
+
+## H4: набор материалов поверхности поля
+func _test_materials() -> void:
+	var m := load("res://data/terrain/field_materials.tres") as FieldMaterials
+	check("материалы: набор загружается", m != null)
+	if m == null:
+		return
+	check("материалы: три канала с текстурой, запасной без", m.texture_of(0) != null and m.texture_of(1) != null and m.texture_of(2) != null and m.texture_of(3) == null)
+	check("материалы: оттенки и размеры повтора для четырёх каналов", m.tint.size() == FieldMaterials.CHANNELS and m.tile.size() == FieldMaterials.CHANNELS)
+	check("материалы: размер повтора положительный", m.tile_of(0) > 0.0 and m.tile_of(2) > 0.0 and m.tile_of(9) > 0.0)
+	var mat := ShaderMaterial.new()
+	var sh := load("res://core/components/terrain/field_surface.gdshader") as Shader
+	check("материалы: шейдер поверхности загружается", sh != null)
+	mat.shader = sh
+	m.apply(mat)
+	check("материалы: параметры шейдера выставлены", mat.get_shader_parameter("tex0") == m.texture_of(0) and (mat.get_shader_parameter("tile") as Vector4).y == m.tile_of(1))
