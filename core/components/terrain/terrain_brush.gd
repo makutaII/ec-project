@@ -16,7 +16,7 @@ class_name TerrainBrush extends ComponentSettings
 ## Радиус кисти по умолчанию и пределы, ю. Игрок меняет Alt+колесо или `,` `.`
 @export var radius_default := 5.0
 @export var radius_min := 1.5
-@export var radius_max := 30.0
+@export var radius_max := 15.0
 ## Минимальный радиус площадки, ю
 @export var plateau_min := 1.0
 ## Допуск: на какую долю радиуса склон может выйти за радиус (и не больше tolerance_max, ю), чтобы вместить угол

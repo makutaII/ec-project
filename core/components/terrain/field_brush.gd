@@ -23,7 +23,7 @@ var strength := 0.5
 var notch_layers := 0.25
 var max_layers := 16.0
 var radius_min := 1.5
-var radius_max := 30.0
+var radius_max := 15.0
 var mix := Vector3(1.0, 0.0, 0.0)
 var type_names: Array[String] = ["гладкая", "каменистая", "скалистая"]
 
