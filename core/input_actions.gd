@@ -83,6 +83,8 @@ func _register_defaults() -> void:
 	register(&"shape_undo", "action.shape_undo", &"terrain", [G_TERRAIN], _key(KEY_BACKSPACE))
 	register(&"width_down", "action.width_down", &"terrain", [G_TERRAIN], _key(KEY_BRACKETLEFT))
 	register(&"width_up", "action.width_up", &"terrain", [G_TERRAIN], _key(KEY_BRACKETRIGHT))
+	# XX claude-terra 13.14 H3: кисть рельефа, режим объектов в зоне (игнорировать, обходить, поднимать)
+	register(&"brush_objects", "action.brush_objects", &"terrain", [G_TERRAIN], _key(KEY_X))
 	register(&"depth_up", "action.depth_up", &"terrain", [G_TERRAIN], _key(KEY_R, false, true))
 	register(&"depth_down", "action.depth_down", &"terrain", [G_TERRAIN], _key(KEY_F, false, true))
 	register(&"cut_through", "action.cut_through", &"terrain", [G_TERRAIN], _key(KEY_END))

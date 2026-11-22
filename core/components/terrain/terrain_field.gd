@@ -47,6 +47,8 @@ var _depth := 0
 var _no_history := false   # правка не пишется в историю (обрезка по столу)
 var _pending := {}           # Vector2i -> PackedInt32Array до правки (пустой массив: чанка не было)
 var _history: Array = []     # Array из словарей _pending
+var _pending_hooks: Array = []   # Callable'ы, привязанные к открытой правке (attach_undo)
+var _hooks: Array = []           # по записи истории: Array из Callable, вызываются при её отмене
 
 
 ## --- Индексы ---
@@ -184,6 +186,7 @@ func begin_edit() -> void:
 	_depth += 1
 	if _depth == 1:
 		_pending = {}
+		_pending_hooks = []
 		_prepare_floor()
 
 
@@ -193,6 +196,7 @@ func end_edit() -> void:
 	if _depth > 0:
 		return
 	if _pending.is_empty():
+		_pending_hooks = []
 		return
 	for key: Vector2i in _pending:
 		if _data.has(key) and _is_zero(_data[key]):
@@ -201,10 +205,20 @@ func end_edit() -> void:
 	var keys := _pending.keys()
 	if not _no_history:
 		_history.append(_pending)
+		_hooks.append(_pending_hooks)
 	_pending = {}
+	_pending_hooks = []
 	while _history.size() > MAX_HISTORY:
 		_history.pop_front()
+		_hooks.pop_front()
 	changed.emit(keys)
+
+
+## Привязать к открытой правке действие отмены: cb вызывается, когда эту правку отменяют (Ctrl+Z). Так вместе с полем возвращаются
+## и объекты, которые кисть подняла (H3). Вне правки или у правки без изменений ничего не делает (cb не вызывается и не хранится)
+func attach_undo(cb: Callable) -> void:
+	if _depth > 0 and not _no_history:
+		_pending_hooks.append(cb)
 
 
 ## Положить слой толщиной layers (в слоях) на узлы внутри полигона poly (мировые XZ, граница входит).
@@ -275,6 +289,7 @@ func undo() -> bool:
 	if _history.is_empty():
 		return false
 	var rec: Dictionary = _history.pop_back()
+	var hooks: Array = _hooks.pop_back()
 	_prepare_floor()
 	var keys := rec.keys()
 	for key: Vector2i in rec:
@@ -285,6 +300,9 @@ func undo() -> bool:
 		else:
 			_data[key] = before
 			_make_floor(key)
+	for h: Callable in hooks:
+		if h.is_valid():
+			h.call()
 	changed.emit(keys)
 	return true
 
@@ -299,7 +317,9 @@ func clear() -> void:
 	_data = {}
 	_floor = {}
 	_pending = {}
+	_pending_hooks = []
 	_history = []
+	_hooks = []
 	_depth = 0
 	if not keys.is_empty():
 		changed.emit(keys)

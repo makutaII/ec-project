@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://rvbflv11ninq"]
+
+[ext_resource type="Script" uid="uid://ooa5hwsea78x" path="res://tests/field_limits_test.gd" id="1"]
+
+[node name="FieldLimitsTest" type="Node"]
+script = ExtResource("1")

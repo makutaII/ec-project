@@ -376,6 +376,12 @@ func _field_floor_prepare() -> void:
 
 ## Пол в точке: верх сплошной стопки, поднимающейся от стола. Висящие листы (мосты) пол не поднимают
 func _field_floor_at(x: float, z: float) -> float:
+	return _field_limits_at(x, z).x
+
+
+## Пол и потолок в точке: Vector2(пол, потолок). Потолок это низ ближайшего листа над полом (мост, навес), INF если над точкой листов нет.
+## Лист, который стоит на полу или входит в стопку от стола, потолком не бывает: он сам поднимает пол
+func _field_limits_at(x: float, z: float) -> Vector2:
 	var pt := Vector2(x, z)
 	var ivs: Array[Vector2] = []
 	for k in _fl_layers.size():
@@ -391,7 +397,43 @@ func _field_floor_at(x: float, z: float) -> float:
 			if iv.x <= y + EPS and iv.y > y + EPS:
 				y = iv.y
 				moved = true
-	return y
+	var ceil_y := INF
+	for iv in ivs:
+		if iv.x > y + EPS:
+			ceil_y = minf(ceil_y, iv.x)
+	return Vector2(y, ceil_y)
+
+
+## H3. Потолок по узлам прямоугольника r (та же раскладка, что у TerrainField.read_region): мировая Y низа листа над узлом, INF без листа.
+## Пустой массив: листов над областью нет совсем (потолка нигде нет, считать узлы не нужно)
+func field_ceilings(r: Rect2i) -> PackedFloat32Array:
+	var res := PackedFloat32Array()
+	if _fl_layers.is_empty():
+		return res
+	var area := Rect2(Vector2(r.position) * TerrainField.STEP, Vector2(r.size) * TerrainField.STEP)
+	var any := false
+	for rc in _fl_rects:
+		if rc.intersects(area):
+			any = true
+			break
+	if not any:
+		return res
+	res.resize(r.size.x * r.size.y)
+	for rj in r.size.y:
+		var z := float(r.position.y + rj) * TerrainField.STEP
+		for ri in r.size.x:
+			res[rj * r.size.x + ri] = _field_limits_at(float(r.position.x + ri) * TerrainField.STEP, z).y
+	return res
+
+
+## H3. Объекты на земле под прямоугольником area (мировые XZ), см. FieldObjects. Корень сущностей берёт у ToolController
+func field_objects(area: Rect2) -> Array[Dictionary]:
+	var root: Node = null
+	if is_inside_tree():
+		var tc := get_tree().get_first_node_in_group(&"tool_controller")
+		if tc != null:
+			root = tc.get("entities_root") as Node
+	return FieldObjects.collect(root, area)
 
 
 ## Ctrl+Shift+F: слой 1 на весь стол, повторно снять всё поле (отладка H1a, вместо инструмента)

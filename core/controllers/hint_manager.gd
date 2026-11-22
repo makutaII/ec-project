@@ -62,7 +62,7 @@ const HINTS := {
 	"field_rect": [["Ctrl+ЛКМ", "снять слой"], ["@shape_undo", "отменить рисунок"], ["@tool_undo", "отменить правку"]],
 	"field_polygon": [["@shape_confirm", "положить слой"], ["Ctrl+ЛКМ или Ctrl+@shape_confirm", "снять слой"], ["@shape_undo", "убрать вершину"], ["@tool_undo", "отменить правку"]],
 	"field_table": [["Ctrl+ЛКМ", "снять слой со всей столешницы"], ["@tool_undo", "отменить правку"]],
-	"relief_brush": [["Ctrl+колесо", "подъём или яма (Shift: до целого слоя)"], ["Alt+колесо", "радиус кисти (или , и .)"], ["@width_down и @width_up", "угол склона (Shift ×5)"], ["@tool_undo", "отменить правку"]],
+	"relief_brush": [["Ctrl+колесо", "подъём или яма (Shift: до целого слоя)"], ["Alt+колесо", "радиус кисти (или , и .)"], ["@width_down и @width_up", "угол склона (Shift ×5)"], ["@brush_objects", "объекты в зоне: игнорировать, обходить, поднимать"], ["@tool_undo", "отменить правку"]],
 	"water_pour": [["Shift+ЛКМ", "осушить"], ["@level_up/@level_down", "глубина воды (Shift ×5)"], ["@level_up_x5/@level_down_x5", "глубина ±5"], ["@tool_undo", "отменить налив"]],
 	"plaster": [["Shift+ЛКМ", "только этот лист"], ["Ctrl+ЛКМ", "снять (Shift: только лист)"], ["@width_down и @width_up", "ступень пандуса, ю на слой"], ["@tool_undo", "отменить"]],
 	"paint": [["Ctrl+ЛКМ", "стереть"], ["@width_down и @width_up", "радиус кисти, ю (Shift ×5)"], ["@tool_undo", "отменить мазок"]],

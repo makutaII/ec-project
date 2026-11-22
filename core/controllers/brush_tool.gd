@@ -9,7 +9,9 @@ class_name BrushTool extends Node
 ## `[` и `]` угол склона (Shift ×5), ЛКМ с удержанием подтягивает поле под площадкой к высоте точки нажатия (одна правка на весь драг),
 ## Ctrl+Z отменяет последнюю правку поля, ПКМ выход. Мазок трогает только область стола (TGM.field_table_polygons).
 ## Кольца кисти: голубое площадка, жёлтое край склона, белое радиус. Оранжевое: угол смягчён, склон не вмещается в кисть.
-## Яма не глубже слоя шпатлёвки (на нуле толщины слоя нет), пол (стол, верх листа) не трогается. Пределы сверху от листов, режимы «объекты в зоне»: H3.
+## Яма не глубже слоя шпатлёвки (на нуле толщины слоя нет), пол (стол, верх листа) не трогается.
+## Пределы (H3): холм упирается в низ листа над ним (потолок), см. FieldBrush. Объекты в зоне (клавиша X переключает): игнорировать,
+## обходить (узлы под объектом не меняются), поднимать (объект садится на новую высоту рельефа; Ctrl+Z возвращает и объект).
 
 const MSG_TIME := 2.5
 const RING_POINTS := 48
@@ -21,6 +23,9 @@ const COL_LIMIT := Color(1.0, 0.55, 0.25)
 ## Не чаще раза в это время пересчитываем план для колец, с
 const PREVIEW_PERIOD := 0.1
 const CLIP_PERIOD := 0.5
+const OBJ_NAMES: Array[String] = ["игнорировать", "обходить", "поднимать"]
+## Прямоугольник «весь мир» для первого сбора объектов (дальше фильтр по зоне мазка)
+const WORLD := Rect2(-1.0e5, -1.0e5, 2.0e5, 2.0e5)
 const ANGLE_STEP := 5.0
 const RADIUS_STEP := 0.5
 
@@ -35,6 +40,8 @@ var _leveling := false
 var _anchor := 0.0
 var _clip: Array = []
 var _clip_t := 0.0
+var _objs: Array = []                # объекты на земле (FieldObjects.collect), обновляются вместе с _clip
+var _lift: Dictionary = {}           # Entity -> на сколько кисть подняла объект за открытую правку
 var _prev_t := 0.0
 var _prev_key := ""
 var _plan := {}
@@ -49,11 +56,13 @@ var _imm: ImmediateMesh
 func enter() -> void:
 	_fb = FieldBrush.new()
 	_fb.load_brush(brush)
+	_fb.ceiling_fn = Callable(TGM, "field_ceilings")
 	_leveling = false
 	_hover_ok = false
 	_plan = {}
 	_prev_key = ""
 	_clip = TGM.field_table_polygons()
+	_refresh_objects()
 	_ensure_preview()
 	controller.publish_selection(null)
 
@@ -98,6 +107,12 @@ func handle_input(event: InputEvent) -> void:
 		return
 	if Actions.pressed(event, &"tool_undo"):
 		_undo()
+		return
+	if Actions.pressed_shift_ok(event, &"brush_objects"):
+		_fb.objects_mode = (_fb.objects_mode + 1) % OBJ_NAMES.size()
+		_refresh_objects()
+		_prev_key = ""
+		_say("Объекты в зоне: %s" % OBJ_NAMES[_fb.objects_mode])
 		return
 	var a := Actions.axis_step(event, &"width_up", &"width_down", 5)
 	if a != 0:
@@ -147,19 +162,92 @@ func _raise(dir_: float, whole: bool) -> void:
 	var c := Vector2(_hover.x, _hover.z)
 	var hc := f.sample(c.x, c.y)
 	var fc := f.floor_at(roundi(c.x / TerrainField.STEP), roundi(c.y / TerrainField.STEP))
-	var ht := _fb.next_height(hc, dir_, whole, f.layer_height, fc)
+	var ht := _fb.next_height(hc, dir_, whole, f.layer_height, fc, _ceil_at(c))
 	if absf(ht - hc) < 0.0001:
-		_say("Выше некуда" if dir_ > 0.0 else "Глубже слоя не копаем")
+		_say(("Выше некуда" if _ceil_at(c) > hc + 0.0001 else "Выше нельзя: лист над кистью") if dir_ > 0.0 else "Глубже слоя не копаем")
 		return
 	_clip = TGM.field_table_polygons()
+	_refresh_objects()
 	f.layer_height = float(Global.settings.layer_height)
 	f.begin_edit()
-	var changed := _fb.stroke(f, c, ht, int(dir_), 1.0, _clip)
+	var changed := _stroke(c, ht, int(dir_), 1.0)
+	_commit_lift()
 	f.end_edit()
 	_plan = _fb.last_plan
 	if not changed:
 		_say("Здесь нечего менять")
 	_prev_key = ""
+
+
+## --- Пределы и объекты (H3) ---
+
+## Потолок над точкой c (мир Y): низ листа над ней, INF если листа нет
+func _ceil_at(c: Vector2) -> float:
+	var r := Rect2i(roundi(c.x / TerrainField.STEP), roundi(c.y / TerrainField.STEP), 1, 1)
+	var a := TGM.field_ceilings(r)
+	return INF if a.is_empty() else a[0]
+
+
+## Собрать объекты на земле заново (кроме режима «игнорировать»: тогда они кисти не нужны)
+func _refresh_objects() -> void:
+	if _fb.objects_mode == FieldBrush.OBJ_IGNORE:
+		_objs = []
+	else:
+		_objs = TGM.field_objects(WORLD)
+	_fb.obstacles = FieldObjects.polys_of(_objs) if _fb.objects_mode == FieldBrush.OBJ_BYPASS else []
+
+
+## Высота, на которой объект стоит на земле: самая высокая точка поля под его опорными точками
+func _rest_y(o: Dictionary) -> float:
+	var y := -INF
+	for p: Vector2 in o["pts"]:
+		y = maxf(y, TGM.field.sample(p.x, p.y))
+	return y
+
+
+## Мазок поля. В режиме «поднимать» объекты в зоне мазка двигаются на то, на сколько изменилась высота под ними
+func _stroke(c: Vector2, ht: float, mode: int, kk: float) -> bool:
+	var f := TGM.field
+	var near: Array = []
+	var before: Array[float] = []
+	if _fb.objects_mode == FieldBrush.OBJ_LIFT and not _objs.is_empty():
+		var tol := minf(_fb.radius * _fb.tol_frac, _fb.tol_max)
+		var zone := Rect2(c, Vector2.ZERO).grow(_fb.radius + tol + FieldObjects.MARGIN)
+		for o: Dictionary in _objs:
+			var e := o["entity"] as Entity
+			if not is_instance_valid(e):
+				continue
+			if C_Contour.bounds_of(o["poly"]).intersects(zone):
+				near.append(o)
+				before.append(_rest_y(o))
+	var changed := _fb.stroke(f, c, ht, mode, kk, _clip)
+	if changed:
+		for n in near.size():
+			var o: Dictionary = near[n]
+			var d := _rest_y(o) - before[n]
+			if absf(d) < 0.0001:
+				continue
+			var e := o["entity"] as Entity
+			e.global_position.y += d
+			_lift[e] = float(_lift.get(e, 0.0)) + d
+	return changed
+
+
+## Закрыть подъём объектов: сумма сдвигов правки привязывается к ней, Ctrl+Z вернёт объекты вместе с полем. Вызывать до field.end_edit
+func _commit_lift() -> void:
+	if _lift.is_empty():
+		return
+	var moved := _lift
+	_lift = {}
+	TGM.field.attach_undo(_undo_lift.bind(moved))
+
+
+## Отмена правки: объекты, поднятые этой правкой, опускаются обратно
+func _undo_lift(moved: Dictionary) -> void:
+	for k: Variant in moved:
+		var e := k as Entity
+		if is_instance_valid(e):
+			e.global_position.y -= float(moved[k])
 
 
 ## --- Выравнивание ЛКМ ---
@@ -171,6 +259,7 @@ func _start_level() -> void:
 	f.layer_height = float(Global.settings.layer_height)
 	_anchor = f.sample(_hover.x, _hover.z)
 	_clip = TGM.field_table_polygons()
+	_refresh_objects()
 	_leveling = true
 	f.begin_edit()
 
@@ -179,6 +268,7 @@ func _finish_level() -> void:
 	if not _leveling:
 		return
 	_leveling = false
+	_commit_lift()
 	TGM.field.end_edit()
 	_prev_key = ""
 
@@ -206,11 +296,12 @@ func process_tick(delta: float) -> void:
 	if _clip_t >= CLIP_PERIOD and not _leveling:
 		_clip_t = 0.0
 		_clip = TGM.field_table_polygons()
+		_refresh_objects()
 	_update_hover()
 	if _leveling and _hover_ok:
 		var kk := 1.0 - exp(-FieldBrush.PULL_RATE * _fb.strength * delta)
 		TGM.field.layer_height = float(Global.settings.layer_height)
-		_fb.stroke(TGM.field, Vector2(_hover.x, _hover.z), _anchor, 0, kk, _clip)
+		_stroke(Vector2(_hover.x, _hover.z), _anchor, 0, kk)
 		_plan = _fb.last_plan
 		_redraw()
 		return
@@ -245,14 +336,14 @@ func _update_preview() -> void:
 		return
 	var f := TGM.field
 	var c := Vector2(_hover.x, _hover.z)
-	var key := "%d,%d|%.1f|%.0f|%d" % [roundi(c.x / TerrainField.STEP), roundi(c.y / TerrainField.STEP), _fb.radius, _fb.angle, hash(_msg)]
+	var key := "%d,%d|%.1f|%.0f|%d|%d" % [roundi(c.x / TerrainField.STEP), roundi(c.y / TerrainField.STEP), _fb.radius, _fb.angle, hash(_msg), _fb.objects_mode]
 	if key == _prev_key:
 		return
 	_prev_key = key
 	f.layer_height = float(Global.settings.layer_height)
 	var hc := f.sample(c.x, c.y)
 	var fc := f.floor_at(roundi(c.x / TerrainField.STEP), roundi(c.y / TerrainField.STEP))
-	var ht := _fb.next_height(hc, 1.0, false, f.layer_height, fc)
+	var ht := _fb.next_height(hc, 1.0, false, f.layer_height, fc, _ceil_at(c))
 	_plan = _fb.preview(f, c, ht, 1, _clip)
 	_redraw()
 
@@ -329,7 +420,7 @@ func _update_note() -> void:
 		return
 	var f := TGM.field
 	var hc := f.sample(_hover.x, _hover.z)
-	var lines: Array = [InfoTips.title("%s · радиус %.1f ю · угол %.0f°" % [_brush_title(), _fb.radius, _fb.angle])]
+	var lines: Array = [InfoTips.title("%s · радиус %.1f ю · угол %.0f° · объекты: %s" % [_brush_title(), _fb.radius, _fb.angle, OBJ_NAMES[_fb.objects_mode]])]
 	lines.append(InfoTips.info("высота %.2f слоя · площадка %.1f ю, склон %.1f ю, угол склона %.0f°" % [
 		hc / maxf(f.layer_height, 0.001), float(_plan["p"]), float(_plan["w"]), float(_plan["ang"])]))
 	var lim := _limit_text()
@@ -337,6 +428,10 @@ func _update_note() -> void:
 		lines.append(InfoTips.warn(_msg))
 	elif lim != "":
 		lines.append(InfoTips.warn(lim))
+	elif bool(_plan.get("ceiling", false)):
+		lines.append(InfoTips.warn("холм упирается в лист над ним"))
+	elif bool(_plan.get("locked", false)):
+		lines.append(InfoTips.dim("под объектом узлы не меняются"))
 	elif _leveling:
 		lines.append(InfoTips.dim("выравнивание"))
 	InfoTips.show_lines(self, lines)

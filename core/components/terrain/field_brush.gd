@@ -9,6 +9,9 @@ class_name FieldBrush extends RefCounted
 ## площадка держит высоту ht, а толщина узла = ht - пол узла, не меньше нуля и не больше max_layers. Узлы вне полигонов clip (стол) мазок не трогает.
 ## Режимы: 1 подъём (только насыпает), -1 яма (только срезает), 0 выравнивание (подтягивает к ht в обе стороны, тип пишется на всю площадку и склон).
 ## Модель и формулы те же, что в tests/field_spike (H0, принята игроком).
+## Пределы (H3): сверху потолок (низ листа над узлом, ceiling_fn), выше него насыпать нельзя, холм упирается в лист; узел, который уже выше потолка,
+## насыпка не трогает. Снизу пол (стол, верх листа): толщина не уходит в минус. Объекты в зоне (objects_mode): 0 игнорировать, 1 обходить
+## (узлы под следом объекта не меняются, следы кладёт в obstacles инструмент), 2 поднимать (поднимает сам инструмент, кисть работает как при игнорировании).
 
 const STEP := TerrainField.STEP
 ## Скорость подтягивания ЛКМ при силе 1, 1/с
@@ -25,6 +28,14 @@ var max_layers := 16.0
 var radius_min := 1.5
 var radius_max := 15.0
 var mix := Vector3(1.0, 0.0, 0.0)
+const OBJ_IGNORE := 0
+const OBJ_BYPASS := 1
+const OBJ_LIFT := 2
+var objects_mode := OBJ_BYPASS
+## Следы объектов (Array[PackedVector2Array], мировые XZ): ставит инструмент. Работают только в режиме OBJ_BYPASS
+var obstacles: Array = []
+## Потолок по узлам области: Callable(r: Rect2i) -> PackedFloat32Array (мир, Y; INF нет; пустой массив: потолка нигде нет). Пустой Callable: потолка нет
+var ceiling_fn := Callable()
 var type_names: Array[String] = ["гладкая", "каменистая", "скалистая"]
 
 ## План последнего мазка (preview и stroke): {"ht", "dh", "w", "p", "e", "t", "ang", "limit"}
@@ -34,6 +45,8 @@ var _rect := Rect2i()
 var _w := PackedInt32Array()
 var _f := PackedFloat32Array()
 var _iv: Array = []        # по строке области: PackedInt32Array интервалов узлов внутри стола
+var _c := PackedFloat32Array()      # потолок по узлам области (пусто: нигде нет)
+var _lock := PackedByteArray()      # 1: узел под объектом, мазок его не трогает (пусто: таких нет)
 
 
 func load_brush(b: TerrainBrush) -> void:
@@ -50,6 +63,7 @@ func load_brush(b: TerrainBrush) -> void:
 	notch_layers = b.notch_layers
 	max_layers = b.max_layers
 	mix = b.surface_mix
+	objects_mode = clampi(b.objects_mode, OBJ_IGNORE, OBJ_LIFT)
 
 
 ## Подпись типа поверхности кисти: «гладкая» или «смесь»
@@ -65,8 +79,8 @@ func type_label() -> String:
 	return "смесь"
 
 
-## Следующая высота площадки на щелчок колеса: на notch_layers от текущей или до ближайшего целого слоя
-func next_height(hc: float, dir_: float, whole: bool, lh: float, floor_c: float) -> float:
+## Следующая высота площадки на щелчок колеса: на notch_layers от текущей или до ближайшего целого слоя. ceil_c потолок над точкой (мир Y)
+func next_height(hc: float, dir_: float, whole: bool, lh: float, floor_c: float, ceil_c := INF) -> float:
 	var ht := hc + dir_ * notch_layers * lh
 	if whole:
 		var rel := (hc - floor_c) / lh
@@ -74,7 +88,7 @@ func next_height(hc: float, dir_: float, whole: bool, lh: float, floor_c: float)
 			ht = floor_c + (floorf(rel + 0.001) + 1.0) * lh
 		else:
 			ht = floor_c + (ceilf(rel - 0.001) - 1.0) * lh
-	return clampf(ht, floor_c, floor_c + max_layers * lh)
+	return clampf(ht, floor_c, minf(floor_c + max_layers * lh, maxf(ceil_c, floor_c)))
 
 
 ## Тип поверхности узла по весам кисти и хешу узла
@@ -113,6 +127,39 @@ func _load(field: TerrainField, c: Vector2, clip: Array) -> void:
 	_iv = []
 	for rj in _rect.size.y:
 		_iv.append(field.row_intervals(clip, _rect.position.y + rj))
+	_c = ceiling_fn.call(_rect) if ceiling_fn.is_valid() else PackedFloat32Array()
+	_lock = PackedByteArray()
+	if objects_mode == OBJ_BYPASS and not obstacles.is_empty():
+		_load_locks(field)
+
+
+## Узлы под следами объектов в _lock (одна строка области за раз через row_intervals)
+func _load_locks(field: TerrainField) -> void:
+	var area := Rect2(Vector2(_rect.position) * STEP, Vector2(_rect.size) * STEP).grow(STEP)
+	var near: Array = []
+	for poly: PackedVector2Array in obstacles:
+		if C_Contour.bounds_of(poly).intersects(area):
+			near.append(poly)
+	if near.is_empty():
+		return
+	_lock.resize(_rect.size.x * _rect.size.y)
+	var x_end := _rect.end.x - 1
+	for rj in _rect.size.y:
+		var iv := field.row_intervals(near, _rect.position.y + rj)
+		var row := rj * _rect.size.x - _rect.position.x
+		for q in range(0, iv.size(), 2):
+			for i in range(maxi(iv[q], _rect.position.x), mini(iv[q + 1], x_end) + 1):
+				_lock[row + i] = 1
+
+
+## Предел толщины узла k в единицах: по max_layers и по потолку (не больше cap, у узла без потолка cap)
+func _node_cap(k: int, fl: float, unit_y: float, cap: int) -> int:
+	if _c.is_empty():
+		return cap
+	var ce := _c[k]
+	if is_inf(ce):
+		return cap
+	return clampi(floori((ce - fl) / unit_y + 0.001), 0, cap)
 
 
 ## План мазка без записи (кольца кисти и подпись). mode как у stroke
@@ -148,6 +195,9 @@ func _plan(c: Vector2, ht: float, mode: int, lh: float) -> Dictionary:
 	var unit_y := lh / float(TerrainField.UNITS)
 	var up := 0.0
 	var down := 0.0
+	var capped := false
+	var locked := false
+	var cap0 := mini(TerrainField.TH_MASK, roundi(max_layers * float(TerrainField.UNITS)))
 	var x_end := _rect.end.x - 1
 	for rj in _rect.size.y:
 		var j := _rect.position.y + rj
@@ -163,7 +213,17 @@ func _plan(c: Vector2, ht: float, mode: int, lh: float) -> Dictionary:
 				if d2 < r0sq or d2 > rmsq:
 					continue
 				var k := row + i
-				var df := ht - (_f[k] + float(_w[k] & TerrainField.TH_MASK) * unit_y)
+				if not _lock.is_empty() and _lock[k] != 0:
+					locked = true
+					continue
+				var hh := _f[k] + float(_w[k] & TerrainField.TH_MASK) * unit_y
+				var df := ht - hh
+				if df > 0.0:
+					# выше потолка не насыпать: достижимая высота узла f + cap * unit_y (но не ниже того, что уже есть)
+					var reach := _f[k] + float(_node_cap(k, _f[k], unit_y, cap0)) * unit_y
+					if reach < ht - 0.0001 and not _c.is_empty() and not is_inf(_c[k]):
+						capped = true   # упор именно в лист, а не в max_layers
+					df = clampf(reach - hh, 0.0, df)
 				if df > up:
 					up = df
 				elif -df > down:
@@ -190,7 +250,7 @@ func _plan(c: Vector2, ht: float, mode: int, lh: float) -> Dictionary:
 	if limit == "сетка" and (dh < 0.0001 or angle - ang < 2.0):
 		limit = ""
 	var p := maxf(pmin, radius - w)
-	return {"ht": ht, "dh": dh, "w": w, "p": p, "e": p + w, "t": t_eff, "ang": ang, "limit": limit}
+	return {"ht": ht, "dh": dh, "w": w, "p": p, "e": p + w, "t": t_eff, "ang": ang, "limit": limit, "ceiling": capped and mode >= 0, "locked": locked}
 
 
 ## Меняет слова в буфере _w. Возвращает прямоугольник узлов, где что-то изменилось (size.x = 0: ничего)
@@ -227,6 +287,8 @@ func _apply(c: Vector2, pl: Dictionary, mode: int, kk: float, lh: float) -> Rect
 					continue
 				var d := sqrt(d2)
 				var k := row + i
+				if not _lock.is_empty() and _lock[k] != 0:
+					continue
 				var w0 := _w[k]
 				var u0 := w0 & TerrainField.TH_MASK
 				var fl := _f[k]
@@ -248,7 +310,10 @@ func _apply(c: Vector2, pl: Dictionary, mode: int, kk: float, lh: float) -> Rect
 					else:
 						tgt = maxf(hh, ht - s)
 				# цель в единицах толщины. Подтягивание не короче одной единицы, иначе выравнивание остановилось бы в 0,1 слоя от цели
-				var ut := clampf((tgt - fl) / unit_y, 0.0, float(cap))
+				var ncap := _node_cap(k, fl, unit_y, cap)
+				var ut := clampf((tgt - fl) / unit_y, 0.0, float(ncap))
+				if mode > 0 and ut < float(u0):
+					ut = float(u0)   # подъём не опускает, даже если узел уже выше потолка (объект или лист вошли в холм)
 				var u1 := float(u0) + (ut - float(u0)) * kk
 				if kk < 1.0:
 					var dd := ut - float(u0)
