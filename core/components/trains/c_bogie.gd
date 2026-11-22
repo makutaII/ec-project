@@ -215,6 +215,23 @@ func _assist_align_directions() -> void:
 			b.dir_sign = BogieDirection.inherit(ref_dir, _assist_tangent_of(b), b.dir_sign)
 
 
+## XX claude-coaster C6.0: можно ли въехать на соседний трак в точке gpos. Нужен конец его кривой рядом и касательная вдоль хода
+## (JointMath.can_enter). Не конец (Т-стык, трак поперёк) или трак под большим углом: тележка не переходит, а сходит с конца
+func _assist_can_enter(next_path: C_Path, gpos: Vector3, travel_dir: Vector3) -> bool:
+	var route := next_path.entry_route(gpos)
+	var nc: Curve3D = next_path.curve_of(route)
+	if nc == null or next_path.path_node == null:
+		return true   # данных нет: прежнее поведение
+	var l := nc.get_baked_length()
+	var ta := nc.sample_baked_with_rotation(0.0)
+	var tb := nc.sample_baked_with_rotation(l)
+	var nb: Basis = next_path.path_node.global_basis
+	var gs = Global.settings
+	return JointMath.can_enter(gpos, next_path.path_node.to_global(ta.origin), next_path.path_node.to_global(tb.origin),
+			(nb * -ta.basis.z).normalized(), (nb * -tb.basis.z).normalized(), travel_dir,
+			gs.joint_transition_gap_max, gs.joint_transition_max_deg)
+
+
 #### Резервный переход через границы/сокеты (если рейкаст на мгновение потерял рельс)
 func _assist_check_transition(bogie: BogieData) -> void:
 	if not is_instance_valid(bogie.current_track): return
@@ -274,7 +291,8 @@ func _assist_check_transition(bogie: BogieData) -> void:
 			# Если нащупали новый трак
 			# XX claude-switch: стрелка пускает только со стороны концов активного маршрута
 			if is_instance_valid(hit_entity) and hit_entity != bogie.current_track and hit_entity.has_comp(C_Path) \
-					and hit_entity.get_comp(C_Path).entry_route(extrapolated_pos) >= 0:
+					and hit_entity.get_comp(C_Path).entry_route(extrapolated_pos) >= 0 \
+					and _assist_can_enter(hit_entity.get_comp(C_Path), extrapolated_pos, positive_dir):   # XX claude-coaster C6.0
 				var next_path = hit_entity.get_comp(C_Path)
 				
 				# Переводим глобальную точку полета в локальную систему нового трака
