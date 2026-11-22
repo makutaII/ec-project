@@ -1,17 +1,21 @@
 class_name InfoPowerTab extends InfoTab
 
 ###########################
-## Вкладка «Питание»: контур и напряжение трака, клипса питания, значения поезда
+## Вкладка «Питание»: контур и напряжение трака, клипса питания, контур и напряжение локомотива
 ###########################
+## Видна только у объектов с питанием: у трака с C_PowerTrack и у локомотива с C_Engine (U5a.2).
 ## Узлы в info_panel.tscn (PowerTab). Трак обновляется по сигналам PGM (update_tab, on_power_track_updated),
-## поезд живыми значениями в refresh().
-## D1 (ATTN_10): блок «PowerExtras» строится кодом под таблицей трака: состояние цепи и конфликт клипа,
-## «Поменять полярность» (клип), «Изостыки» (чекбокс на каждый сокет трака, доступны и без клипа).
+## локомотив живыми значениями в refresh(). Скорость и центробежная сила убраны (DebugPanel), радиус, угол и длину
+## показывают «Сведения».
+## D1 (ATTN_10): блок «PowerExtras» строится кодом под таблицей трака: «Поменять полярность» (клип),
+## «Изостыки» (чекбокс на каждый сокет трака, доступны и без клипа), датчик занятости.
+## Подвал вкладки (U5a.2): состояние цепи, конфликты клипа, КЗ, перегрузка, состояние датчика и кнопка «Сбросить защиту вывода».
+
+## Сколько строк состояния цепи может быть в подвале одновременно
+const STATE_SLOTS := 6
 
 var _extra: VBoxContainer
 var _sensor_box: CheckBox
-var _sensor_label: Label
-var _state_label: Label
 var _rev_box: CheckBox
 var _reset_btn: Button
 var _gap_title: Label
@@ -28,9 +32,30 @@ func _setup() -> void:
 	PGM.sensor_triggered.connect(func(_s: C_OccupancySensor, _o: bool) -> void: update_tab())
 
 
+## Питание есть у трака с C_PowerTrack и у локомотива с C_Engine
+func can_show(entity: Entity) -> bool:
+	return entity != null and (entity.has_comp(C_PowerTrack) or entity.has_comp(C_Engine))
+
+
+func components_changed() -> void:
+	if target == null:
+		return
+	update_tab()
+	panel.refresh_tab_visibility()
+
+
 func _on_bind() -> void:
 	_gap_for = null
 	update_tab()
+
+
+## Кнопка действия в подвале: сброс защиты вывода (видна, только когда вывод отключен защитой)
+func _setup_footer() -> void:
+	_reset_btn = Button.new()
+	_reset_btn.text = "Сбросить защиту вывода"
+	_reset_btn.visible = false
+	_reset_btn.pressed.connect(_on_reset_pressed)
+	footer_add_action(_reset_btn)
 
 
 ## Блок D1 под таблицей трака (в info_panel.tscn не правится)
@@ -41,16 +66,6 @@ func _build_extras() -> void:
 	_extra = VBoxContainer.new()
 	_extra.name = "PowerExtras"
 	host.add_child(_extra)
-
-	_state_label = Label.new()
-	_state_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_state_label.custom_minimum_size = Vector2(260, 0)
-	_extra.add_child(_state_label)
-
-	_reset_btn = Button.new()
-	_reset_btn.text = "Сбросить защиту вывода"
-	_reset_btn.pressed.connect(_on_reset_pressed)
-	_extra.add_child(_reset_btn)
 
 	_rev_box = CheckBox.new()
 	_rev_box.text = "Поменять полярность (провода клипа)"
@@ -68,115 +83,71 @@ func _build_extras() -> void:
 	_sensor_box.text = "Датчик занятости участка"
 	_sensor_box.toggled.connect(_on_sensor_toggled)
 	_extra.add_child(_sensor_box)
-	_sensor_label = Label.new()
-	_extra.add_child(_sensor_label)
 
 
 func update_tab() -> void:
-	#await get_tree().physics_frame
 	if not target: return
-	var identity = target.get_comp(C_Identity)
-	if not identity: return
-	var _category = identity.get_category()
-	
-	# Power Track
-	match _category:
-		&'track':
-			_n("PowerTrackTab").show()
-			_n("PowerTrainTab").hide()
-		
-			var _power_comp = target.get_comp(C_PowerTrack) as C_PowerTrack
-			var _power_clip = target.get_comp(C_PowerClip) as C_PowerClip
-			var _path = target.get_comp(C_Path)
-			if _path:
-				_n("RadiusLabel").text = str(_path.radius) + ' u/sm'
-				_n("DegLabel").text = str(_path.deg) + '°'
-				_n("LengthLabel").text = str(_path.get_length()) + ' u/sm'
-			_update_extras(_power_comp, _power_clip)
-			if not _power_comp: # Если трака нет, то в дефолт все
-				_n("PowerClipButton").disabled = true
-				_n("PowerClipButton").button_pressed = false
-				_n("ClipContourIDButton").disabled = true  # запрещаем менять контур
-				_n("TrackContourLabel").text = str(0)
-				_n("TrackVoltageLabel").text = str(0)
-				_n("FlippedLabel").text = str(0) 
-				return
-
-			# Трак
-			# XX claude-switch: у кросса с раздельными цепями "1 | 2" (по лучу на путь)
-			_n("TrackContourLabel").text = _power_comp.contour_text()
-			_n("TrackVoltageLabel").text = _power_comp.voltage_text()
-			_n("FlippedLabel").text = _power_comp.flip_text()
-
-			# Power Clip. D1: клип можно поставить на любой трак, в том числе уже питаемый (второй фидер цепи)
-			_n("PowerClipButton").disabled = false
-			_n("PowerClipButton").button_pressed = _power_clip != null
-			_n("ClipContourIDButton").disabled = _power_clip == null  # номер меняется только у клипа
-			var _net_id: int = _power_clip.net_id if _power_clip else _power_comp.net_id
-
-			# 💡-option_button- Делаем селектор контура-
-			_fill_clip_contour_button(_net_id)
-
-			# Цвета 
-			if  PGM.get_power(_net_id) > 0:
-				_n("TrackVoltageLabel").modulate = Color(0.0, 0.824, 0.0, 1.0)
-			elif PGM.get_power(_net_id) < 0:
-				_n("TrackVoltageLabel").modulate = Color(1.0, 0.302, 0.043, 1.0)
-			else:
-				_n("TrackVoltageLabel").modulate = Color(1.0, 1.0, 1.0, 1.0)
-				
-		&'train':
-			_n("PowerTrackTab").hide()
-			_n("PowerTrainTab").show()
-			refresh()
+	var power_comp := target.get_comp(C_PowerTrack) as C_PowerTrack
+	if power_comp != null:
+		_update_track(power_comp)
+	elif target.has_comp(C_Engine):
+		_n("PowerTrackTab").hide()
+		_n("PowerTrainTab").show()
+		refresh()
 
 
+## Трак: контур, напряжение, полярность, клип и блок «PowerExtras»
+func _update_track(power_comp: C_PowerTrack) -> void:
+	_n("PowerTrackTab").show()
+	_n("PowerTrainTab").hide()
+
+	var power_clip := target.get_comp(C_PowerClip) as C_PowerClip
+	_update_extras(power_comp, power_clip)
+
+	# XX claude-switch: у кросса с раздельными цепями "1 | 2" (по лучу на путь)
+	_n("TrackContourLabel").text = power_comp.contour_text()
+	_n("TrackVoltageLabel").text = power_comp.voltage_text()
+	_n("FlippedLabel").text = power_comp.flip_text()
+
+	# Power Clip. D1: клип можно поставить на любой трак, в том числе уже питаемый (второй фидер цепи)
+	_n("PowerClipButton").disabled = false
+	_n("PowerClipButton").button_pressed = power_clip != null
+	_n("ClipContourIDButton").disabled = power_clip == null  # номер меняется только у клипа
+	var _net_id: int = power_clip.net_id if power_clip else power_comp.net_id
+
+	# 💡-option_button- Делаем селектор контура-
+	_fill_clip_contour_button(_net_id)
+
+	_set_lamp(_n("TrackVoltageLabel") as Label, PGM.get_power(_net_id))
+
+
+## Локомотив: контур и напряжение его источника питания
 func refresh() -> void:
 	if not target: return
-	var identity = target.get_comp(C_Identity)
-	if not identity or identity.get_category() != &'train': return
+	var engine := target.get_comp(C_Engine) as C_Engine
+	if engine == null: return
 
-	var _engine_comp = target.get_comp(C_Engine) as C_Engine
-	var _chassis_comp = target.get_comp(C_Chassis) as C_Chassis
-	if not _engine_comp or not _chassis_comp: return
+	_n("EngineContourLabel").text = str(engine.power.net_id)
+	_n("TrainVoltageLabel").text = str(engine.power.voltage)
+	_set_lamp(_n("TrainVoltageLabel") as Label, PGM.get_power(engine.power.net_id))
 
-	_n("EngineContourLabel").text = str(_engine_comp.power.net_id)
-	_n("TrainVoltageLabel").text = str(_engine_comp.power.voltage)
 
-	var _spd = _chassis_comp.current_speed
-	_n("SpeedLabel").text = str( "%0.2f" % [_spd] if abs(_spd) > 0.05 else '0.0' )
-	var _c_force = _chassis_comp.centrifugal_force
-	_n("CentrifugalForceLabel").text = tr( "%0.2f" % [_c_force] if abs(_c_force) > 0.05 else '0.0' )
-
-	# Цвета
-	var _pw: float = PGM.get_power(_engine_comp.power.net_id)
-	if _pw > 0:
-		_n("TrainVoltageLabel").modulate = Color(0.0, 0.824, 0.0, 1.0)
-		_n("SpeedLabel").modulate = Color(0.0, 0.824, 0.0, 1.0)
-	elif _pw < 0:
-		_n("TrainVoltageLabel").modulate = Color(1.0, 0.302, 0.043, 1.0)
-		_n("SpeedLabel").modulate = Color(1.0, 0.302, 0.043, 1.0)
-	else:
-		_n("TrainVoltageLabel").modulate = Color(1.0, 1.0, 1.0, 1.0)
-		_n("SpeedLabel").modulate = Color(1.0, 1.0, 1.0, 1.0)
+## Цвет напряжения из темы: плюс (LampOn), минус (LampBad), ноль (обычный)
+func _set_lamp(label: Label, value: float) -> void:
+	var variation: StringName = &"LampOn" if value > 0.0 else (&"LampBad" if value < 0.0 else &"")
+	if label.theme_type_variation != variation:
+		label.theme_type_variation = variation
 
 
 func on_power_track_updated(_contour : int, _voltage : float) ->void:
 	if not target: return
-	
-	var _power_comp = target.has_comp(C_PowerTrack)
+
+	var _power_comp := target.get_comp(C_PowerTrack) as C_PowerTrack
 	if _power_comp: # Если трак
-		_power_comp = target.get_comp(C_PowerTrack)
 		_n("TrackContourLabel").text = _power_comp.contour_text()
 		_n("TrackVoltageLabel").text = _power_comp.voltage_text()
 		_n("FlippedLabel").text = _power_comp.flip_text()
-	
-		if  _voltage > 0:
-			_n("TrackVoltageLabel").modulate = Color(0.0, 0.824, 0.0, 1.0)
-		elif _voltage < 0:
-			_n("TrackVoltageLabel").modulate = Color(1.0, 0.302, 0.043, 1.0)
-		else:
-			_n("TrackVoltageLabel").modulate = Color(1.0, 1.0, 1.0, 1.0)
+		_set_lamp(_n("TrackVoltageLabel") as Label, _voltage)
 
 
 func _on_contour_id_item_selected(index: int):
@@ -269,36 +240,43 @@ func _update_extras(power_track: C_PowerTrack, clip: C_PowerClip) -> void:
 		return
 	_extra.visible = power_track != null
 	if power_track == null:
+		footer_clear()
 		return
 	var sensor := target.get_comp(C_OccupancySensor) as C_OccupancySensor
 	_sensor_box.set_pressed_no_signal(sensor != null)
-	_sensor_label.visible = sensor != null
 	if sensor != null:
-		_sensor_label.text = "Участок %s. Проходов (освобождений): %d" % [sensor.state_text(), sensor.passes]
-		_sensor_label.modulate = C_OccupancySensor.COLOR_OCCUPIED if sensor.occupied else C_OccupancySensor.COLOR_FREE
+		footer_message(&"sensor", "Участок %s. Проходов (освобождений): %d" % [sensor.state_text(), sensor.passes], &"warn" if sensor.occupied else &"ok")
+	else:
+		footer_message(&"sensor", "")
 
-	# Состояние: что не так с клипом, треком или цепью
-	var lines: PackedStringArray = []
+	# Состояние: что не так с клипом, треком или цепью. Строки идут в подвал, у каждой свой тип
+	var lines: Array = []   # [текст, тип]
 	if clip and clip.conflict_text() != "":
-		lines.append(clip.conflict_text())
+		lines.append([clip.conflict_text(), &"warn"])
 	if power_track.fault:
-		lines.append("КЗ: здесь не сходится полярность (реверсивная петля или перепутанные провода)")
+		lines.append(["КЗ: здесь не сходится полярность (реверсивная петля или перепутанные провода)", &"bad"])
 	if clip and clip.wired:
-		lines.append("Питается по проводу от вывода %d%s" % [clip.wire_net, " (скрутка)" if clip.wire_flip else ""] if clip.wire_net != 0 else "Провод подключен, но не доходит до вывода пульта: клип обесточен")
+		if clip.wire_net != 0:
+			lines.append(["Питается по проводу от вывода %d%s" % [clip.wire_net, " (скрутка)" if clip.wire_flip else ""], &"info"])
+		else:
+			lines.append(["Провод подключен, но не доходит до вывода пульта: клип обесточен", &"warn"])
 	elif clip and PGM.wiring_required:
-		lines.append("Проводка обязательна: клипу нужен провод от пульта")
+		lines.append(["Проводка обязательна: клипу нужен провод от пульта", &"warn"])
 	var net_id: int = clip.net_id if clip else power_track.net_id
 	if net_id != 0 and PGM.shorted_nets.has(net_id):
-		lines.append("Цепь %d в КЗ полярности: защита отключает напряжение (сброс: кнопка ниже после устранения причины)" % net_id)
+		lines.append(["Цепь %d в КЗ полярности: защита отключает напряжение (сброс: кнопка ниже после устранения причины)" % net_id, &"bad"])
 	var out: PowerOutput = PGM.get_output(net_id) if net_id != 0 else null
 	if out != null and out.tripped:
-		lines.append("Вывод %d отключен защитой: %s" % [net_id, out.state_text()])
+		lines.append(["Вывод %d отключен защитой: %s" % [net_id, out.state_text()], &"bad"])
 	elif out != null and out.state == PowerOutput.State.OVERLOAD:
-		lines.append("Перегрузка вывода %d: %.2f А при лимите %.2f А" % [net_id, out.current, out.i_max])
+		lines.append(["Перегрузка вывода %d: %.2f А при лимите %.2f А" % [net_id, out.current, out.i_max], &"warn"])
+	for i in STATE_SLOTS:
+		if i < lines.size():
+			footer_message(StringName("state%d" % i), lines[i][0], lines[i][1])
+		else:
+			footer_message(StringName("state%d" % i), "")
 	_reset_btn.visible = out != null and out.tripped
-	_state_label.text = "\n".join(lines)
-	_state_label.visible = not lines.is_empty()
-	_state_label.modulate = Color(1.0, 0.45, 0.2, 1.0)
+	refresh_footer()
 
 	# Полярность подключения клипа
 	_rev_box.visible = clip != null
