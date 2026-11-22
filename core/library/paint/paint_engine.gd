@@ -53,6 +53,7 @@ var relief_width := 0.0
 ## Маска (скотч и трафарет): вторая карта в том же пространстве UV2, A это насколько тексель закрыт от краски.
 ## Маска временная: в исполнение и в игру не попадает. Рисуется теми же штампами (opts.mask), стирается ластиком маски
 var mask_used := false
+var _mask_clear_frames := 0         # сколько кадров слою маски ещё очищаться при отрисовке (clear_mask)
 var _mask_vp: SubViewport
 var _mask_rect: ColorRect
 var _mask_stamp_mat: ShaderMaterial
@@ -318,12 +319,22 @@ func make_overlay() -> ShaderMaterial:
 	return m
 
 
+## Содержимое маски (RGBA8, A это насколько тексель закрыт). Читает с GPU: нужен тестам и отладке
+func read_mask() -> Image:
+	var img := _mask_vp.get_texture().get_image()
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	return img
+
+
 ## Убрать маску целиком и все ещё не нарисованные штампы маски
 func clear_mask() -> void:
 	if not is_built:
 		return
 	_queue = _queue.filter(func(q: Dictionary) -> bool: return not q["mask"])
-	_mask_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+	# повторный CLEAR_MODE_ONCE не гарантирует новой очистки: на время перерисовки режим ALWAYS, потом (_process) NEVER
+	_mask_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+	_mask_clear_frames = 3
 	_mask_stamp_mat.set_shader_parameter("stamp_count", 0)
 	_mask_rect.material = _mask_stamp_mat
 	_mask_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
@@ -437,6 +448,10 @@ func has_pending() -> bool:
 
 
 func _process(_delta: float) -> void:
+	if is_built and _mask_clear_frames > 0:
+		_mask_clear_frames -= 1
+		if _mask_clear_frames == 0:
+			_mask_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
 	if not is_built or _restoring:
 		return
 	_flush()
@@ -507,6 +522,7 @@ func _flush() -> void:
 			mat.set_shader_parameter("decal_stencil", first["stencil"])
 			mat.set_shader_parameter("decal_cover_ink", first["sink"])
 			mat.set_shader_parameter("decal_has_alpha", PaintDecals.has_alpha(decal_id))
+			mat.set_shader_parameter("decal_texel", texel_world)
 		var on: bool = float(first["relief"]) != 0.0 and relief_ready and _relief_vp != null
 		mat.set_shader_parameter("relief_on", on)
 		if on:

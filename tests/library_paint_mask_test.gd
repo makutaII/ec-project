@@ -110,6 +110,15 @@ func _test() -> void:
 	await _frames(6)
 	var cleared := await _paint_all(eng)
 	_check("очистка маски: краска ложится везде, маска сброшена", _a(cleared, 32, 32) > 0.9 and not eng.mask_used)
+	var left := eng.read_mask()
+	_check("очистка маски очищает саму карту, а не только выключает её (%.2f, %.2f, %.2f)" % [_a(left, 32, 32), _a(left, 46, 32), _a(left, 20, 20)], _a(left, 32, 32) < 0.01 and _a(left, 46, 32) < 0.01 and _a(left, 20, 20) < 0.01)
+	_tape(eng, Vector3.ZERO, 0.3)
+	await _frames(6)
+	var dirty := eng.read_mask()
+	eng.clear_mask()
+	await _frames(6)
+	var wiped := eng.read_mask()
+	_check("скотч виден в карте (%.2f), после очистки пусто (%.2f), и новая маска после очистки не тянет старую" % [_a(dirty, 32, 32), _a(wiped, 32, 32)], _a(dirty, 32, 32) > 0.9 and _a(wiped, 32, 32) < 0.01)
 
 	# ластик защищён маской
 	await _reset(eng)

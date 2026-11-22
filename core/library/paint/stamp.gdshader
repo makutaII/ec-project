@@ -27,6 +27,7 @@ uniform bool decal_stencil = false;     // трафарет: картинка п
 uniform bool decal_cover_ink = true;    // true: закрывает рисунок, false: закрывает фон
 uniform bool decal_has_alpha = false;   // у картинки есть прозрачность: рисунок это непрозрачная часть, иначе тёмная часть
 uniform float decal_lod = 0.0;          // уровень мипмапа: по размеру декали в текселях слоя (считает движок)
+uniform float decal_texel = 0.01;       // размер текселя слоя в мире: сетка сглаживания края внутри текселя
 uniform bool relief_on = false;         // сухая кисть и смывка: красить только по рельефу
 uniform sampler2D relief_tex : filter_nearest, repeat_disable;   // R: 0.5 + контраст яркости, G: тексель покрыт
 uniform float relief_dir = 1.0;         // 1 выступы и светлые кромки, -1 впадины и тёмные тени
@@ -63,30 +64,55 @@ vec4 sample_triplanar(vec3 p, vec3 n) {
 	return cx * w.x + cy * w.y + cz * w.z;
 }
 
-// Декаль первого штампа пачки: картинка лежит в касательной плоскости, вправо вдоль stamp_tan, вверх вдоль нормаль x вправо
+// Декаль и трафарет первого штампа пачки: картинка лежит в касательной плоскости, вправо вдоль stamp_tan, вверх вдоль
+// нормаль x вправо. Каждый тексель слоя считается по сетке 4x4 точек внутри него (decal_texel это размер текселя в мире),
+// поэтому край картинки получается сглаженным, а не ступеньками по текселям слоя
 vec4 decal_color(vec3 p, vec3 n) {
 	float r = max(stamps[0].w, 0.00001);
 	vec3 q = p - stamps[0].xyz;
+	float reach = r * 1.5;
+	if (dot(q, q) > reach * reach) {
+		return vec4(0.0);
+	}
 	vec3 sn = normalize(stamp_nrm[0].xyz);
 	vec3 t = stamp_tan[0].xyz;
 	vec3 b = cross(sn, t);
-	vec2 uv = vec2(dot(q, t), dot(q, b)) / r / max(decal_box, vec2(0.0001));
-	if (decal_mirror) {
-		uv.x = -uv.x;
-	}
-	vec2 tuv = vec2(uv.x * 0.5 + 0.5, 0.5 - uv.y * 0.5);
-	bool inside = tuv.x >= 0.0 && tuv.x <= 1.0 && tuv.y >= 0.0 && tuv.y <= 1.0;
-	vec4 c = textureLod(decal_tex, clamp(tuv, vec2(0.0), vec2(1.0)), decal_lod);
+	vec2 box = max(decal_box, vec2(0.0001));
 	float slab = abs(dot(q, sn)) <= r ? 1.0 : 0.0;
 	float facing = smoothstep(0.05, 0.35, dot(n, sn));
-	if (decal_stencil) {
-		// два «цвета» трафарета: рисунок и фон. Если у картинки есть прозрачность, рисунок это непрозрачная часть (цвет задан,
-		// фон не задан), иначе рисунок это тёмная часть, фон светлая. Закрывает то, что выбрано; вне картинки маски нет
-		float ink = decal_has_alpha ? c.a : 1.0 - dot(c.rgb, vec3(0.299, 0.587, 0.114));
-		float cover = smoothstep(0.35, 0.65, decal_cover_ink ? ink : 1.0 - ink);
-		return vec4(1.0, 1.0, 1.0, inside ? cover * slab * facing * flow : 0.0);
+	vec3 acc = vec3(0.0);
+	float acc_a = 0.0;
+	for (int j = 0; j < 4; j++) {
+		for (int i = 0; i < 4; i++) {
+			vec2 off = (vec2(float(i), float(j)) + 0.5) / 4.0 - 0.5;
+			vec3 qq = q + (t * off.x + b * off.y) * decal_texel;
+			vec2 uv = vec2(dot(qq, t), dot(qq, b)) / r / box;
+			if (decal_mirror) {
+				uv.x = -uv.x;
+			}
+			vec2 tuv = vec2(uv.x * 0.5 + 0.5, 0.5 - uv.y * 0.5);
+			bool inside = tuv.x >= 0.0 && tuv.x <= 1.0 && tuv.y >= 0.0 && tuv.y <= 1.0;
+			vec4 c = textureLod(decal_tex, clamp(tuv, vec2(0.0), vec2(1.0)), decal_lod);
+			float w = 0.0;
+			if (inside) {
+				if (decal_stencil) {
+					// два «цвета» трафарета: рисунок и фон. Если у картинки есть прозрачность, рисунок это непрозрачная часть
+					// (цвет задан, фон не задан), иначе рисунок это тёмная часть, фон светлая. Закрывает выбранное
+					float ink = decal_has_alpha ? c.a : 1.0 - dot(c.rgb, vec3(0.299, 0.587, 0.114));
+					w = smoothstep(0.35, 0.65, decal_cover_ink ? ink : 1.0 - ink);
+				} else {
+					w = c.a;
+				}
+			}
+			acc += c.rgb * w;
+			acc_a += w;
+		}
 	}
-	return vec4(c.rgb, inside ? c.a * slab * facing * flow : 0.0);
+	float k = slab * facing * flow;
+	if (decal_stencil) {
+		return vec4(1.0, 1.0, 1.0, acc_a / 16.0 * k);
+	}
+	return vec4(acc / max(acc_a, 0.00001), acc_a / 16.0 * k);
 }
 
 void fragment() {
