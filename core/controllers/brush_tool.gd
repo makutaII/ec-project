@@ -113,6 +113,8 @@ func handle_input(event: InputEvent) -> void:
 		_refresh_objects()
 		_prev_key = ""
 		_say("Объекты в зоне: %s" % OBJ_NAMES[_fb.objects_mode])
+		if Global.debug_mode:
+			_print_objects()
 		return
 	var a := Actions.axis_step(event, &"width_up", &"width_down", 5)
 	if a != 0:
@@ -195,6 +197,14 @@ func _refresh_objects() -> void:
 	else:
 		_objs = TGM.field_objects(WORLD)
 	_fb.obstacles = FieldObjects.polys_of(_objs) if _fb.objects_mode == FieldBrush.OBJ_BYPASS else []
+
+
+## Отладка (Global.debug_mode, клавиша X): какие объекты кисть видит и какого размера их след
+func _print_objects() -> void:
+	print("[BrushTool] объектов на земле: %d" % _objs.size())
+	for o: Dictionary in _objs:
+		var bb := C_Contour.bounds_of(o["poly"])
+		print("  %s  след %.1f x %.1f ю" % [(o["entity"] as Entity).name, bb.size.x, bb.size.y])
 
 
 ## Высота, на которой объект стоит на земле: самая высокая точка поля под его опорными точками
