@@ -120,7 +120,12 @@ func _make_row(row: Dictionary) -> Control:
 		return h
 	var cap := Label.new()
 	cap.text = String(row.title)
-	cap.custom_minimum_size = Vector2(150, 0)
+	cap.custom_minimum_size = Vector2(100, 0)
+	cap.theme_type_variation = &"LabelSmall"
+	cap.clip_text = true
+	cap.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	cap.tooltip_text = cap.text
+	cap.mouse_filter = Control.MOUSE_FILTER_PASS
 	h.add_child(cap)
 	var ctl: Control
 	match type:
@@ -136,13 +141,16 @@ func _make_row(row: Dictionary) -> Control:
 			s.min_value = float(row.min)
 			s.max_value = float(row.max)
 			s.step = float(row.step)
-			s.custom_minimum_size = Vector2(160, 0)
+			s.custom_minimum_size = Vector2(80, 0)
 			s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			s.value_changed.connect(func(v: float) -> void: (row.setter as Callable).call(v))
 			ctl = s
 		&"list":
 			var o := OptionButton.new()
 			o.focus_mode = Control.FOCUS_NONE
+			o.fit_to_longest_item = false   # ширину не задает самый длинный пункт
+			o.clip_text = true
+			o.custom_minimum_size.x = 80
 			var ids: Array = row.ids
 			var titles: Array = row.titles
 			for i in ids.size():
