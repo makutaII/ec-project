@@ -35,7 +35,7 @@ from pathlib import Path
 
 import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty, StringProperty
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 # ---- Правила (держать в синхроне с tools/glb_preflight.py и 0_ATTN_24 §24.4) ----
 ROLE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -503,11 +503,30 @@ def draw_wrapped(layout, level, text, width):
 
 # ---------------------------------------------------------------- помощники
 
-def prepare_transforms(scene):
-    """Кузов: Apply All Transforms. Части: только Rotation и Scale (Location не применяем: он сбросил бы origin шарнира)"""
+def is_animated(obj):
+    """Есть ключи, NLA или драйверы: применять такому объекту трансформ нельзя (ключи вернут старые значения)"""
+    ad = obj.animation_data
+    return bool(object_actions(obj)) or bool(ad and ad.drivers)
+
+
+def needs_apply(obj, loc):
+    """Есть ли что применять: поворот, масштаб (и положение, если loc). Нулевой трансформ не трогаем: Apply сделал бы меш уникальным"""
+    m = obj.matrix_basis
+    if m.to_quaternion().angle > 1e-5:
+        return True
+    if any(abs(v - 1.0) > 1e-6 for v in m.to_scale()):
+        return True
+    return bool(loc and m.translation.length > 1e-6)
+
+
+def prepare_transforms(scene, notes=None):
+    """Кузов: Apply All Transforms. Части: только Rotation и Scale (Location не применяем: он сбросил бы origin шарнира).
+    Не трогает объекты с нулевым трансформом (общие меши остаются общими) и анимированные (их нормализует «Привод колеса»);
+    пропущенные попадают в notes (список строк)"""
     bodies = find_body(scene)
     if len(bodies) != 1:
         return "Нужен ровно один объект с role = body"
+    notes = notes if notes is not None else []
     body = bodies[0]
     view = bpy.context.view_layer
     prev_sel = [o for o in scene.objects if o.select_get()]
@@ -515,6 +534,11 @@ def prepare_transforms(scene):
     problems = []
 
     def apply(obj, loc):
+        if not needs_apply(obj, loc):
+            return
+        if is_animated(obj):
+            notes.append("%s: анимирован, трансформ не применён (ключи его сбросят); соберите деталь кнопкой «Нормализовать привод колеса»" % obj.name)
+            return
         for o in scene.objects:
             o.select_set(False)
         obj.select_set(True)
@@ -536,6 +560,281 @@ def prepare_transforms(scene):
         o.select_set(True)
     view.objects.active = prev_act
     return "; ".join(problems) if problems else None
+
+
+# >>> drive-cycle-math
+# Чистая математика цикла привода (без bpy и mathutils; проверяется tools/test_drive_cycle.py).
+# Матрица это список строк 4x4 (m[строка][столбец], перенос в последнем столбце), кватернион (w, x, y, z).
+
+def _qmul(a, b):
+    aw, ax, ay, az = a
+    bw, bx, by, bz = b
+    return (aw * bw - ax * bx - ay * by - az * bz,
+            aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw)
+
+
+def _qconj(q):
+    return (q[0], -q[1], -q[2], -q[3])
+
+
+def _qdot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]
+
+
+def _qnorm(q):
+    n = math.sqrt(_qdot(q, q)) or 1.0
+    return (q[0] / n, q[1] / n, q[2] / n, q[3] / n)
+
+
+def _vlen(v):
+    return math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+
+
+def rot_scale(m):
+    """Верхняя 3x3 матрицы: M = R * diag(s), R вращение. Отражение (det < 0) уходит знаком в s[0].
+    Возвращает (R, (sx, sy, sz), перекос осей: наибольший |cos| угла между колонками)"""
+    cols = [(m[0][c], m[1][c], m[2][c]) for c in range(3)]
+    norms = [_vlen(c) for c in cols]
+    if min(norms) < 1e-12:
+        raise ValueError("нулевой масштаб")
+    det = (cols[0][0] * (cols[1][1] * cols[2][2] - cols[2][1] * cols[1][2])
+           - cols[1][0] * (cols[0][1] * cols[2][2] - cols[2][1] * cols[0][2])
+           + cols[2][0] * (cols[0][1] * cols[1][2] - cols[1][1] * cols[0][2]))
+    sc = [norms[0] * (-1.0 if det < 0 else 1.0), norms[1], norms[2]]
+    unit = [tuple(cols[c][r] / sc[c] for r in range(3)) for c in range(3)]
+    rot = [[unit[c][r] for c in range(3)] for r in range(3)]
+    skew = 0.0
+    for a, b in ((0, 1), (0, 2), (1, 2)):
+        d = sum(cols[a][k] * cols[b][k] for k in range(3)) / (norms[a] * norms[b])
+        skew = max(skew, abs(d))
+    return rot, tuple(sc), skew
+
+
+def quat_from_rot(r):
+    """Кватернион по матрице вращения 3x3 (строки)"""
+    t = r[0][0] + r[1][1] + r[2][2]
+    if t > 0:
+        k = math.sqrt(t + 1.0) * 2
+        q = (0.25 * k, (r[2][1] - r[1][2]) / k, (r[0][2] - r[2][0]) / k, (r[1][0] - r[0][1]) / k)
+    elif r[0][0] > r[1][1] and r[0][0] > r[2][2]:
+        k = math.sqrt(1.0 + r[0][0] - r[1][1] - r[2][2]) * 2
+        q = ((r[2][1] - r[1][2]) / k, 0.25 * k, (r[0][1] + r[1][0]) / k, (r[0][2] + r[2][0]) / k)
+    elif r[1][1] > r[2][2]:
+        k = math.sqrt(1.0 + r[1][1] - r[0][0] - r[2][2]) * 2
+        q = ((r[0][2] - r[2][0]) / k, (r[0][1] + r[1][0]) / k, 0.25 * k, (r[1][2] + r[2][1]) / k)
+    else:
+        k = math.sqrt(1.0 + r[2][2] - r[0][0] - r[1][1]) * 2
+        q = ((r[1][0] - r[0][1]) / k, (r[0][2] + r[2][0]) / k, (r[1][2] + r[2][1]) / k, 0.25 * k)
+    return _qnorm(q)
+
+
+def track_from_worlds(worlds):
+    """worlds: матрицы 4x4 детали (относительно кузова) по кадрам цикла, кадр 0 это покой.
+    Возвращает словарь: u (3x3 R0*S0: в неё переводятся вершины меша, тогда узел стоит без поворота и масштаба),
+    loc (положение узла по кадрам), quat (поворот относительно покоя по кадрам, знак непрерывный),
+    scale_dev (на сколько менялся масштаб по осям), skew (наибольший перекос осей)"""
+    rot0, s0, skew = rot_scale(worlds[0])
+    q0c = _qconj(quat_from_rot(rot0))
+    u = [[worlds[0][r][c] for c in range(3)] for r in range(3)]
+    loc, quat = [], []
+    prev = (1.0, 0.0, 0.0, 0.0)
+    sdev = 0.0
+    for w in worlds:
+        rot, sc, sk = rot_scale(w)
+        q = _qnorm(_qmul(quat_from_rot(rot), q0c))
+        if _qdot(q, prev) < 0:
+            q = (-q[0], -q[1], -q[2], -q[3])
+        prev = q
+        quat.append(q)
+        loc.append((w[0][3], w[1][3], w[2][3]))
+        sdev = max(sdev, abs(sc[0] - s0[0]), abs(sc[1] - s0[1]), abs(sc[2] - s0[2]))
+        skew = max(skew, sk)
+    return {"u": u, "loc": loc, "quat": quat, "scale_dev": sdev, "skew": skew}
+
+
+def wheel_step(w0, w1):
+    """Поворот колеса между двумя соседними кадрами в мировых осях: (градусы вокруг +X со знаком, |ось X|).
+    Нос модели +Y: качение вперёд это отрицательный поворот вокруг +X"""
+    d = _qmul(quat_from_rot(rot_scale(w1)[0]), _qconj(quat_from_rot(rot_scale(w0)[0])))
+    if d[0] < 0:
+        d = (-d[0], -d[1], -d[2], -d[3])
+    vl = _vlen(d[1:])
+    if vl < 1e-12:
+        return 0.0, 0.0
+    ax = d[1] / vl
+    return math.degrees(2 * math.atan2(vl, d[0])) * ax, abs(ax)
+
+
+def cycle_period(step_deg, tol=0.05):
+    """Кадров на оборот по шагу колеса (градусы за кадр); None, если оборот не укладывается в целое число кадров"""
+    if abs(step_deg) < 1e-6:
+        return None
+    n = 360.0 / abs(step_deg)
+    p = int(round(n))
+    return p if p >= 2 and abs(n - p) <= tol else None
+
+
+def cycle_order(n_src, period, reverse):
+    """Номера исходных кадров для кадров цикла 0..period (последний замыкающий, равен нулевому).
+    reverse: исходная анимация крутит колесо назад, порядок разворачивается, чтобы рост кадра шёл вперёд по ходу.
+    None, если исходных кадров меньше оборота"""
+    if period < 2 or n_src < period:
+        return None
+    return [((-k) % period) if reverse else (k % period) for k in range(period + 1)]
+
+
+def drive_role(name, prefix="drv_"):
+    """Роль детали привода из имени объекта: drv_<имя>, без хвоста дубля и лишних знаков"""
+    base = re.sub(r"[.]\d{3,}$", "", name).lower()
+    base = re.sub(r"[^a-z0-9_]+", "_", base).strip("_")
+    return prefix + (base or "part")
+# <<< drive-cycle-math
+
+
+def _rows(m):
+    return [[float(m[r][c]) for c in range(4)] for r in range(4)]
+
+
+def _sample_worlds(scene, objs, frames, body_inv):
+    """Матрицы объектов относительно кузова на заданных кадрах (с учётом всех родителей и анимации)"""
+    out = {o.name: [] for o in objs}
+    for f in frames:
+        scene.frame_set(f)
+        dg = bpy.context.evaluated_depsgraph_get()
+        for o in objs:
+            out[o.name].append(_rows(body_inv @ o.evaluated_get(dg).matrix_world))
+    return out
+
+
+def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
+    """Привод колеса: детали пересобираются чистыми детьми кузова (в покое без поворота и масштаба), движение запекается
+    в замкнутый цикл на один оборот эталонного колеса, одним действием mech_<cycle_id> (по слоту на деталь).
+    Оборот берётся по самому колесу: n = 360 / шаг за кадр. Рост кадра = движение вперёд (нос +Y); если исходная анимация
+    крутит назад, порядок кадров разворачивается. Исходные объекты не меняются. Возвращает (ошибка или None, строки отчёта)"""
+    items = []
+
+    def info(lv, tx):
+        items.append((lv, tx, None))
+
+    if "slots" not in bpy.types.Action.bl_rna.properties:
+        return "Нужен Blender 4.4 или новее: одно действие на несколько объектов (слоты действия)", items
+    if not re.match(r"^[a-z][a-z0-9_]*$", cycle_id or ""):
+        return "Id цикла: a-z, 0-9, _, начинается с буквы", items
+    parts = [o for o in parts if o != wheel and o != body]
+    if wheel is None or wheel == body or not object_actions(wheel):
+        return "Активным должно быть колесо с анимацией оборота (остальное выделение это детали привода)", items
+    if not parts:
+        return "Выделите детали привода (шатуны, дышла, парораспределение), активным сделайте колесо", items
+    bad = [o.name for o in parts if o.type != "MESH"]
+    if bad:
+        return "Детали привода должны быть мешами: %s" % ", ".join(bad), items
+    still = [o.name for o in parts if not object_actions(o)]
+    if still:
+        return "Нет анимации у: %s" % ", ".join(still), items
+
+    rng = [a.frame_range for o in [wheel] + parts for a in object_actions(o)]
+    f0 = int(math.floor(min(r[0] for r in rng) + 1e-6))
+    f1 = int(math.ceil(max(r[1] for r in rng) - 1e-6))
+    n_src = f1 - f0 + 1
+    saved = scene.frame_current
+    try:
+        scene.frame_set(f0)
+        body_inv = body.matrix_world.inverted()
+        ref = _sample_worlds(scene, [wheel], [f0, f0 + 1], body_inv)[wheel.name]
+        step, axis_x = wheel_step(ref[0], ref[1])
+        if axis_x < 0.9:
+            return ("Колесо '%s' вращается не вокруг оси X (|ось X| = %.2f). Нос модели должен смотреть в +Y, колёсные пары лежать "
+                    "осью вдоль X: проверьте ориентацию и применённые трансформы" % (wheel.name, axis_x)), items
+        period = cycle_period(step)
+        if period is None:
+            return "Колесо '%s' поворачивается на %.3f° за кадр: оборот не укладывается в целое число кадров" % (wheel.name, step), items
+        order = cycle_order(n_src, period, step > 0)
+        if order is None:
+            return "Анимация короче оборота: %d кадров, нужно %d (колесо '%s', %.3f° за кадр)" % (n_src, period, wheel.name, step), items
+        if n_src != period:
+            info("WARN", "В анимации %d кадров, оборот колеса %d: лишние кадры отброшены" % (n_src, period))
+        worlds = _sample_worlds(scene, parts, [f0 + i for i in range(period)], body_inv)
+        tracks = []
+        for o in parts:
+            tr = track_from_worlds([worlds[o.name][i] for i in order])
+            if tr["scale_dev"] > 1e-3:
+                info("WARN", "%s: масштаб меняется в анимации (на %.3f), в цикл он не переносится" % (o.name, tr["scale_dev"]))
+            if tr["skew"] > 1e-3:
+                info("WARN", "%s: оси перекошены (родитель с неравномерным масштабом): форма в покое может отличаться" % o.name)
+            if o.modifiers:
+                info("WARN", "%s: модификаторы не переносятся (берутся данные меша)" % o.name)
+            tracks.append(tr)
+    except ValueError as e:
+        return "Нулевой масштаб у детали: %s" % e, items
+    finally:
+        scene.frame_set(saved)
+
+    roles, seen = [], set()
+    for o in parts:
+        r = drive_role(o.name)
+        k = 2
+        while r in seen:
+            r = "%s_%d" % (drive_role(o.name), k)
+            k += 1
+        seen.add(r)
+        roles.append(r)
+
+    # повторный запуск: прежний результат этого цикла заменяется
+    for o in list(bpy.data.objects):
+        if o.get("ec_cycle") == cycle_id:
+            bpy.data.objects.remove(o, do_unlink=True)
+    act_name = "mech_" + cycle_id
+    old = bpy.data.actions.get(act_name)
+    if old is not None and old.users == 0:
+        bpy.data.actions.remove(old)
+    for r in roles:
+        if bpy.data.objects.get(r) is not None:
+            return "Объект '%s' уже есть в файле (не от этого инструмента): переименуйте или удалите" % r, items
+
+    coll = body.users_collection[0] if body.users_collection else scene.collection
+    act = bpy.data.actions.new(act_name)
+    edit = bpy.context.preferences.edit
+    prev_interp = edit.keyframe_new_interpolation_type
+    edit.keyframe_new_interpolation_type = "LINEAR"
+    try:
+        for o, r, tr in zip(parts, roles, tracks):
+            mesh = o.data.copy()
+            mesh.name = r
+            u4 = Matrix([tr["u"][0] + [0.0], tr["u"][1] + [0.0], tr["u"][2] + [0.0], [0.0, 0.0, 0.0, 1.0]])
+            mesh.transform(u4)
+            if u4.determinant() < 0:
+                mesh.flip_normals()
+            new = bpy.data.objects.new(r, mesh)
+            coll.objects.link(new)
+            new.parent = body
+            new["role"] = r
+            new["ec_cycle"] = cycle_id
+            new["mech_id"] = cycle_id
+            new.rotation_mode = "QUATERNION"
+            ad = new.animation_data_create()
+            slot = act.slots.new(id_type="OBJECT", name=new.name)
+            ad.action = act
+            ad.action_slot = slot
+            for k in range(period + 1):
+                new.location = tr["loc"][k]
+                new.rotation_quaternion = tr["quat"][k]
+                new.keyframe_insert("location", frame=f0 + k)
+                new.keyframe_insert("rotation_quaternion", frame=f0 + k)
+            new.location = tr["loc"][0]
+            new.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+    finally:
+        edit.keyframe_new_interpolation_type = prev_interp
+    if scene.frame_end < f0 + period:
+        scene.frame_end = f0 + period
+    scene.frame_set(saved)
+    info("INFO", "Колесо '%s': %.3f° за кадр, оборот %d кадров; кадры цикла %d..%d, последний замыкающий" % (wheel.name, step, period, f0, f0 + period))
+    info("INFO", "Рост кадра = движение вперёд%s" % (" (исходный порядок кадров развёрнут)" if step > 0 else ""))
+    info("INFO", "Создано деталей: %d, действие '%s': %s" % (len(parts), act_name, ", ".join(roles)))
+    info("INFO", "Обе стороны одной детали движутся синфазно: если на колёсной паре пальцы кривошипа сдвинуты на 90°, "
+         "делите деталь на левую и правую до запекания")
+    return None, items
 
 
 def _box(verts, faces, cx, cy, cz, sx, sy, sz):
@@ -999,6 +1298,7 @@ class ECSettings(bpy.types.PropertyGroup):
     role: StringProperty(name="Роль", description="Custom Property role для выделенных объектов", default="")
     role_preset: EnumProperty(name="Шаблон", items=ROLE_PRESETS, default="body")
     mech_id: StringProperty(name="Id механизма", description="Имя действия станет mech_<id>", default="door_left")
+    cycle_id: StringProperty(name="Id цикла", description="Действие цикла привода станет mech_<id>", default="drive")
     mech_frames: IntProperty(name="Кадров хода", description="Длина хода механизма в кадрах (24 кадра = 1 с при 24 к/с)", default=24, min=2, max=600)
     wrap: IntProperty(name="Перенос строк", description="Ширина строки отчёта в панели, символов (подберите под ширину панели)", default=46, min=24, max=200)
     show_info: BoolProperty(name="Показывать INFO", description="В панели показывать и справочные строки (габариты, заготовки конфигов); в окне и буфере обмена они есть всегда", default=False)
@@ -1177,11 +1477,44 @@ class EC_OT_prepare(bpy.types.Operator):
     bl_description = "Кузов: Apply All Transforms. Детали: только Rotation и Scale (Location не применяется, иначе потеряется origin шарнира)"
 
     def execute(self, context):
-        err = prepare_transforms(context.scene)
+        notes = []
+        err = prepare_transforms(context.scene, notes)
         if err:
             self.report({"ERROR"}, err)
             return {"CANCELLED"}
-        self.report({"INFO"}, "Трансформы применены")
+        if notes:
+            self.report({"WARNING"}, "Трансформы применены, но пропущено %d: %s" % (len(notes), "; ".join(notes[:2])))
+            print("\n".join(notes))
+        else:
+            self.report({"INFO"}, "Трансформы применены")
+        return {"FINISHED"}
+
+
+class EC_OT_bake_cycle(bpy.types.Operator):
+    bl_idname = "ec.bake_cycle"
+    bl_label = "Нормализовать привод колеса"
+    bl_description = ("Выделите детали привода (шатуны, дышла, парораспределение), последним активным сделайте колесо с анимацией оборота. "
+                      "Детали пересоберутся чистыми детьми кузова (в покое без поворота и масштаба), движение запечётся "
+                      "в замкнутый цикл mech_<id> на оборот колеса (нужен Blender 4.4+)")
+
+    def execute(self, context):
+        s = settings(context.scene)
+        bodies = find_body(context.scene)
+        if len(bodies) != 1:
+            self.report({"ERROR"}, "Нужен ровно один объект с role = body")
+            return {"CANCELLED"}
+        wheel = context.view_layer.objects.active
+        err, items = bake_drive_cycle(context.scene, bodies[0], wheel, list(context.selected_objects), s.cycle_id)
+        if err:
+            items = [("ERROR", err, None)] + items
+        text = format_report(items)
+        copied = publish_report("Привод колеса", text, REPORT_TEXT)
+        print(text)
+        if err:
+            self.report({"ERROR"}, err)
+            return {"CANCELLED"}
+        e, w, i = summarize(items)
+        self.report({"WARNING"} if w else {"INFO"}, "Цикл привода готов. WARN %d. %s" % (w, "Отчёт скопирован в буфер обмена" if copied else "Отчёт в тексте EC_report"))
         return {"FINISHED"}
 
 
@@ -1324,6 +1657,10 @@ class EC_PT_panel(bpy.types.Panel):
         op.rest = True
         op = row.operator("ec.mech_key", text="Ключ: рабочее")
         op.rest = False
+        box.separator()
+        box.label(text="Привод колеса (цикл на оборот)")
+        box.prop(s, "cycle_id")
+        box.operator("ec.bake_cycle", icon="ACTION")
 
         box = lay.box()
         box.label(text="4. Экспорт")
@@ -1349,7 +1686,7 @@ class EC_PT_panel(bpy.types.Panel):
 
 
 CLASSES = (ECSettings, EC_OT_check, EC_OT_show_report, EC_OT_copy_report, EC_OT_open_report, EC_OT_set_role, EC_OT_clear_role, EC_OT_add_buffers,
-           EC_OT_prepare, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
+           EC_OT_prepare, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
 
 
 def register():
