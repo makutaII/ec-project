@@ -203,6 +203,17 @@ func handle_input(event: InputEvent):
 			and Global.current_mode == &'build' and selected_entity.has_comp(C_Path):
 		Embankment.build(selected_entity, controller)
 
+	# XX claude-terra 13.14 H5b: N - зафиксировать автоложе выбранного трака в поле; Ctrl+Z отменяет фиксацию, пока она последняя правка поля
+	if selected_entity and Actions.pressed(event, &"bed_fix") and selected_entity.has_comp(C_Path):
+		var fix := TGM.field_bake_bed(selected_entity)
+		var n: int = fix["nodes"]
+		Embankment._say(selected_entity, controller, "Насыпь зафиксирована, узлов поля: %d (Ctrl+Z отменит)" % n if n > 0 else str(fix["why"]), n > 0)
+		return
+	if Global.current_mode != &'sections' and Actions.pressed(event, &"tool_undo") and TGM.field_bake_undo():
+		if selected_entity:
+			Embankment._say(selected_entity, controller, "Фиксация отменена", true)
+		return
+
 		
 	# XX claude-terra T6: тоннельный флаг выбранного трака (у не-траков события никто не слушает)
 	if selected_entity and Actions.pressed(event, &"tunnel_toggle"):

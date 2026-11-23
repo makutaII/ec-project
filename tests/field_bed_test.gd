@@ -2,7 +2,7 @@ extends Node
 
 # XX claude-terra 13.14 H5 (новый файл)
 ## Тест автоложа трака (FieldBed и TerrainField.set_bed): выемка в холме, насыпь над низиной, эстакада без ложа,
-## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа.
+## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b).
 ## Запуск: открыть tests/field_bed_test.tscn и нажать F6. Результат в Output: строки PASS / FAIL и итог.
 ## Проверки на собственном TerrainField без сцены игры (образцы трака задаются вручную).
 
@@ -51,6 +51,7 @@ func _ready() -> void:
 	_test_no_field()
 	_test_signal_and_types()
 	_test_merge()
+	_test_bake()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
 
 
@@ -145,3 +146,69 @@ func _test_merge() -> void:
 	var m := FieldBed.merge([a, b])
 	var k := Vector2i(node(20.0), node(21.0))
 	check("слияние: узел берёт ближайший трак", a.has(k) and b.has(k) and near((m[k] as Vector3).y, (a[k] as Vector3).y if (a[k] as Vector3).x <= (b[k] as Vector3).x else (b[k] as Vector3).y))
+
+
+func table_polys(r := Rect2(0, 0, 40, 40)) -> Array:
+	return [TerrainField._rect_poly(r)]
+
+
+func shown(f: TerrainField, x: float, z: float) -> float:
+	return f.shown_surface_at(node(x), node(z))
+
+
+## H5b. Фиксация ложа: выемка и насыпь становятся данными поля, повтор ничего не меняет, отмена возвращает рельеф,
+## сдвинутый трак считается от зафиксированного, вне стола и под листом поле не пишется
+func _test_bake() -> void:
+	# выемка
+	var f := TerrainField.new()
+	f.lay_rect(Rect2(0, 0, 40, 40), 3.0)
+	var n := FieldBed.bake(f, bed_of(f, straight(0.0)), table_polys(), Callable())
+	check("фиксация выемки: узлы записаны", n > 0, str(n))
+	check("фиксация выемки: поле под траком срезано", near(f.surface_at(node(20.0), node(20.0)), 0.0), str(f.surface_at(node(20.0), node(20.0))))
+	check("фиксация выемки: откос записан", near(f.surface_at(node(20.0), node(23.5)), 1.0), str(f.surface_at(node(20.0), node(23.5))))
+	check("фиксация выемки: далеко от трака поле прежнее", near(f.surface_at(node(20.0), node(32.0)), 3.0))
+	# после фиксации ложе трака ничего не меняет и показ совпадает с полем
+	var b2 := bed_of(f, straight(0.0))
+	f.set_bed(FieldBed.to_chunks(FieldBed.merge([b2]), Callable(f, "has_layer")))
+	check("фиксация выемки: показ с ложем равен полю", near(shown(f, 20.0, 20.0), 0.0, 0.01) and near(shown(f, 20.0, 23.5), 1.0, 0.01))
+	check("фиксация выемки: повтор ничего не меняет", FieldBed.bake(f, b2, table_polys(), Callable()) == 0)
+	# трак сдвинули: старая выемка осталась рельефом, ложе нового положения считается от неё
+	f.set_bed({})
+	var moved := bed_of(f, straight(0.0, 10.0, 30.0, 30.0))
+	f.set_bed(FieldBed.to_chunks(FieldBed.merge([moved]), Callable(f, "has_layer")))
+	check("сдвиг трака: старая выемка осталась", near(shown(f, 20.0, 20.0), 0.0, 0.01), str(shown(f, 20.0, 20.0)))
+	check("сдвиг трака: новая выемка на новом месте", near(shown(f, 20.0, 30.0), 0.0, 0.01), str(shown(f, 20.0, 30.0)))
+	# отмена
+	f.set_bed({})
+	check("отмена: правка фиксации откатывается одним шагом", f.undo() and near(f.surface_at(node(20.0), node(20.0)), 3.0) and near(f.surface_at(node(20.0), node(23.5)), 3.0))
+
+	# насыпь: тип «каменистая» в полосе, откос без слоя тоже каменистый
+	var g := TerrainField.new()
+	g.lay_rect(Rect2(0, 0, 40, 40), 0.5)
+	var nf := FieldBed.bake(g, bed_of(g, straight(2.0)), table_polys(), Callable())
+	check("фиксация насыпи: узлы записаны", nf > 0)
+	check("фиксация насыпи: под траком высота ложа", near(g.surface_at(node(20.0), node(20.0)), 2.0), str(g.surface_at(node(20.0), node(20.0))))
+	check("фиксация насыпи: полоса каменистая", g.type_at(node(20.0), node(20.0)) == TerrainField.ROCKY)
+	check("фиксация насыпи: откос ниже полосы", g.surface_at(node(20.0), node(23.5)) < 2.0 and g.surface_at(node(20.0), node(23.5)) > 0.5)
+
+	# вне стола не пишется
+	var h := TerrainField.new()
+	h.lay_rect(Rect2(0, 0, 40, 40), 3.0)
+	FieldBed.bake(h, bed_of(h, straight(0.0)), table_polys(Rect2(20, 0, 20, 40)), Callable())
+	check("вне стола: узел за контуром не тронут", near(h.surface_at(node(15.0), node(20.0)), 3.0))
+	check("вне стола: узел внутри контура записан", near(h.surface_at(node(25.0), node(20.0)), 0.0))
+
+	# потолок: слой не доходит до листа над узлом
+	var k := TerrainField.new()
+	k.lay_rect(Rect2(0, 0, 40, 40), 0.5)
+	var low := func(r: Rect2i) -> PackedFloat32Array:
+		var a := PackedFloat32Array()
+		a.resize(r.size.x * r.size.y)
+		a.fill(1.5)
+		return a
+	FieldBed.bake(k, bed_of(k, straight(2.0)), table_polys(), low)
+	check("потолок: насыпь не выше низа листа", k.surface_at(node(20.0), node(20.0)) <= 1.5 + 0.001, str(k.surface_at(node(20.0), node(20.0))))
+	check("потолок: до потолка поднялась", k.surface_at(node(20.0), node(20.0)) > 1.4)
+
+	# нет ложа: ничего
+	check("пустое ложе: нечего писать", FieldBed.bake(TerrainField.new(), {}, table_polys(), Callable()) == 0)

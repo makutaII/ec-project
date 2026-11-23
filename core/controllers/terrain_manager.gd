@@ -457,6 +457,7 @@ const BED_MAX_DH_LAYERS := 6.0
 var _bed_cache := {}       # Entity -> {"s": образцы, "n": ложе трака, "rect": Rect2 влияния}
 var _bed_stale := {}       # Entity -> true: пересчитать, даже если образцы те же (изменилось поле)
 var _bed_dirty := false
+var _bake_top := false     # последняя правка поля это фиксация ложа (её можно отменить в режиме выбора)
 var _bed_wait := 0.0
 
 
@@ -474,6 +475,7 @@ func _bed_request() -> void:
 
 ## Поле изменилось (штрих кисти, отмена): траки рядом получают новое ложе
 func _on_field_changed_bed(keys: Array) -> void:
+	_bake_top = false   # любая другая правка поля: отмена фиксации отсюда больше не нужна (field_bake_bed поднимает флаг после правки)
 	for key: Vector2i in keys:
 		var r := Rect2(Vector2(key) * float(TerrainField.CHUNK) * TerrainField.STEP, Vector2.ONE * float(TerrainField.CHUNK) * TerrainField.STEP)
 		for e: Variant in _bed_cache:
@@ -525,6 +527,41 @@ func bed_refresh() -> void:
 			_bed_cache.erase(e)
 	_bed_stale.clear()
 	field.set_bed(FieldBed.to_chunks(FieldBed.merge(results), has))
+
+
+## H5b. Зафиксировать ложе трака в поле (хоткей на выбранном траке): под траком остаётся настоящий рельеф, как от кисти.
+## Возвращает {"nodes": число изменённых узлов, "why": причина, если ничего не записано}. Одна правка поля (отмена: field_bake_undo)
+func field_bake_bed(track: Entity) -> Dictionary:
+	var res := {"nodes": 0, "why": ""}
+	if track == null or not Global.settings.field_bed_enabled:
+		res["why"] = "Автоложе выключено"
+		return res
+	bed_refresh()
+	var c: Dictionary = _bed_cache.get(track, {})
+	var bed: Dictionary = c.get("n", {})
+	if bed.is_empty():
+		res["why"] = "Под траком нечего фиксировать: он лежит на рельефе"
+		return res
+	field.layer_height = float(Global.settings.layer_height)
+	var n := FieldBed.bake(field, bed, field_table_polygons(), Callable(self, "field_ceilings"))
+	if n == 0:
+		res["why"] = "Ложе уже зафиксировано"
+		return res
+	_bake_top = true
+	bed_refresh()
+	res["nodes"] = n
+	return res
+
+
+## Отменить фиксацию ложа, если это была последняя правка поля (Ctrl+Z в режиме выбора). false: отменять нечего
+func field_bake_undo() -> bool:
+	if not _bake_top:
+		return false
+	_bake_top = false
+	if not field.undo():
+		return false
+	field_reclip()
+	return true
 
 
 ## Высота показанной поверхности поля под точкой (с ложем трака), если она не выше y_max; иначе NO_FIELD.

@@ -73,6 +73,8 @@ func _register_defaults() -> void:
 	# (там PgUp/PgDn это высота стола, SelectTool возвращается раньше, до пинка)
 	register(&"delete", "action.delete", &"select", [G_SELECT, G_OPERATE, G_SECTIONS], _key(KEY_DELETE))
 	register(&"embankment_toggle", "action.embankment_toggle", &"select", [G_SELECT], _key(KEY_B))
+	# XX claude-terra 13.14 H5b: зафиксировать автоложе выбранного трака в поле (рельеф становится настоящим)
+	register(&"bed_fix", "action.bed_fix", &"select", [G_SELECT], _key(KEY_N))
 	register(&"wagon_kick_fwd", "action.wagon_kick_fwd", &"select", [G_SELECT, G_OPERATE], _key(KEY_PAGEUP))
 	register(&"wagon_kick_back", "action.wagon_kick_back", &"select", [G_SELECT, G_OPERATE], _key(KEY_PAGEDOWN))
 	register(&"switch_throw", "action.switch_throw", &"select", [G_SELECT, G_OPERATE], _key(KEY_T))
@@ -89,7 +91,7 @@ func _register_defaults() -> void:
 	register(&"depth_down", "action.depth_down", &"terrain", [G_TERRAIN], _key(KEY_F, false, true))
 	register(&"cut_through", "action.cut_through", &"terrain", [G_TERRAIN], _key(KEY_END))
 	# Ctrl+Z: терморезак, вода, гипс и «убрать последнюю секцию» (TableTool)
-	register(&"tool_undo", "action.tool_undo", &"terrain", [G_TERRAIN, G_SECTIONS], _key(KEY_Z, false, true))
+	register(&"tool_undo", "action.tool_undo", &"terrain", [G_TERRAIN, G_SECTIONS, G_SELECT], _key(KEY_Z, false, true))
 	# Провода: Esc отменяет провод, повторно выходит. Не переназначается: Esc займёт стек окон (U10), как observe_cancel
 	register(&"wire_cancel", "action.wire_cancel", &"wire", [G_WIRE], _key(KEY_ESCAPE), false)
 	# Общая отмена (U10): Esc закрывает верхнее окно, иначе снимает выбор и группу в SelectTool.

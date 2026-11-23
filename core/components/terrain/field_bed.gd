@@ -145,3 +145,61 @@ static func to_chunks(merged: Dictionary, has_layer: Callable) -> Dictionary:
 				t[idx] = TYPE_ROCKY
 		chunks[ck] = {"h": h, "t": t}
 	return chunks
+
+
+## H5b. Фиксация ложа: записать ложе трака bed (результат build_track) в слова поля одной правкой (отмена Ctrl+Z, как у кисти).
+## После этого рельеф под траком настоящий: трак можно убрать или сдвинуть, ложе нового положения считается от него.
+## Узел получает толщину (высота ложа - пол), слово 0 если ложе не выше пола. Тип: каменистая у узлов полосы и у узлов,
+## где слоя не было (насыпь), остальное сохраняет свой тип. Узлы вне стола не пишутся. polys: контуры стола (мировой XZ).
+## ceil_fn: Callable(Rect2i) -> PackedFloat32Array, потолок по узлам (TerrainManager.field_ceilings), пустой массив: потолка нет;
+## толщина не доходит до листа над узлом. Возвращает число изменённых узлов
+static func bake(field: TerrainField, bed: Dictionary, polys: Array, ceil_fn: Callable) -> int:
+	if bed.is_empty():
+		return 0
+	var x0 := 1 << 30
+	var z0 := 1 << 30
+	var x1 := -(1 << 30)
+	var z1 := -(1 << 30)
+	for key: Vector2i in bed:
+		x0 = mini(x0, key.x)
+		z0 = mini(z0, key.y)
+		x1 = maxi(x1, key.x)
+		z1 = maxi(z1, key.y)
+	var r := Rect2i(x0, z0, x1 - x0 + 1, z1 - z0 + 1)
+	var T := field.layer_height
+	field.begin_edit()
+	var reg := field.read_region(r)
+	var w: PackedInt32Array = reg["w"]
+	var f: PackedFloat32Array = reg["f"]
+	var cl: PackedFloat32Array = ceil_fn.call(r) if ceil_fn.is_valid() else PackedFloat32Array()
+	var inside := PackedByteArray()
+	inside.resize(r.size.x * r.size.y)
+	for jj in r.size.y:
+		var iv := field.row_intervals(polys, r.position.y + jj)
+		for a in range(0, iv.size() - 1, 2):
+			for i in range(maxi(iv[a], r.position.x), mini(iv[a + 1], r.end.x - 1) + 1):
+				inside[jj * r.size.x + i - r.position.x] = 1
+	var changed := 0
+	for key: Vector2i in bed:
+		var idx := (key.y - r.position.y) * r.size.x + key.x - r.position.x
+		if inside[idx] == 0:
+			continue
+		var v: Vector3 = bed[key]
+		var old := w[idx]
+		var u := roundi((v.y - f[idx]) / T * float(TerrainField.UNITS))
+		if not cl.is_empty() and cl[idx] < INF:
+			u = mini(u, floori((cl[idx] - f[idx]) / T * float(TerrainField.UNITS)))
+		u = clampi(u, 0, TerrainField.TH_MASK)
+		var nw := 0
+		if u > 0:
+			var tp := (old >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+			if v.z > 0.5 or (old & TerrainField.TH_MASK) == 0:
+				tp = TYPE_ROCKY
+			nw = (tp << TerrainField.TYPE_SHIFT) | u
+		if nw != old:
+			w[idx] = nw
+			changed += 1
+	if changed > 0:
+		field.write_region(r, w, r)
+	field.end_edit()
+	return changed
