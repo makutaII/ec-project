@@ -411,6 +411,11 @@ func _check_derailment() -> void:
 		entity.send_event("on_derailed", {"reason": "tight_curve", "radius": r, "current_velocity_3d": current_velocity_3d})
 		return
 
+	# XX claude-coaster C6.1: у траков горок боковую нагрузку считает C_RideCar по кривизне с учётом крена (RideDynamics)
+	if path_comp.handles_lateral_load():
+		centrifugal_force = 0.0
+		return
+
 	# Прямая: сход от центробежной силы невозможен
 	if is_inf(r):
 		centrifugal_force = 0.0

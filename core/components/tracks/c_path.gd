@@ -431,6 +431,12 @@ func _bake_radii() -> void:
 	_radii = FlexSolver.radii(pts)
 
 
+## XX claude-coaster C6.1: путь сам считает боковую нагрузку на вагон (RideDynamics), поэтому общая проверка центробежной силы
+## (C_Chassis._check_derailment, сход «hi speed» по радиусу в плане) для него не нужна и отключается
+func handles_lateral_load() -> bool:
+	return false
+
+
 ## На сколько origin Entity стоит выше земли, когда нижняя точка трака касается её (якорь высоты).
 ## Origin жёсткого трака в середине кривой: у пандуса нижний конец на уровне, центр выше на |rise|/2.
 ## XX claude-coaster C6.1: виртуальный, C_RidePath считает по нижней точке кривой и нижнему краю основания при крене.

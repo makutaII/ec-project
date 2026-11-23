@@ -12,6 +12,7 @@ class_name C_RidePath extends C_Path
 var _level := true   # оба угла 0 и крена нет: лежит на плоскости
 var _roll_start := 0.0   # крен в начале, градусы (+ правый край ниже)
 var _roll_end := 0.0
+var _dyn := {}   # запечённый профиль нагрузок (RideDynamics.bake), считается при первом обращении
 
 
 ## radius и deg из аргументов не используются: форму задаёт паспорт
@@ -21,6 +22,7 @@ func generate_track_curve(_radius: float, _deg: float) -> Curve3D:
 	if cfg == null:
 		push_error("C_RidePath: у сущности нет паспорта RideTrackConfig, трак строится как обычный")
 		return super(_radius, _deg)
+	_dyn = {}   # кривая строится заново: профиль нагрузок устарел
 	_level = RideShape.is_level(cfg.pitch_start_deg, cfg.pitch_end_deg, cfg.roll_start_deg, cfg.roll_end_deg)
 	_roll_start = cfg.roll_start_deg
 	_roll_end = cfg.roll_end_deg
@@ -88,3 +90,21 @@ func underground_depth(xf: Transform3D) -> float:
 					gy = hit.position.y
 			worst = maxf(worst, gy - p.y)
 	return worst
+
+
+## Общая проверка центробежной силы по радиусу в плане здесь не нужна: боковую нагрузку считает ride_load_at (с учётом крена)
+func handles_lateral_load() -> bool:
+	return true
+
+
+## Нагрузки (n, l) в долях g на вагон в точке offset кривой: n нормальная (< 0 отрыв), l боковая со знаком (в сторону «право»).
+## speed: скорость вдоль трака, ю/с; g_eff: эффективная тяжесть вагона G·grade_k. Векторы профиля из локальных координат
+## кривой переводятся в мир базисом пути (у Entity только поворот по yaw)
+func ride_load_at(offset: float, speed: float, g_eff: float) -> Vector2:
+	if curve == null or path_node == null:
+		return Vector2(1.0, 0.0)
+	if _dyn.is_empty():
+		_dyn = RideDynamics.bake(curve)
+	var smp := RideDynamics.sample(_dyn, offset)
+	var b := path_node.global_basis
+	return RideDynamics.loads(speed, b * (smp.kappa as Vector3), b * (smp.up as Vector3), b * (smp.right as Vector3), g_eff)

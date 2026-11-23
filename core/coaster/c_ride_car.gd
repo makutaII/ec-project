@@ -3,7 +3,7 @@ class_name C_RideCar extends Component
 ###########################
 ## Вагон горок: профиль заезда и пинок рукой (ATTN_27 §27.5, §27.8)
 ###########################
-## Висит на вагонах категории coaster_car. Делает две вещи:
+## Висит на вагонах категории coaster_car. Делает три вещи:
 ##  1. при создании вагона кладёт коэффициент уклона из профиля заезда в шасси (C_Chassis.grade_k);
 ##  2. пинок рукой: ЛКМ зажать на вагоне (курсор не двигать) и отпустить. Короткий клик только выбирает вагон.
 ##     Сила растёт с временем удержания (RideProfile), пока идёт зарядка, над вагоном висит надпись с силой.
@@ -11,6 +11,10 @@ class_name C_RideCar extends Component
 ## Пинок это то же событие on_train_kicked, что у PgUp и PgDn (SelectTool), поэтому на шасси ничего нового нет.
 ## Работает и на сошедшем вагоне на столе: событие тогда ловит C_Kinematics (импульс жёсткому телу вдоль носа).
 ## Числа зарядки (KickCharge) вагон берёт из профиля заезда: клавиши PgUp и PgDn зарядки тоже его используют (on_kick_params).
+##  3. сход по нагрузке (ATTN_27 §27.5, шаг C6.1): на траках горок каждый физический кадр считает нормальную и боковую нагрузку
+##     (RideDynamics, кривизна трака с учётом крена) и сводит вагон, если нормальная нагрузка упала ниже airtime_min_load
+##     (отрыв на горбе, причина «airtime») или боковая выше side_load_max (вылет через борт, причина «side»). Любой сход
+##     (в том числе от сцепки или конца трака) записывается в derail_info и печатается в консоль строкой [RIDE].
 ## Тянуть вагон мышью (драг) можно как раньше: сдвинули курсор дальше CANCEL_PX и зарядка отменяется.
 ## Клавиши PgUp и PgDn при выбранном вагоне пинают, как у остальных вагонов (SelectTool): короткое нажатие силой kick_short_power,
 ## зажатие сильнее (та же зарядка и те же числа профиля).
@@ -20,7 +24,24 @@ const CANCEL_PX := 10.0
 ## Высота плоскости, на которой определяем, в какую половину вагона нажали, над его началом координат
 const HAND_HEIGHT := 1.0
 
+## Состояние вагона для сессии заезда: ready (стоит), running (едет), derailed (сошёл). state_changed шлётся при смене
+signal state_changed(car: C_RideCar)
+
+const STATE_READY := &"ready"
+const STATE_RUNNING := &"running"
+const STATE_DERAILED := &"derailed"
+
+var state: StringName = STATE_READY
+## Причина и обстоятельства схода: reason, speed, load_n, load_l, track, offset, length (пусто, пока вагон не сошёл)
+var derail_info: Dictionary = {}
+## Нагрузки сейчас (в долях g, худшая тележка): нормальная и боковая по модулю
+var load_n := 1.0
+var load_l := 0.0
+
 var _chassis: C_Chassis
+var _bogie: C_Bogie
+var _viol_t := 0.0
+var _viol_reason := ""
 var _charging := false
 var _charge_t := 0.0
 var _press_pos := Vector2.ZERO
@@ -34,6 +55,7 @@ func _ready() -> void:
 ## Все компоненты уже созданы: можно брать шасси
 func on_entity_ready() -> void:
 	_chassis = get_comp(C_Chassis) as C_Chassis
+	_bogie = get_comp(C_Bogie) as C_Bogie
 	if _chassis == null:
 		push_warning("C_RideCar: у вагона нет C_Chassis, профиль заезда не применён")
 		return
@@ -127,3 +149,93 @@ func _update_label() -> void:
 	if _charge_t < Coaster.profile().kick_hold_min:
 		return
 	InfoTips.show_lines(self, [InfoTips.title(KickCharge.label_text(_push_forward, _power_at(_charge_t)))])
+
+
+## ---- Сход по нагрузке (RideDynamics) ----
+
+func _physics_process(delta: float) -> void:
+	if _chassis == null or _bogie == null:
+		return
+	if state == STATE_DERAILED:
+		if _chassis.is_on_rails:   # вагон снова посадили на трак: начинаем заново
+			derail_info = {}
+			_viol_t = 0.0
+			_viol_reason = ""
+			_set_state(STATE_READY)
+		return
+	if not _chassis.is_on_rails:
+		_viol_t = 0.0
+		return
+	var prof := Coaster.profile()
+	var speed := absf(_chassis.current_speed)
+	if speed > prof.load_check_min_speed and state != STATE_RUNNING:
+		_set_state(STATE_RUNNING)
+	var worst_n := INF
+	var worst_l := 0.0
+	var g_eff := RailPhysics.G_ROLL * maxf(_chassis.grade_k, 0.01)
+	for b in _bogie.bogies_data:
+		if not is_instance_valid(b.current_track):
+			continue
+		var pc := b.current_track.get_comp(C_Path) as C_RidePath
+		if pc == null:
+			continue
+		var ld := pc.ride_load_at(b.track_distance, speed, g_eff)
+		worst_n = minf(worst_n, ld.x)
+		worst_l = maxf(worst_l, absf(ld.y))
+	if worst_n == INF:
+		return   # вагон не на траках горок: нагрузки не считаем
+	load_n = worst_n
+	load_l = worst_l
+	var reason := ""
+	if speed > prof.load_check_min_speed:
+		if load_n < prof.airtime_min_load:
+			reason = "airtime"
+		elif load_l > prof.side_load_max:
+			reason = "side"
+	if reason == "":
+		_viol_t = 0.0
+		_viol_reason = ""
+		return
+	if reason != _viol_reason:
+		_viol_reason = reason
+		_viol_t = 0.0
+	_viol_t += delta
+	if _viol_t >= prof.derail_hold_time:
+		entity.send_event("on_derailed", {
+			"reason": reason,
+			"current_velocity_3d": _chassis.current_velocity_3d,
+		})
+
+
+## Любой сход вагона (наш по нагрузке, от конца трака, сцепки, препятствия): запоминаем обстоятельства и печатаем
+func on_derailed(data: Dictionary) -> void:
+	if state == STATE_DERAILED:
+		return
+	var info := {
+		"reason": str(data.get("reason", "?")),
+		"speed": absf(_chassis.current_speed) if _chassis else 0.0,
+		"load_n": load_n,
+		"load_l": load_l,
+		"track": "",
+		"offset": 0.0,
+		"length": 0.0,
+	}
+	if _bogie != null and not _bogie.bogies_data.is_empty():
+		var b = _bogie.bogies_data[0]
+		if is_instance_valid(b.current_track):
+			info.track = String(b.current_track.name)
+			info.offset = b.track_distance
+			var pc := b.current_track.get_comp(C_Path) as C_Path
+			if pc != null:
+				info.length = pc.curve_of(b.route).get_baked_length()
+	derail_info = info
+	print("[RIDE] %s сошёл: %s | v=%.1f | нормальная %.2f g, боковая %.2f g | трак %s, %.1f из %.1f" % [
+		entity.name, info.reason, info.speed, info.load_n, info.load_l, info.track, info.offset, info.length])
+	_set_state(STATE_DERAILED)
+
+
+func _set_state(new_state: StringName) -> void:
+	if state == new_state:
+		return
+	state = new_state
+	state_changed.emit(self)
