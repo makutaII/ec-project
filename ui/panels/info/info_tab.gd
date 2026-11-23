@@ -16,6 +16,9 @@ var control: Control
 var target: Entity
 ## Вкладка-хозяин, если эта вкладка встроена блоком в другую (U5a.3): её подвал общий с хозяином
 var host: InfoTab
+## Для вкладки-хозяина: встроенные блоки и контейнер под них (его создаёт сама вкладка в _setup)
+var _blocks: Array[InfoTab] = []
+var _blocks_box: VBoxContainer
 
 ## Типы сообщений подвала и вариации темы для них (цвета задаёт тема, в коде их нет)
 const FOOTER_VARIATIONS := {&"info": &"LabelDim", &"ok": &"LampOn", &"warn": &"LampWarn", &"bad": &"LampBad"}
@@ -45,9 +48,54 @@ func embed(p: InfoPanel, host_tab: InfoTab) -> void:
 	_setup_footer()
 
 
-## Для хозяина блоков: создаёт контейнер под новый блок. Базовая вкладка блоков не держит
+## Для хозяина блоков: создаёт контейнер под новый блок в _blocks_box (его зовёт make_page у встроенной вкладки)
 func add_block() -> VBoxContainer:
-	return null
+	var block := VBoxContainer.new()
+	block.add_theme_constant_override("separation", 6)
+	_blocks_box.add_child(block)
+	return block
+
+
+## Хозяин встраивает блоки (в _setup, когда _blocks_box уже создан)
+func _embed_blocks(blocks: Array) -> void:
+	for block: InfoTab in blocks:
+		block.embed(panel, self)
+		_blocks.append(block)
+
+
+## Хозяин: подходит ли сущность хоть одному блоку
+func _blocks_can_show(entity: Entity) -> bool:
+	for block in _blocks:
+		if block.can_show(entity):
+			return true
+	return false
+
+
+## Хозяин: привязывает блоки к цели и показывает только подходящие
+func _bind_blocks() -> void:
+	for block in _blocks:
+		block.bind(target)
+		block.control.visible = block.can_show(target)
+
+
+func _unbind_blocks() -> void:
+	for block in _blocks:
+		block.unbind()
+		block.control.visible = false
+
+
+func _refresh_blocks() -> void:
+	for block in _blocks:
+		if block.control.visible:
+			block.refresh()
+
+
+## Заголовок блока внутри вкладки-хозяина (малым шрифтом по теме)
+func block_heading(box: Control, text: String) -> void:
+	var head := Label.new()
+	head.text = text
+	head.theme_type_variation = &"LabelDim"
+	box.add_child(head)
 
 
 ## Показывать ли вкладку у этой сущности. Определяется компонентами цели, а не номером вкладки

@@ -2,11 +2,12 @@ class_name InfoTableTab extends InfoTab
 
 # XX claude-table T4 (новый файл)
 ###########################
-## Вкладка «Стол» (ATTN_23 T4): опоры и высота подмакетника
+## Блок «Стол» во вкладке «Настройки» (ATTN_23 T4, U5a.4): опоры и высота подмакетника
 ###########################
-## Создаётся кодом. Видна у настоящей секции стола (C_TableSection без C_Ghost) в режиме «Секции».
+## Встроен в InfoSettingsTab (embed), создаётся кодом. Видна у настоящей секции стола (C_TableSection без C_Ghost) в режиме «Секции».
 ## Опоры: ножки, рама на полу (стол 5–20 u), кронштейны к стене (нужна стена у каждой группы секций).
-## Всё меняет LYM; отказ (кронштейны без стены) показывается красным и возвращает прежний выбор.
+## Всё меняет LYM; отказ (кронштейны без стены) идёт в подвал вкладки красным и возвращает прежний выбор,
+## предупреждение об опорах там же (тип warn).
 
 const SUPPORTS := [LayoutConfig.Support.LEGS, LayoutConfig.Support.PLINTH, LayoutConfig.Support.WALL]
 
@@ -16,12 +17,11 @@ var _height_spin: SpinBox
 var _aisle_spin: SpinBox
 ## Идёт запись значений в контролы: их сигналы (SpinBox сам правит значение при смене пределов) в LYM не идут
 var _syncing := false
-var _warn: Label
-var _msg: Label
 
 
 func _setup() -> void:
 	var box := make_page("Стол")
+	block_heading(box, "Стол")
 	_info = Label.new()
 	box.add_child(_info)
 	var lbl := Label.new()
@@ -54,14 +54,6 @@ func _setup() -> void:
 	_aisle_spin.value_changed.connect(_on_aisle_changed)
 	row2.add_child(_aisle_spin)
 	box.add_child(row2)
-	_warn = Label.new()
-	_warn.modulate = Color(1.0, 0.85, 0.3)
-	_warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_warn)
-	_msg = Label.new()
-	_msg.modulate = Color(1.0, 0.35, 0.35)
-	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_msg)
 
 
 func can_show(entity: Entity) -> bool:
@@ -69,7 +61,7 @@ func can_show(entity: Entity) -> bool:
 
 
 func _on_bind() -> void:
-	_msg.text = ""
+	footer_message(&"table_msg", "")
 	if can_show(target):   # bind зовут для любой цели: у чужой цели вкладку не трогаем (иначе SpinBox сбросит высоту стола)
 		_sync(true)
 
@@ -96,14 +88,14 @@ func _sync(force: bool) -> void:
 	_height_spin.max_value = range_h.y
 	set_spin(_height_spin, LYM.config.height)
 	set_spin(_aisle_spin, LYM.config.aisle_min)
-	_warn.text = LYM.support_warning()
+	footer_message(&"table_warn", LYM.support_warning(), &"warn")
 	_syncing = false
 
 
 func _on_support_selected(index: int) -> void:
 	if _syncing:
 		return
-	_msg.text = LYM.set_support(SUPPORTS[index])
+	footer_message(&"table_msg", LYM.set_support(SUPPORTS[index]), &"bad")
 	_sync(true)   # отказ: возвращает прежний выбор
 
 

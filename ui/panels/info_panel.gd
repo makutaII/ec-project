@@ -47,10 +47,7 @@ func _ready() -> void:
 	_add_tab(_main, tab_container.get_node("MainTab"))
 	_add_tab(_power, tab_container.get_node("PowerTab"))
 	_add_tab(InfoVisualTab.new(), tab_container.get_node("VisualTab"))   # U13: секции компонентов (D13); U5a.3: в ней же блоки механизмов, света и листа
-	_add_tab(InfoTableTab.new())   # XX claude-table T4: опоры и высота стола
-	_add_tab(InfoSwitchTab.new())
-	_add_tab(InfoDevicesTab.new())   # D4: 3D-пульт и провода
-	_add_tab(InfoSwitchboxTab.new())   # D5: коммутаторы и задачи
+	_add_tab(InfoSettingsTab.new())   # U5a.4: блоки стрелки, стола (T4), пульта и проводов (D4), коммутатора (D5)
 	_update_tab_visibility()
 
 	# Трак питания обновляется по сигналам менеджера, поезд живыми значениями вкладки

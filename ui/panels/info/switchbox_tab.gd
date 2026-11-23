@@ -1,9 +1,9 @@
 class_name InfoSwitchboxTab extends InfoTab
 
 ###########################
-## Вкладка «Коммутатор» (ATTN_10 D5)
+## Блок «Коммутатор» во вкладке «Настройки» (ATTN_10 D5, U5a.4)
 ###########################
-## У селектора блоков, реверсора и предохранителя: положение, замена предохранителя, лимит тока,
+## Встроен в InfoSettingsTab (embed). У селектора блоков, реверсора и предохранителя: положение, замена предохранителя, лимит тока,
 ## «Автопроводка» устройства, список игровых задач с проверкой условий (PowerTasks).
 
 var _state: Label
@@ -11,13 +11,13 @@ var _pos_box: HBoxContainer
 var _fuse_box: VBoxContainer
 var _limit: SpinBox
 var _replace: Button
-var _auto_msg: Label
 var _tasks: Label
 var _syncing := false
 
 
 func _setup() -> void:
 	var box := make_page("Коммутатор")
+	block_heading(box, "Коммутатор")
 	_state = Label.new()
 	_state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_state.custom_minimum_size = Vector2(260, 0)
@@ -47,14 +47,9 @@ func _setup() -> void:
 	auto_btn.text = "Автопроводка (пульт → устройство → клипы)"
 	auto_btn.pressed.connect(_on_autowire)
 	box.add_child(auto_btn)
-	_auto_msg = Label.new()
-	_auto_msg.modulate = Color(1, 1, 1, 0.7)
-	box.add_child(_auto_msg)
 
 	box.add_child(HSeparator.new())
-	var t := Label.new()
-	t.text = "Задачи"
-	box.add_child(t)
+	block_heading(box, "Задачи")
 	_tasks = Label.new()
 	_tasks.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tasks.custom_minimum_size = Vector2(260, 0)
@@ -66,7 +61,7 @@ func can_show(entity: Entity) -> bool:
 
 
 func _on_bind() -> void:
-	_auto_msg.text = ""
+	footer_message(&"auto_dev", "")
 	for c in _pos_box.get_children():
 		c.queue_free()
 	var dev := _dev()
@@ -129,5 +124,8 @@ func _on_autowire() -> void:
 	if dev == null:
 		return
 	var n := dev.autowire(target.get_parent())
-	_auto_msg.text = "Создано проводов: %d" % n if n > 0 else "Нечего подключать: нужен пульт с выводом, клипы с метками его вывода"
+	if n > 0:
+		footer_message(&"auto_dev", "Создано проводов: %d" % n, &"ok")
+	else:
+		footer_message(&"auto_dev", "Нечего подключать: нужен пульт с выводом, клипы с метками его вывода", &"warn")
 	refresh()

@@ -1,9 +1,10 @@
 class_name InfoSwitchTab extends InfoTab
 
 ###########################
-## Вкладка «Стрелка» (отладка, XX claude-switch)
+## Блок «Стрелка» во вкладке «Настройки» (отладка, XX claude-switch, U5a.4)
 ###########################
-## Создается кодом. Меняет СОСТОЯНИЕ C_Switch в игре, паспорт (SwitchConfig) не трогает.
+## Встроен в InfoSettingsTab (embed), создается кодом. Меняет СОСТОЯНИЕ C_Switch в игре, паспорт (SwitchConfig) не трогает.
+## Отказ перекладки идет в подвал вкладки.
 
 const SWITCH_REASONS := {
 	&"moving": "идет перекладка",
@@ -16,7 +17,6 @@ const SWITCH_REASONS := {
 }
 
 var _sw_status: Label
-var _sw_msg: Label
 var _sw_control: OptionButton
 var _sw_routing: CheckBox
 var _sw_frog: OptionButton
@@ -25,10 +25,11 @@ var _sw_syncing := false   # идет программная расстанов�
 
 func _setup() -> void:
 	var box := make_page("Стрелка")
+	block_heading(box, "Стрелка")
 
 	var hint := Label.new()
 	hint.text = "Отладка: меняет состояние стрелки в игре, паспорт не трогает"
-	hint.modulate = Color(1, 1, 1, 0.55)
+	hint.theme_type_variation = &"LabelDim"
 	box.add_child(hint)
 
 	_sw_status = Label.new()
@@ -38,10 +39,6 @@ func _setup() -> void:
 	throw_btn.text = "Переложить (в обход рычага)"
 	throw_btn.pressed.connect(_on_switch_throw_pressed)
 	box.add_child(throw_btn)
-
-	_sw_msg = Label.new()
-	_sw_msg.modulate = Color(1.0, 0.35, 0.35)
-	box.add_child(_sw_msg)
 
 	var l1 := Label.new()
 	l1.text = "Управление"
@@ -84,6 +81,7 @@ func _get_switch() -> C_Switch:
 
 
 func _on_bind() -> void:
+	footer_message(&"switch", "")
 	_update_switch_tab()
 
 
@@ -118,7 +116,7 @@ func _on_switch_throw_pressed() -> void:
 		return
 	var d := {"route": -1, "source": &"force"}
 	target.send_event("on_switch_request", d)
-	_sw_msg.text = "" if d.get("ok", false) else "Отказ: %s" % SWITCH_REASONS.get(d.get("reason", &""), String(d.get("reason", &"")))
+	footer_message(&"switch", "" if d.get("ok", false) else "Отказ: %s" % SWITCH_REASONS.get(d.get("reason", &""), String(d.get("reason", &""))), &"bad")
 	_update_switch_tab()
 
 

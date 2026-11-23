@@ -1,14 +1,13 @@
 class_name InfoDevicesTab extends InfoTab
 
 ###########################
-## Вкладка «Пульт и провода» (ATTN_10 D4)
+## Блок «Пульт и провода» во вкладке «Настройки» (ATTN_10 D4, U5a.4)
 ###########################
-## Создается кодом. У 3D-пульта: модель, выводы, «Автопроводка», сброс защиты, общий флаг «проводка обязательна».
+## Встроен в InfoSettingsTab (embed), создается кодом. У 3D-пульта: модель, выводы, «Автопроводка», сброс защиты, общий флаг «проводка обязательна».
 ## У провода: «Скрутка» (меняет полярность), куда ведёт.
 
 var _src_box: VBoxContainer
 var _src_info: Label
-var _auto_msg: Label
 var _wiring_req: CheckBox
 var _wire_box: VBoxContainer
 var _wire_info: Label
@@ -18,6 +17,7 @@ var _syncing := false
 
 func _setup() -> void:
 	var box := make_page("Пульт и провода")
+	block_heading(box, "Пульт и провода")
 
 	_src_box = VBoxContainer.new()
 	box.add_child(_src_box)
@@ -29,9 +29,6 @@ func _setup() -> void:
 	auto_btn.text = "Автопроводка (провода к клипам по меткам)"
 	auto_btn.pressed.connect(_on_autowire_pressed)
 	_src_box.add_child(auto_btn)
-	_auto_msg = Label.new()
-	_auto_msg.modulate = Color(1, 1, 1, 0.7)
-	_src_box.add_child(_auto_msg)
 	var reset_btn := Button.new()
 	reset_btn.text = "Сбросить защиту источника"
 	reset_btn.pressed.connect(_on_reset_pressed)
@@ -53,7 +50,7 @@ func _setup() -> void:
 	_wire_box.add_child(_twist)
 	var del_hint := Label.new()
 	del_hint.text = "Удалить провод: Del"
-	del_hint.modulate = Color(1, 1, 1, 0.55)
+	del_hint.theme_type_variation = &"LabelDim"
 	_wire_box.add_child(del_hint)
 
 
@@ -64,7 +61,7 @@ func can_show(entity: Entity) -> bool:
 
 
 func _on_bind() -> void:
-	_auto_msg.text = ""
+	footer_message(&"auto_src", "")
 	refresh()
 
 
@@ -101,7 +98,10 @@ func _on_autowire_pressed() -> void:
 	if ps == null:
 		return
 	var n := ps.autowire(target.get_parent())
-	_auto_msg.text = "Создано проводов: %d" % n if n > 0 else "Нечего подключать: нет клипов с метками этого источника или они уже с проводом"
+	if n > 0:
+		footer_message(&"auto_src", "Создано проводов: %d" % n, &"ok")
+	else:
+		footer_message(&"auto_src", "Нечего подключать: нет клипов с метками этого источника или они уже с проводом", &"warn")
 	refresh()
 
 
