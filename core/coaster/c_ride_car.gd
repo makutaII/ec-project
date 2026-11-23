@@ -24,16 +24,20 @@ const CANCEL_PX := 10.0
 ## Высота плоскости, на которой определяем, в какую половину вагона нажали, над его началом координат
 const HAND_HEIGHT := 1.0
 
-## Состояние вагона для сессии заезда: ready (стоит), running (едет), derailed (сошёл). state_changed шлётся при смене
+## Состояние вагона для сессии заезда: ready (стоит), running (едет), stalled (остановился, не хватило энергии),
+## derailed (сошёл). state_changed шлётся при смене
 signal state_changed(car: C_RideCar)
 
 const STATE_READY := &"ready"
 const STATE_RUNNING := &"running"
+const STATE_STALLED := &"stalled"
 const STATE_DERAILED := &"derailed"
 
 var state: StringName = STATE_READY
-## Причина и обстоятельства схода: reason, speed, load_n, load_l, track, offset, length (пусто, пока вагон не сошёл)
+## Причина и обстоятельства схода или остановки: reason, speed, load_n, load_l, track, offset, length (пусто, пока вагон ехал)
 var derail_info: Dictionary = {}
+## Сколько раз вагон ударился сцепкой сильнее bump_notice_speed (для оценки заезда)
+var bumps := 0
 ## Нагрузки сейчас (в долях g, худшая тележка): нормальная и боковая по модулю
 var load_n := 1.0
 var load_l := 0.0
@@ -42,6 +46,8 @@ var _chassis: C_Chassis
 var _bogie: C_Bogie
 var _viol_t := 0.0
 var _viol_reason := ""
+var _stall_t := 0.0
+var _last_bump_msec := -100000
 var _charging := false
 var _charge_t := 0.0
 var _press_pos := Vector2.ZERO
@@ -161,6 +167,7 @@ func _physics_process(delta: float) -> void:
 			derail_info = {}
 			_viol_t = 0.0
 			_viol_reason = ""
+			_stall_t = 0.0
 			_set_state(STATE_READY)
 		return
 	if not _chassis.is_on_rails:
@@ -169,7 +176,17 @@ func _physics_process(delta: float) -> void:
 	var prof := Coaster.profile()
 	var speed := absf(_chassis.current_speed)
 	if speed > prof.load_check_min_speed and state != STATE_RUNNING:
+		_stall_t = 0.0
+		derail_info = {}
 		_set_state(STATE_RUNNING)
+	# Остановка: уже ехавший вагон стоит дольше stall_time (кроме момента разворота на вершине, он короче)
+	if state == STATE_RUNNING:
+		if speed < prof.stall_speed:
+			_stall_t += delta
+			if _stall_t >= prof.stall_time:
+				_stall()
+		else:
+			_stall_t = 0.0
 	var worst_n := INF
 	var worst_l := 0.0
 	var g_eff := RailPhysics.G_ROLL * maxf(_chassis.grade_k, 0.01)
@@ -211,8 +228,44 @@ func _physics_process(delta: float) -> void:
 func on_derailed(data: Dictionary) -> void:
 	if state == STATE_DERAILED:
 		return
+	var info := _collect_info(str(data.get("reason", "?")))
+	derail_info = info
+	print("[RIDE] %s сошёл: %s | v=%.1f | нормальная %.2f g, боковая %.2f g | трак %s, %.1f из %.1f" % [
+		entity.name, info.reason, info.speed, info.load_n, info.load_l, info.track, info.offset, info.length])
+	LYM.notice.emit(RideReport.message(info))   # обычное уведомление сверху (U: баннер на 3 с)
+	_set_state(STATE_DERAILED)
+
+
+## Мягкий удар сцепки без схода (вагон остался на рельсах): считаем и сообщаем, если сильнее bump_notice_speed.
+## Событие получают оба вагона, уведомление не чаще раза в секунду
+func on_coupler_impact(data: Dictionary) -> void:
+	if bool(data.get("derailed", false)):
+		return   # сход уже сообщает on_derailed
+	var v := absf(float(data.get("v_close", 0.0)))
+	if v < Coaster.profile().bump_notice_speed:
+		return
+	bumps += 1
+	var now := Time.get_ticks_msec()
+	if now - _last_bump_msec < 1000:
+		return
+	_last_bump_msec = now
+	print("[RIDE] %s столкновение: v сближения %.1f" % [entity.name, v])
+	LYM.notice.emit(RideReport.bump_message(v))
+
+
+## Остановка: уже ехавший вагон стоит. Состояние stalled, причина в derail_info и в уведомлении
+func _stall() -> void:
+	var info := _collect_info("stalled")
+	derail_info = info
+	print("[RIDE] %s остановился | трак %s, %.1f из %.1f" % [entity.name, info.track, info.offset, info.length])
+	LYM.notice.emit(RideReport.message(info))
+	_set_state(STATE_STALLED)
+
+
+## Обстоятельства для сообщения: причина, скорость, нагрузки и где (название трака под передней тележкой, расстояние, длина)
+func _collect_info(reason: String) -> Dictionary:
 	var info := {
-		"reason": str(data.get("reason", "?")),
+		"reason": reason,
 		"speed": absf(_chassis.current_speed) if _chassis else 0.0,
 		"load_n": load_n,
 		"load_l": load_l,
@@ -223,15 +276,13 @@ func on_derailed(data: Dictionary) -> void:
 	if _bogie != null and not _bogie.bogies_data.is_empty():
 		var b = _bogie.bogies_data[0]
 		if is_instance_valid(b.current_track):
-			info.track = String(b.current_track.name)
+			var idc := b.current_track.get_comp(C_Identity) as C_Identity
+			info.track = idc.get_name_e() if idc != null else String(b.current_track.name)
 			info.offset = b.track_distance
 			var pc := b.current_track.get_comp(C_Path) as C_Path
 			if pc != null:
 				info.length = pc.curve_of(b.route).get_baked_length()
-	derail_info = info
-	print("[RIDE] %s сошёл: %s | v=%.1f | нормальная %.2f g, боковая %.2f g | трак %s, %.1f из %.1f" % [
-		entity.name, info.reason, info.speed, info.load_n, info.load_l, info.track, info.offset, info.length])
-	_set_state(STATE_DERAILED)
+	return info
 
 
 func _set_state(new_state: StringName) -> void:

@@ -23,6 +23,13 @@ class_name RideProfile extends Resource
 ## Ниже этой скорости (ю/с) нагрузки не проверяются
 @export var load_check_min_speed: float = 0.5
 
+@export_category("Остановка и столкновение")
+## Вагон, который уже ехал, считается остановившимся, если скорость ниже этой (ю/с) держится stall_time секунд
+@export var stall_speed: float = 0.05
+@export var stall_time: float = 1.0
+## Мягкий удар сцепки (без схода) сильнее этой скорости сближения (ю/с) сообщается как столкновение; слабее это обычная сцепка
+@export var bump_notice_speed: float = 2.0
+
 @export_category("Пинок рукой (удержание ЛКМ на вагоне)")
 ## Удержание короче этого это обычный клик (выбор вагона), пинка нет, с, сек
 @export var kick_hold_min: float = 0.25
