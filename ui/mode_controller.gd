@@ -41,6 +41,10 @@ var _library_keep_room: StringName = &""
 @onready var _mode_panel = %TopBar.get_mode_panel()
 
 
+func _enter_tree() -> void:
+	add_to_group(&"mode_controller")   # по группе его находит ToolController (не по пути, U8)
+
+
 func _ready() -> void:
 	#⚡Сигнал о выборе режима из панели коннектится с контроллером
 	_mode_panel.mode_selected.connect(on_mode_selected)

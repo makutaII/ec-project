@@ -33,7 +33,7 @@ var table_tool: TableTool   # XX claude-table T2: постановка секц�
 
 
 
-# UI. Единственная связь с UI: ModeController (сигнал смены режима).
+# UI. Единственная связь с UI: ModeController (сигнал смены режима), его находим по группе mode_controller.
 # Остальное UI берёт из сигналов ниже (selection_changed, tool_changed, build_selection_cleared),
 # а панель инструментов (ToolbarController) сама находит этот узел по группе tool_controller
 
@@ -56,8 +56,13 @@ var current_target: Entity = null
 func _ready() -> void:
 	add_to_group(&"tool_controller")   # по группе его находит UI (ToolbarController)
 
-	# ⚡Сигнал из моде контроллера
-	$"../UI/ModeController".current_mode_changed.connect(on_current_mode_changed)
+	# ⚡Сигнал из моде контроллера. По группе, а не по пути: узел UI можно переносить (U8);
+	# в группу ModeController входит в _enter_tree, то есть раньше любого _ready
+	var mode_node := get_tree().get_first_node_in_group(&"mode_controller")
+	if mode_node:
+		mode_node.current_mode_changed.connect(on_current_mode_changed)
+	else:
+		push_error("ToolController: ModeController не найден (группа mode_controller)")
 
 	# Выбор объекта на панели (select_build_object) и кнопка «Дубль» (duplicate_last_object) подключает
 	# сам ToolbarController. Обратные сигналы: BuildTool.last_changed и build_selection_cleared
