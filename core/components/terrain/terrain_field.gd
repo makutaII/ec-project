@@ -281,6 +281,29 @@ func shown_sample(x: float, z: float) -> float:
 	return lerpf(a, b, tz)
 
 
+## H6. Нет поверхности поля (ни слоя, ни ложа трака вокруг точки): ground_top возвращает это значение
+const NO_GROUND := -INF
+
+
+## H6. Есть ли слой или ложе трака хотя бы в одном из четырёх узлов вокруг точки мира
+func has_ground(x: float, z: float) -> bool:
+	var i := floori(x / STEP)
+	var j := floori(z / STEP)
+	return _has_ground_node(i, j) or _has_ground_node(i + 1, j) or _has_ground_node(i, j + 1) or _has_ground_node(i + 1, j + 1)
+
+
+func _has_ground_node(i: int, j: int) -> bool:
+	return has_layer(i, j) or bed_height_at(i, j) > BED_NONE * 0.5
+
+
+## H6. Высота показанной поверхности под точкой (с ложем трака) для воды. NO_GROUND, если рядом нет ни слоя, ни ложа:
+## там земля это стол или лист, их считает прежняя заливка, а пол поля не вычисляется зря
+func ground_top(x: float, z: float) -> float:
+	if not has_ground(x, z):
+		return NO_GROUND
+	return shown_sample(x, z)
+
+
 ## Привязать к открытой правке действие отмены: cb вызывается, когда эту правку отменяют (Ctrl+Z). Так вместе с полем возвращаются
 ## и объекты, которые кисть подняла (H3). Вне правки или у правки без изменений ничего не делает (cb не вызывается и не хранится)
 func attach_undo(cb: Callable) -> void:

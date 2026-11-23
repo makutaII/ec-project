@@ -8,8 +8,11 @@ class_name WaterFill extends RefCounted
 ## Ячейка мокрая, если в слое воды [level_y - T, level_y) в ней нет твёрдого тела листа и она связана
 ## (по 4 соседям) с ячейкой точки клика. Домен (снимок стола на момент заливки) ограничивает область:
 ## за ним стена, а не утечка. Всё, что ниже уровня и достижимо, заливается.
-## Занятость ячейки подаёт вызывающий (Callable(Vector2) -> bool): blocker_for() строит её по листам TGM,
+## Занятость ячейки подаёт вызывающий (Callable(Vector2) -> bool): blocker_for() строит её по листам TGM и по полю высот шпатлёвки (H6),
 ## тест подаёт свою. Центр ячейки (i + 0,5) * шаг.
+## H6. Поле: ячейка занята, если показанная поверхность поля (слой и ложе трака) в её центре не ниже плоскости воды. Дно у воды любое,
+## плоскость одна на весь водоём: яма в поле заливается до уровня, подкоп берега даёт растекание (C_Water пересчитывает область при правке поля).
+## У склона дорисовывается кромка (shore): занятые соседние ячейки, часть которых ниже плоскости, иначе между водой и склоном остаётся щель.
 
 ## Предохранитель области, ячеек (стол 200 x 100 при шаге 1 даёт 20000)
 const MAX_CELLS := 60000
@@ -35,8 +38,50 @@ static func cell_center(c: Vector2i, step: float) -> Vector2:
 	return Vector2((float(c.x) + 0.5) * step, (float(c.y) + 0.5) * step)
 
 
-## Занятость по листам: точка занята, если лист в ней сплошной в слое воды [level_y - T, level_y)
+## Занятость ячейки водой: листы и поле высот шпатлёвки (H6). Callable(Vector2) -> bool, центр ячейки в мире
 static func blocker_for(level_y: float) -> Callable:
+	var sheets := sheet_blocker_for(level_y)
+	var fld := field_blocker(TGM.field if is_instance_valid(TGM) else null, level_y)
+	if not fld.is_valid():
+		return sheets
+	return func(p: Vector2) -> bool: return sheets.call(p) or fld.call(p)
+
+
+## H6. Занятость полем: показанная поверхность поля (слой и ложе трака) в точке не ниже плоскости воды (level_y - SURFACE_DROP).
+## Вода идёт по уровню плоскостью, а дно у неё любое: яма, выкопанная кистью, заливается до уровня. Поля нет или оно пустое: Callable()
+static func field_blocker(field: TerrainField, level_y: float) -> Callable:
+	if field == null or (field.is_empty() and not field.has_bed()):
+		return Callable()
+	var plane := level_y - SURFACE_DROP
+	return func(p: Vector2) -> bool: return field.ground_top(p.x, p.y) >= plane - EPS
+
+
+## H6. Кромка у склона: ячейка сама занята (центр выше плоскости воды), но часть её ниже плоскости, поэтому вода подходит к склону
+## вплотную. Такие ячейки рисуются водой (выше склона плоскость скрыта землёй), но воду не растекают и в область не входят.
+## Callable(Vector2) -> bool по центру ячейки; девять узлов ячейки (углы, середины сторон, центр); sheet_blocked: занятость листами
+static func field_shore(field: TerrainField, level_y: float, step: float, sheet_blocked: Callable = Callable()) -> Callable:
+	if field == null or (field.is_empty() and not field.has_bed()):
+		return Callable()
+	var plane := level_y - SURFACE_DROP
+	var h := step * 0.5
+	return func(c: Vector2) -> bool:
+		if sheet_blocked.is_valid() and sheet_blocked.call(c):
+			return false
+		for dz in [-h, 0.0, h]:
+			for dx in [-h, 0.0, h]:
+				# NO_GROUND (-INF): здесь нет поля, земля это стол или лист, ниже плоскости (выше был бы лист, его считает sheet_blocked)
+				if field.ground_top(c.x + dx, c.y + dz) < plane - EPS:
+					return true
+		return false
+
+
+## Кромка по листам и полю для C_Water и инструмента: Callable() если поля нет
+static func shore_for(level_y: float, step: float) -> Callable:
+	return field_shore(TGM.field if is_instance_valid(TGM) else null, level_y, step, sheet_blocker_for(level_y))
+
+
+## Занятость по листам: точка занята, если лист в ней сплошной в слое воды [level_y - T, level_y)
+static func sheet_blocker_for(level_y: float) -> Callable:
 	var T: float = Global.settings.layer_height
 	var lo := level_y - T
 	var cand: Array[Dictionary] = []
@@ -67,11 +112,21 @@ static func footprint_inside() -> Callable:
 ## Залить. Результат:
 ##  ok - область найдена, иначе why = причина ("" при ok);
 ##  cells - Dictionary Vector2i -> true; count; touches_edge - область дошла до края домена;
+##  shore - кромка у склона (H6, только если подан shore): занятые ячейки рядом с водой, часть которых ниже плоскости воды;
+##    в область и счёт не входят, меш рисует их вместе с cells;
 ##  bounds - Rect2 области в мире (ю); dom - Rect2i ячеек домена.
 ## inside (необязательно): Callable(Vector2) -> bool, центр ячейки на плите. Ячейка вне плиты это край домена (стена, не утечка)
+## shore (необязательно): Callable(Vector2) -> bool по центру занятой ячейки (shore_for): ячейка кромки
 static func fill(seed_pos: Vector2, level_y: float, domain: Rect2, step: float, blocked: Callable, max_cells: int = MAX_CELLS,
-		inside: Callable = Callable()) -> Dictionary:
-	var res := {"ok": false, "why": "", "cells": {}, "count": 0, "touches_edge": false, "bounds": Rect2(), "dom": Rect2i()}
+		inside: Callable = Callable(), shore: Callable = Callable()) -> Dictionary:
+	var res := {"ok": false, "why": "", "cells": {}, "count": 0, "touches_edge": false, "bounds": Rect2(), "dom": Rect2i(), "shore": {}}
+	var memo := {}   # Vector2i -> bool: занятость считается один раз на ячейку (поле считать дорого, соседи спрашивают её по несколько раз)
+	var is_blocked := func(c: Vector2i) -> bool:
+		if memo.has(c):
+			return bool(memo[c])
+		var b: bool = blocked.call(Vector2((float(c.x) + 0.5) * step, (float(c.y) + 0.5) * step))
+		memo[c] = b
+		return b
 	var T: float = Global.settings.layer_height
 	if level_y < T - EPS:
 		res["why"] = "Уровень воды ниже первого слоя"
@@ -82,7 +137,7 @@ static func fill(seed_pos: Vector2, level_y: float, domain: Rect2, step: float, 
 	if not dom.has_point(s) or (inside.is_valid() and not inside.call(cell_center(s, step))):
 		res["why"] = "Точка за краем стола"
 		return res
-	if blocked.call(cell_center(s, step)):
+	if is_blocked.call(s):
 		res["why"] = "Здесь выше уровня воды"
 		return res
 	var cells := {}
@@ -102,7 +157,7 @@ static func fill(seed_pos: Vector2, level_y: float, domain: Rect2, step: float, 
 			if not dom.has_point(n) or (inside.is_valid() and not inside.call(cell_center(n, step))):
 				edge = true
 				continue
-			if blocked.call(cell_center(n, step)):
+			if is_blocked.call(n):
 				continue
 			cells[n] = true
 			queue.append(n)
@@ -111,6 +166,18 @@ static func fill(seed_pos: Vector2, level_y: float, domain: Rect2, step: float, 
 		if queue.size() > max_cells:
 			res["why"] = "Слишком большая область"
 			return res
+	if shore.is_valid():
+		var ring := {}
+		for c: Vector2i in cells:
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var n: Vector2i = c + d
+				if cells.has(n) or ring.has(n) or not dom.has_point(n):
+					continue
+				if inside.is_valid() and not inside.call(cell_center(n, step)):
+					continue
+				if shore.call(cell_center(n, step)):
+					ring[n] = true
+		res["shore"] = ring
 	res["ok"] = true
 	res["cells"] = cells
 	res["count"] = cells.size()

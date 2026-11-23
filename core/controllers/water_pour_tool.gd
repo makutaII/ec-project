@@ -9,7 +9,7 @@ class_name WaterPourTool extends Node
 ## за краем стола вода останавливается (океан у края), достроенный потом кусок стола воду не расширяет.
 ## Ввод: ЛКМ налить, Shift+ЛКМ осушить (убрать воду под курсором), R/F глубина (Shift ×5), PgUp/PgDn ±5,
 ## Ctrl+Z отменить последний налив, ПКМ выйти в SelectTool.
-## Вода это Entity (data/terrain/water_body.tres) с C_Water: живая, пересчитывается при правке рельефа.
+## Вода это Entity (data/terrain/water_body.tres) с C_Water: живая, пересчитывается при правке рельефа (листов и поля высот, H6).
 
 const BODY_PATH := "res://data/terrain/water_body.tres"
 const MAX_DEPTH := 32
@@ -51,6 +51,9 @@ func enter() -> void:
 	_ensure_preview()
 	if not TGM.terrain_changed.is_connected(_on_terrain_changed):
 		TGM.terrain_changed.connect(_on_terrain_changed)
+	if not TGM.field.changed.is_connected(_on_field_changed):   # H6: вода считается и по полю высот
+		TGM.field.changed.connect(_on_field_changed)
+		TGM.field.bed_changed.connect(_on_field_changed)
 	Hints.set_context(&"water_pour", true)
 	controller.publish_selection(null)
 
@@ -59,6 +62,9 @@ func exit(_to_drag: bool = false) -> void:
 	Hints.set_context(&"water_pour", false)
 	if TGM.terrain_changed.is_connected(_on_terrain_changed):
 		TGM.terrain_changed.disconnect(_on_terrain_changed)
+	if TGM.field.changed.is_connected(_on_field_changed):
+		TGM.field.changed.disconnect(_on_field_changed)
+		TGM.field.bed_changed.disconnect(_on_field_changed)
 	if is_instance_valid(_mi):
 		_mi.queue_free()
 	InfoTips.clear(self)
@@ -68,6 +74,11 @@ func exit(_to_drag: bool = false) -> void:
 
 
 func _on_terrain_changed(_aabb: AABB) -> void:
+	_terrain_ver += 1
+	_dirty = true
+
+
+func _on_field_changed(_keys: Array) -> void:
 	_terrain_ver += 1
 	_dirty = true
 
@@ -184,14 +195,16 @@ func process_tick(delta: float) -> void:
 			_dirty = true
 
 	var T: float = Global.settings.layer_height
-	var hit := controller.get_mouse_ray(Global.active_layers(["ground"]))
+	# H6: луч видит и поле высот (слой plaster): дно ямы, вырытой кистью, а не стол под ним. Уровень считается от целого слоя
+	# под поверхностью (дно 0,7 слоя даёт 0, глубина 1 заливает яму ровно до верха слоя 1), допуск 0,02 слоя к целому сверху
+	var hit := controller.get_mouse_ray(Global.active_layers(["ground", "plaster"]))
 	if hit.is_empty():
 		if _has_cursor:
 			_has_cursor = false
 			_dirty = true
 		_hide_preview()
 		return
-	var fl := roundi(hit.position.y / T)
+	var fl := floori(hit.position.y / T + 0.02)
 	var step: float = Global.settings.terrain_grid_step
 	var c := Vector2(snappedf(hit.position.x, step), snappedf(hit.position.z, step))
 	if not _has_cursor or not c.is_equal_approx(_cursor) or fl != _floor_level:
@@ -214,7 +227,7 @@ func _refresh() -> void:
 	if not reuse:
 		var ly := float(level) * float(Global.settings.layer_height)
 		_res = WaterFill.fill(_cursor, ly, TGM.table_rect(), step, WaterFill.blocker_for(ly),
-				WaterFill.MAX_CELLS, WaterFill.footprint_inside())   # XX claude-table T2
+				WaterFill.MAX_CELLS, WaterFill.footprint_inside(), WaterFill.shore_for(ly, step))   # XX claude-table T2; H6
 		_res_level = level
 		_res_ver = _terrain_ver
 	_reason = "" if _res["ok"] else str(_res["why"])

@@ -324,6 +324,8 @@ func field_dirty() -> void:
 	_on_layout_changed_field()
 	_bed_cache.clear()
 	_bed_request()
+	for w in get_waters():   # H6: вода могла посчитаться раньше, чем загрузилось поле
+		w.refresh_later()
 
 
 ## Внешние контуры стола (объединение секций) или прямоугольник стола v1, если секций нет
