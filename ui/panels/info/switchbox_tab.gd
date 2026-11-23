@@ -20,7 +20,7 @@ func _setup() -> void:
 	block_heading(box, "Коммутатор")
 	_state = Label.new()
 	_state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_state.custom_minimum_size = Vector2(260, 0)
+	_state.custom_minimum_size = Vector2(120, 0)
 	box.add_child(_state)
 	_pos_box = HBoxContainer.new()
 	box.add_child(_pos_box)
@@ -52,7 +52,7 @@ func _setup() -> void:
 	block_heading(box, "Задачи")
 	_tasks = Label.new()
 	_tasks.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_tasks.custom_minimum_size = Vector2(260, 0)
+	_tasks.custom_minimum_size = Vector2(120, 0)
 	box.add_child(_tasks)
 
 

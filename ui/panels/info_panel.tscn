@@ -29,7 +29,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
 size_flags_horizontal = 0
-text = "  1111111111"
+text = "  Название объекта"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -37,7 +37,7 @@ vertical_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 8
-text = "2222222"
+text = "node : Name"
 
 [node name="TabContainer" type="TabContainer" parent="VBoxContainer" unique_id=2133864374]
 unique_name_in_owner = true
@@ -84,7 +84,7 @@ columns = 2
 
 [node name="Label" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrackContainer" unique_id=1881058662]
 layout_mode = 2
-text = "Radius: "
+text = "Радиус: "
 
 [node name="RadiusLabel" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrackContainer" unique_id=1695608652]
 unique_name_in_owner = true
@@ -93,7 +93,7 @@ text = "123"
 
 [node name="Label2" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrackContainer" unique_id=1777799898]
 layout_mode = 2
-text = "Deg: "
+text = "Угол: "
 
 [node name="DegLabel" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrackContainer" unique_id=1499112486]
 unique_name_in_owner = true
@@ -102,7 +102,7 @@ text = "90"
 
 [node name="Label3" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrackContainer" unique_id=684506109]
 layout_mode = 2
-text = "Length: "
+text = "Длина: "
 
 [node name="LengthLabel" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrackContainer" unique_id=33119825]
 unique_name_in_owner = true
@@ -116,7 +116,7 @@ columns = 2
 
 [node name="Label" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrainContainer" unique_id=566998660]
 layout_mode = 2
-text = "Mass: "
+text = "Масса: "
 
 [node name="MassLabel" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrainContainer" unique_id=1275727660]
 unique_name_in_owner = true
@@ -125,7 +125,7 @@ text = "123"
 
 [node name="Label2" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrainContainer" unique_id=1960186195]
 layout_mode = 2
-text = "Power: "
+text = "Тяга: "
 
 [node name="PowerLabel" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrainContainer" unique_id=453218316]
 unique_name_in_owner = true
@@ -134,7 +134,7 @@ text = "90"
 
 [node name="Label3" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrainContainer" unique_id=1038958361]
 layout_mode = 2
-text = "Max speed: "
+text = "Макс. скорость: "
 
 [node name="MaxSpeedLabel" type="Label" parent="VBoxContainer/TabContainer/MainTab/HBoxContainer/TrainContainer" unique_id=503509309]
 unique_name_in_owner = true
@@ -154,7 +154,7 @@ size_flags_horizontal = 4
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
-text = "jkljlпро ап"
+text = "Описание объекта"
 
 [node name="HSeparator2" type="HSeparator" parent="VBoxContainer/TabContainer/MainTab" unique_id=1036426703]
 layout_mode = 2
@@ -211,7 +211,7 @@ columns = 2
 
 [node name="Label" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer" unique_id=1036287520]
 layout_mode = 2
-text = "Track Contour: "
+text = "Контур: "
 
 [node name="TrackContourLabel" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer" unique_id=870047139]
 unique_name_in_owner = true
@@ -221,7 +221,7 @@ text = "0"
 
 [node name="Label2" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer" unique_id=13954289]
 layout_mode = 2
-text = "Voltage: "
+text = "Напряжение: "
 
 [node name="TrackVoltageLabel" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer" unique_id=1645756791]
 unique_name_in_owner = true
@@ -231,7 +231,7 @@ text = "0"
 
 [node name="Label3" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer" unique_id=1352062555]
 layout_mode = 2
-text = "Flipped: "
+text = "Инверсия: "
 
 [node name="FlippedLabel" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer" unique_id=988670155]
 unique_name_in_owner = true
@@ -246,7 +246,7 @@ columns = 2
 
 [node name="Label3" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer2" unique_id=1052463677]
 layout_mode = 2
-text = "Power Clip "
+text = "Клипса питания "
 
 [node name="PowerClipButton" type="CheckButton" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer2" unique_id=1852075900]
 unique_name_in_owner = true
@@ -255,7 +255,7 @@ size_flags_horizontal = 8
 
 [node name="Label2" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer2" unique_id=745833887]
 layout_mode = 2
-text = "ID: "
+text = "Номер: "
 
 [node name="ClipContourIDButton" type="OptionButton" parent="VBoxContainer/TabContainer/PowerTab/PowerTrackTab/HBoxContainer1/GridContainer2" unique_id=2007174680]
 unique_name_in_owner = true
@@ -287,7 +287,7 @@ columns = 2
 
 [node name="Label" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrainTab/HBoxContainer1/GridContainer" unique_id=875128603]
 layout_mode = 2
-text = "Power Contour: "
+text = "Контур: "
 
 [node name="EngineContourLabel" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrainTab/HBoxContainer1/GridContainer" unique_id=1960033597]
 unique_name_in_owner = true
@@ -297,7 +297,7 @@ text = "0"
 
 [node name="Label2" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrainTab/HBoxContainer1/GridContainer" unique_id=1746308025]
 layout_mode = 2
-text = "Voltage: "
+text = "Напряжение: "
 
 [node name="TrainVoltageLabel" type="Label" parent="VBoxContainer/TabContainer/PowerTab/PowerTrainTab/HBoxContainer1/GridContainer" unique_id=1861439293]
 unique_name_in_owner = true

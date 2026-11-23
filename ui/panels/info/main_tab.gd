@@ -8,9 +8,6 @@ class_name InfoMainTab extends InfoTab
 ## (XX claude-terra 13.1.7). Кнопка «Записать состав» и её результат живут в подвале вкладки.
 ## Спидометр и тюнинг физики вагона убраны (DebugPanel, U14), скорость и центробежная сила из панели ушли совсем.
 
-## TODO U5a.6: цвет «да» и «вечная» взять из темы
-const ON_TRACK_COLOR := Color(0.4, 1.0, 0.5)
-
 var _lvl_label: Label
 var _rise_label: Label
 var _slope_label: Label
@@ -31,10 +28,10 @@ var _record_button: Button
 
 func _setup() -> void:
 	var grid := _n("TrackContainer") as GridContainer
-	_lvl_label = _add_track_row(grid, "Level: ")
-	_rise_label = _add_track_row(grid, "Rise: ")
-	_slope_label = _add_track_row(grid, "Slope: ")
-	_style_label = _add_track_row(grid, "Style: ")
+	_lvl_label = _add_track_row(grid, "Уровень: ")
+	_rise_label = _add_track_row(grid, "Подъём: ")
+	_slope_label = _add_track_row(grid, "Уклон: ")
+	_style_label = _add_track_row(grid, "Стиль: ")
 	_build_terrain_label()
 	_build_pose_block()
 
@@ -133,13 +130,13 @@ func _refresh_pose() -> void:
 func _set_on_track() -> void:
 	if _chassis == null:
 		_on_track_label.text = "-"
-		_on_track_label.remove_theme_color_override(&"font_color")
+		_set_lamp(_on_track_label, false)
 	elif _chassis.is_on_rails:
 		_on_track_label.text = "Да"
-		_on_track_label.add_theme_color_override(&"font_color", ON_TRACK_COLOR)
+		_set_lamp(_on_track_label, true)
 	else:
 		_on_track_label.text = "Нет"
-		_on_track_label.remove_theme_color_override(&"font_color")
+		_set_lamp(_on_track_label, false)
 
 
 ## Статус сцепки: у объектов без C_Coupler строки скрыты, вечная сцепка выделена цветом.
@@ -156,10 +153,14 @@ func _set_couplers() -> void:
 		if _coupler == null:
 			continue
 		value.text = _coupler.end_status(end)
-		if _coupler.is_permanent(end):
-			value.add_theme_color_override(&"font_color", ON_TRACK_COLOR)
-		else:
-			value.remove_theme_color_override(&"font_color")
+		_set_lamp(value, _coupler.is_permanent(end))
+
+
+## Подсветка «включено» цветом темы (вариация LampOn), иначе обычный цвет
+func _set_lamp(label: Label, on: bool) -> void:
+	var variation: StringName = &"LampOn" if on else &""
+	if label.theme_type_variation != variation:
+		label.theme_type_variation = variation
 
 
 func _on_record_pressed() -> void:

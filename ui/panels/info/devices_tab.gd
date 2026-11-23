@@ -23,7 +23,7 @@ func _setup() -> void:
 	box.add_child(_src_box)
 	_src_info = Label.new()
 	_src_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_src_info.custom_minimum_size = Vector2(260, 0)
+	_src_info.custom_minimum_size = Vector2(120, 0)
 	_src_box.add_child(_src_info)
 	var auto_btn := Button.new()
 	auto_btn.text = "Автопроводка (провода к клипам по меткам)"
@@ -42,7 +42,7 @@ func _setup() -> void:
 	box.add_child(_wire_box)
 	_wire_info = Label.new()
 	_wire_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_wire_info.custom_minimum_size = Vector2(260, 0)
+	_wire_info.custom_minimum_size = Vector2(120, 0)
 	_wire_box.add_child(_wire_info)
 	_twist = CheckBox.new()
 	_twist.text = "Скрутка (поменять полярность)"
