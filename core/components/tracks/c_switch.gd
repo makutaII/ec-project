@@ -325,3 +325,13 @@ func load_data(data: Dictionary) -> void:
 	# Положение применяем сразу: сущность уже собрана (SaveManager грузит после add_child),
 	# а вагоны садятся на трак позже (restore_snap_after_load) и считают смещение по активной кривой
 	_apply(int(data.get("route", route)), &"load")
+
+
+## Строки подсказки при наведении и вкладки «Подсказки» (контракт HoverLines, U5a.5)
+func get_hover_lines() -> Array:
+	var lines: Array = [HoverLines.line("Положение: %s" % ("прямо" if route == 0 else "ответвление (%d)" % route))]
+	if state == State.MOVING:
+		lines.append(HoverLines.line("идёт перекладка", &"warn"))
+	elif is_occupied():
+		lines.append(HoverLines.line("на стрелке вагон (замок)", &"warn"))
+	return lines

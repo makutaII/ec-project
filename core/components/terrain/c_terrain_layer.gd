@@ -1011,3 +1011,8 @@ func load_data(data: Dictionary) -> void:
 	_rebuild()
 	if smooth > 0:
 		TGM.plaster_dirty()
+
+
+## Строки подсказки при наведении и вкладки «Подсказки» (контракт HoverLines, U5a.5)
+func get_hover_lines() -> Array:
+	return [HoverLines.line("Слоёв: %d" % levels)]

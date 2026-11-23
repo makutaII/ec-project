@@ -230,6 +230,30 @@ func _lookup(key: String) -> Array:
 	return HINTS.get(String(mode) + "/" + key, HINTS.get(key, []))
 
 
+## Действия, которые подходят только объектам этих категорий (остальным строка в подсказке объекта не нужна)
+const CATEGORY_ONLY := {
+	"wagon_kick_fwd": [&"train", &"coaster_car"],
+	"tunnel_toggle": [&"track"],
+	"embankment_toggle": [&"track"],
+	"flex_zones_toggle": [&"track"],
+}
+
+
+## Клавиши для выбранного объекта (вкладка «Подсказки» в InfoPanel, U5a.5): те же тексты HINTS, что внизу экрана
+## (select_switch у стрелки, иначе select_sel, с учетом режима), без действий не для этой категории.
+## Строки [клавиша, действие], клавиши уже подставлены из InputMap, {rot} заменен
+func selected_rows(category: StringName, is_switch: bool) -> Array:
+	var rows: Array = []
+	for it in _lookup("select_switch" if is_switch else "select_sel"):
+		var first := _token_re.search(String(it[0]))
+		if first != null:
+			var only: Array = CATEGORY_ONLY.get(first.get_string(1), [])
+			if not only.is_empty() and not only.has(category):
+				continue
+		rows.append([_keys(it[0]), String(it[1]).replace("{rot}", String.num(Global.build_options.rot_step_deg, 0))])
+	return rows
+
+
 func _compose() -> String:
 	var key := _context_key()
 	var items := _lookup(key)

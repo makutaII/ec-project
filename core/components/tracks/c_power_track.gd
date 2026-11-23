@@ -148,3 +148,8 @@ func load_data(_data: Dictionary) -> void:
 		_contours[i] = int(lc[i])
 	for i in mini(legs, lf.size()):
 		_flips[i] = bool(lf[i])
+
+
+## Строки подсказки при наведении и вкладки «Подсказки» (контракт HoverLines, U5a.5)
+func get_hover_lines() -> Array:
+	return [HoverLines.line("Контур: %s, напряжение: %s" % [contour_text(), voltage_text()])]

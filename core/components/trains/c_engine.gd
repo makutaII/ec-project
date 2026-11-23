@@ -103,3 +103,8 @@ func _physics_process(_delta: float) -> void:
 	var motor_k := max_tractive_force / max_theoretical_speed if max_theoretical_speed > 0.0 else 0.0
 	entity.send_event('on_force_changed', {'force': engine_force, 'powered': true, 'active': true,
 			'target_speed': target_speed, 'motor_k': motor_k})
+
+
+## Строки подсказки при наведении и вкладки «Подсказки» (контракт HoverLines, U5a.5)
+func get_hover_lines() -> Array:
+	return [HoverLines.line("Контур: %s, напряжение: %s" % [power.net_id, power.voltage])]

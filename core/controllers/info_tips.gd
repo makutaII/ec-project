@@ -21,7 +21,9 @@ extends Node
 ## Подсказка при наведении (U20a.5): SelectTool каждый кадр сообщает объект под курсором (hover). Показывается только для
 ## объектов своего режима (категория входит в CatalogMeta.MODE_CATEGORIES текущего режима), после задержки hover_delay
 ## (по умолчанию 0,2 с) и только если нет сообщения инструмента; пока нажата кнопка мыши (драг, вращение камеры) молчит.
-## Сейчас в ней название объекта и имя узла Entity. Включение и задержка в настройках: [ui] hover_tip, hover_tip_delay.
+## В ней название объекта, имя узла Entity и до HOVER_MAX_LINES строк характеристик от компонентов (контракт HoverLines,
+## U5a.5); полный набор строк, описание и клавиши объекта показывает вкладка «Подсказки» в InfoPanel.
+## Включение и задержка в настройках: [ui] hover_tip, hover_tip_delay.
 
 const LAYER := 12   # над Hints (10), под окнами UI (20)
 const CURSOR_OFFSET := Vector2(16.0, 20.0)
@@ -30,6 +32,11 @@ const SECTION := "ui"
 const KEY_HOVER := "hover_tip"
 const KEY_HOVER_DELAY := "hover_tip_delay"
 const HOVER_DELAY_DEFAULT := 0.2
+## Сколько строк характеристик компонентов в подсказке при наведении (остальные только во вкладке «Подсказки»)
+const HOVER_MAX_LINES := 3
+## Вид строки HoverLines -> вид строки подсказки
+const _HOVER_KINDS := {&"info": InfoToolTip.Kind.INFO, &"dim": InfoToolTip.Kind.DIM, &"ok": InfoToolTip.Kind.OK,
+		&"warn": InfoToolTip.Kind.WARN, &"bad": InfoToolTip.Kind.DANGER}
 
 ## Подсказка при наведении включена
 var hover_enabled := true
@@ -207,7 +214,10 @@ func _hover_lines(delta: float) -> Array:
 	_hover_t += delta
 	if _hover_t < hover_delay:
 		return []
-	return [title(identity.get_name_e()), dim(String(entity.name))]
+	var lines: Array = [title(identity.get_name_e()), dim(String(entity.name))]
+	for l in HoverLines.collect(entity).slice(0, HOVER_MAX_LINES):
+		lines.append(line(String(l.text), int(_HOVER_KINDS.get(l.kind, InfoToolTip.Kind.INFO))))
+	return lines
 
 
 func _place_at_cursor() -> void:
