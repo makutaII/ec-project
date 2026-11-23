@@ -19,6 +19,8 @@ var field: TerrainField
 var _bodies := {}     # Vector2i -> StaticBody3D
 var _dirty := {}      # Vector2i -> true
 var _idle := 0.0
+## H7. Растёт при каждой пересборке: вагон с проверкой препятствий (C_Coupler) по нему узнаёт, что тела чанков заменены
+var version := 0
 ## Для проверок: сколько чанков пересобрано в последний раз и за сколько мс
 var last_count := 0
 var last_ms := 0.0
@@ -67,6 +69,19 @@ func flush() -> void:
 	_dirty.clear()
 	last_count = n
 	last_ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	version += 1
+
+
+## H7. RID тел чанков, чей прямоугольник задевает r (мир, x и z). Вагону тоннельной цепочки поле над рельсами и стенка у портала
+## не препятствие: тоннель в холме поля нельзя вырезать из карты высот, поэтому C_Coupler исключает эти тела из пробы
+func rids_in_rect(r: Rect2) -> Array[RID]:
+	var res: Array[RID] = []
+	var span := float(CHUNK) * STEP
+	for key: Vector2i in _bodies:
+		var b := _bodies[key] as StaticBody3D
+		if is_instance_valid(b) and Rect2(Vector2(key) * span, Vector2(span, span)).grow(STEP).intersects(r, true):
+			res.append(b.get_rid())
+	return res
 
 
 func body_count() -> int:

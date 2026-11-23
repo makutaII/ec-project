@@ -97,6 +97,8 @@ var _probe_dir := 0.0                        # знак последнего х�
 var _probe_shape: BoxShape3D                 # тело вагона, чуть меньше настоящего (см. PROBE_SHRINK)
 var _probe_exclude: Array[RID] = []          # свое тело, вагоны на рельсах, цепочка траков под вагоном
 var _probe_tracks := {}                      # те же траки как Entity (на случай, если RID не добрали)
+var _probe_tunnel := false                   # H7: в цепочке есть тоннельный трак: тела поля вокруг него исключены из пробы
+var _probe_field_ver := -1                   # версия коллизии поля, с которой собран список исключений
 var _probe_cd := 0.0                         # после удара не реагируем на то же препятствие
 var _saved_coupled: Array = [false, false]
 
@@ -493,6 +495,8 @@ func _rebuild_probe_exclude() -> void:
 			ex.append(ok.rb.get_rid())
 
 	var seen := {}
+	var tunnel_rect := Rect2()
+	var has_tunnel := false
 	var frontier: Array[Entity] = []
 	var bc := entity.get_comp(C_Bogie) as C_Bogie
 	if bc:
@@ -507,6 +511,14 @@ func _rebuild_probe_exclude() -> void:
 			seen[t] = true
 			var p := t.get_comp(C_Path) as C_Path
 			if p:
+				if p.allows_underground():
+					# XX claude-terra 13.14 H7: холм поля над тоннелем и стенка у портала это тела ground; вагон тоннеля их не замечает
+					for d: Dictionary in p.ballast_samples(4.0):
+						var l: Vector2 = d["l"]
+						var rr: Vector2 = d["r"]
+						var pb := Rect2(l, Vector2.ZERO).expand(rr)
+						tunnel_rect = pb if not has_tunnel else tunnel_rect.merge(pb)
+						has_tunnel = true
 				if is_instance_valid(p.ballast_node):
 					ex.append(p.ballast_node.get_rid())
 				if is_instance_valid(p.head_node):
@@ -515,6 +527,10 @@ func _rebuild_probe_exclude() -> void:
 			if sock:
 				next.append_array(sock.get_connected_entities())
 		frontier = next
+	_probe_tunnel = has_tunnel
+	if has_tunnel and is_instance_valid(TGM.field_collision):
+		ex.append_array(TGM.field_collision.rids_in_rect(tunnel_rect.grow(2.0)))
+		_probe_field_ver = TGM.field_collision.version
 	_probe_exclude = ex
 	_probe_tracks = seen
 
@@ -532,6 +548,8 @@ func _get_probe_shape(node: CollisionShape3D) -> BoxShape3D:
 
 ## Проба пути на этот тик: тело вагона едет по оси движения на |v| * dt + запас. Касание - удар
 func _probe_obstacles(delta: float, ch: C_Chassis) -> void:
+	if _probe_tunnel and is_instance_valid(TGM.field_collision) and TGM.field_collision.version != _probe_field_ver:
+		_rebuild_probe_exclude()   # H7: тела поля пересобраны, RID в списке устарели
 	var v := ch.current_speed
 	# на малой скорости (и при постоянной тяге у стены) направление берем с прошлого тика, иначе стена пропускает
 	var dir := signf(v) if absf(v) >= PROBE_MIN_SPEED else _probe_dir

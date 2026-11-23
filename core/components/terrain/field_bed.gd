@@ -14,6 +14,10 @@ class_name FieldBed extends RefCounted
 ## выше это эстакада на опорах, поле под ней не трогается. Выемка работает везде, где земля выше ложа, но не дальше reach (откос обрезается).
 ## Узлы полосы со слоем получают тип «каменистая» без шума высоты (щебёночная полоса под балластом), остальное сохраняет свой тип.
 ## Результат по траку: Dictionary узел (Vector2i) -> Vector3(расстояние до оси, высота ложа, 1 если полоса / 0 если откос).
+## H7. Тоннельный трак (C_Tunnel): образец «закрыт», если земля над ним (самая низкая из оси и двух краёв балласта) выше головки рельса
+## с габаритом (body) не меньше чем на roof: там поле остаётся целым и служит сводом, ложа нет. Образцы открыты, где земли над траком мало или
+## она ниже: там ложе обычное (выемка до портала). Участок, у которого закрыт хотя бы один конец, ложа не получает, а у открытого
+## участка рядом с ним торец не закругляется (узлы за торцом не режутся): выемка обрывается стенкой, на ней стоит портал (portals()).
 
 const STEP := TerrainField.STEP
 const EPS := 0.001
@@ -27,18 +31,91 @@ const DEFAULT_RUN := 1.5
 const REACH_SLACK := 1.0
 
 
-## Параметры: shoulder (ю плечо), run (откос), fill_max (ю, насыпь не выше), max_dh (ю, охват откоса не больше)
-static func params(shoulder: float, run: float, fill_max: float, max_dh: float) -> Dictionary:
-	return {"shoulder": shoulder, "run": maxf(run, 0.1), "fill_max": fill_max, "max_dh": max_dh}
+## Параметры: shoulder (ю плечо), run (откос), fill_max (ю, насыпь не выше), max_dh (ю, охват откоса не больше),
+## body (ю, высота тоннеля над низом балласта: трак плюс габарит) и roof (ю, наименьшая толщина свода): только для тоннельных траков
+static func params(shoulder: float, run: float, fill_max: float, max_dh: float, body: float = 0.0, roof: float = 0.0) -> Dictionary:
+	return {"shoulder": shoulder, "run": maxf(run, 0.1), "fill_max": fill_max, "max_dh": max_dh, "body": body, "roof": roof}
+
+
+## H7. Какие образцы тоннельного трака закрыты землёй (1) или открыты (0). Земля над образцом: самая низкая высота поля в точках оси
+## и обоих краёв балласта (если боковой склон ниже свода, трак из холма выглядывал бы). Закрыт, если земля не ниже
+## низ балласта + body + roof
+static func tunnel_closed(s: Array, raw: Callable, p: Dictionary) -> PackedByteArray:
+	var res := PackedByteArray()
+	res.resize(s.size())
+	var need: float = float(p["body"]) + float(p["roof"])
+	for k in s.size():
+		var d: Dictionary = s[k]
+		var l: Vector2 = d["l"]
+		var r: Vector2 = d["r"]
+		var g := INF
+		for pt: Vector2 in [(l + r) * 0.5, l, r]:
+			g = minf(g, float(raw.call(roundi(pt.x / STEP), roundi(pt.y / STEP))))
+		res[k] = 1 if g >= float(d["y"]) + need - EPS else 0
+	return res
+
+
+## H7. Участки тоннельного трака без ложа: у участка k закрыт хотя бы один из образцов k и k + 1
+static func tunnel_skip(closed: PackedByteArray) -> PackedByteArray:
+	var res := PackedByteArray()
+	var n := closed.size()
+	if n < 2:
+		return res
+	res.resize(n - 1)
+	for k in n - 1:
+		res[k] = 1 if closed[k] == 1 or closed[k + 1] == 1 else 0
+	return res
+
+
+## H7. Порталы тоннельного трака: на каждом конце открытой выемки, где дальше поле закрывает трак. Список {"p": Vector2 точка на оси,
+## "out": Vector2 единичная нормаль наружу (из холма в выемку), "width": ширина балласта, "floor": Y низа проёма, "vault": Y верха проёма,
+## "top": Y земли в холме у портала}. s: образцы, raw: высота поля в узле, p: params
+static func portals(s: Array, raw: Callable, p: Dictionary) -> Array[Dictionary]:
+	var res: Array[Dictionary] = []
+	var n := s.size()
+	if n < 2:
+		return res
+	var closed := tunnel_closed(s, raw, p)
+	var skip := tunnel_skip(closed)
+	var body: float = p["body"]
+	for k in n - 1:
+		if skip[k] == 1:
+			continue
+		var a := _center(s[k])
+		var b := _center(s[k + 1])
+		if a.distance_squared_to(b) < 0.000001:
+			continue
+		var fwd := (b - a).normalized()
+		if k + 1 < n - 1 and skip[k + 1] == 1:
+			res.append(_portal(s, k + 1, -fwd, k + 2, raw, body))
+		if k > 0 and skip[k - 1] == 1:
+			res.append(_portal(s, k, fwd, k - 1, raw, body))
+	return res
+
+
+static func _center(d: Dictionary) -> Vector2:
+	return ((d["l"] as Vector2) + (d["r"] as Vector2)) * 0.5
+
+
+static func _portal(s: Array, at: int, out: Vector2, inner: int, raw: Callable, body: float) -> Dictionary:
+	var d: Dictionary = s[at]
+	var c := _center(d)
+	var ci := _center(s[clampi(inner, 0, s.size() - 1)])
+	return {"p": c, "out": out, "width": (d["l"] as Vector2).distance_to(d["r"]),
+		"floor": float(d["y"]), "vault": float(d["y"]) + body,
+		"top": float(raw.call(roundi(ci.x / STEP), roundi(ci.y / STEP)))}
 
 
 ## Ложе одного трака. s: образцы C_Path.ballast_samples ({"l": Vector2, "r": Vector2, "y": float}), raw: Callable(i, j) -> float
 ## (высота земли в узле без ложа), has_layer: Callable(i, j) -> bool (есть ли слой поля в узле)
-static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Dictionary) -> Dictionary:
+static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Dictionary, tunnel: bool = false) -> Dictionary:
 	var out := {}
 	var n := s.size()
 	if n < 2:
 		return out
+	var skip := PackedByteArray()
+	if tunnel:
+		skip = tunnel_skip(tunnel_closed(s, raw, p))
 	var c := PackedVector2Array()
 	var hw := PackedFloat32Array()
 	var ys := PackedFloat32Array()
@@ -55,12 +132,17 @@ static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Diction
 	var run: float = p["run"]
 	var fill_max: float = p["fill_max"]
 	for k in n - 1:
+		if tunnel and skip[k] == 1:
+			continue   # H7: над участком поле служит сводом тоннеля
 		var pa := c[k]
 		var pb := c[k + 1]
 		var ab := pb - pa
 		var l2 := ab.length_squared()
 		if l2 < 0.000001:
 			continue
+		# H7: торец у портала не закругляется, узлы за ним остаются землёй
+		var cap_a := not (tunnel and k > 0 and skip[k - 1] == 1)
+		var cap_b := not (tunnel and k + 1 < n - 1 and skip[k + 1] == 1)
 		var can_fill := touch[k] == 1 or touch[k + 1] == 1
 		var ga := float(raw.call(roundi(pa.x / STEP), roundi(pa.y / STEP)))
 		var gb := float(raw.call(roundi(pb.x / STEP), roundi(pb.y / STEP)))
@@ -71,7 +153,10 @@ static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Diction
 		for j in range(floori(lo.y / STEP), ceili(hi.y / STEP) + 1):
 			for i in range(floori(lo.x / STEP), ceili(hi.x / STEP) + 1):
 				var pt := Vector2(float(i) * STEP, float(j) * STEP)
-				var t := clampf((pt - pa).dot(ab) / l2, 0.0, 1.0)
+				var t_raw := (pt - pa).dot(ab) / l2
+				if (t_raw < 0.0 and not cap_a) or (t_raw > 1.0 and not cap_b):
+					continue
+				var t := clampf(t_raw, 0.0, 1.0)
 				var dist := pt.distance_to(pa + ab * t)
 				if dist > reach:
 					continue

@@ -2,7 +2,7 @@ extends Node
 
 # XX claude-terra 13.14 H5 (новый файл)
 ## Тест автоложа трака (FieldBed и TerrainField.set_bed): выемка в холме, насыпь над низиной, эстакада без ложа,
-## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b).
+## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b), тоннельный трак в холме с порталами (H7).
 ## Запуск: открыть tests/field_bed_test.tscn и нажать F6. Результат в Output: строки PASS / FAIL и итог.
 ## Проверки на собственном TerrainField без сцены игры (образцы трака задаются вручную).
 
@@ -52,6 +52,7 @@ func _ready() -> void:
 	_test_signal_and_types()
 	_test_merge()
 	_test_bake()
+	_test_tunnel()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
 
 
@@ -212,3 +213,84 @@ func _test_bake() -> void:
 
 	# нет ложа: ничего
 	check("пустое ложе: нечего писать", FieldBed.bake(TerrainField.new(), {}, table_polys(), Callable()) == 0)
+
+
+func tunnel_params() -> Dictionary:
+	return FieldBed.params(1.0, 1.5, 3.0, 6.0, 2.0, 1.0)   # габарит 2 ю над низом балласта, свод не тоньше 1 ю
+
+
+func tunnel_bed(f: TerrainField, s: Array) -> Dictionary:
+	return FieldBed.build_track(s, Callable(f, "surface_at"), Callable(f, "has_layer"), tunnel_params(), true)
+
+
+func max_x(b: Dictionary) -> float:
+	var m := -INF
+	for key: Vector2i in b:
+		m = maxf(m, float(key.x) * TerrainField.STEP)
+	return m
+
+
+## H7. Тоннельный трак в холме: под высоким холмом ложа нет (холм свод), перед ним открытая выемка, на её торце портал; низкий холм режется целиком
+func _test_tunnel() -> void:
+	# холм с x = 20 (8 слоёв) над равниной 1 слой; трак на высоте 1 входит в холм
+	var f := TerrainField.new()
+	f.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	f.lay_rect(Rect2(20, 0, 20, 40), 8.0)
+	var s := straight(1.0, 4.0, 36.0)
+	var closed := FieldBed.tunnel_closed(s, Callable(f, "surface_at"), tunnel_params())
+	# образцы x = 4, 6, ..., 36: закрыты с x = 20 (индекс 8) и дальше
+	check("тоннель: до холма образцы открыты", closed[0] == 0 and closed[7] == 0 and closed[8] == 1)
+	check("тоннель: в холме образцы закрыты", closed[8] == 1 and closed[16] == 1)
+	var b := tunnel_bed(f, s)
+	check("тоннель: перед холмом ложе есть (полоса)", b.has(Vector2i(node(10.0), node(20.0))))
+	check("тоннель: в холме ложа нет", not b.has(Vector2i(node(26.0), node(20.0))) and not b.has(Vector2i(node(30.0), node(20.0))))
+	check("тоннель: торец не закруглён, за порталом (x = 18) земля цела", max_x(b) <= 18.001, str(max_x(b)))
+	var pl := FieldBed.portals(s, Callable(f, "surface_at"), tunnel_params())
+	check("тоннель: один портал у входа в холм", pl.size() == 1, str(pl.size()))
+	if pl.size() == 1:
+		var p: Dictionary = pl[0]
+		check("тоннель: портал на торце выемки (x = 18, z = 20)", (p["p"] as Vector2).is_equal_approx(Vector2(18.0, 20.0)), str(p["p"]))
+		check("тоннель: портал смотрит из холма в выемку", (p["out"] as Vector2).is_equal_approx(Vector2(-1.0, 0.0)), str(p["out"]))
+		check("тоннель: проём от низа балласта на высоту габарита", near(p["floor"], 1.0) and near(p["vault"], 3.0), "%s %s" % [p["floor"], p["vault"]])
+		check("тоннель: у портала ширина балласта и высота земли в холме", near(p["width"], 2.0) and near(p["top"], 8.0), "%s %s" % [p["width"], p["top"]])
+
+	# тот же трак без тоннеля режет холм целиком
+	var plain := FieldBed.build_track(s, Callable(f, "surface_at"), Callable(f, "has_layer"), tunnel_params(), false)
+	check("без тоннеля: ложе идёт и в холме", plain.has(Vector2i(node(30.0), node(20.0))))
+
+	# низкий холм (3 слоя) ниже габарита и свода: открыт на всю длину, режется выемкой, порталов нет
+	var low := TerrainField.new()
+	low.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	low.lay_rect(Rect2(20, 0, 20, 40), 3.0)
+	var lb := tunnel_bed(low, s)
+	check("низкий холм: выемка по всей длине", lb.has(Vector2i(node(30.0), node(20.0))) and near((lb[Vector2i(node(30.0), node(20.0))] as Vector3).y, 1.0))
+	check("низкий холм: порталов нет", FieldBed.portals(s, Callable(low, "surface_at"), tunnel_params()).is_empty())
+
+	# трак целиком под холмом: ложа и порталов нет
+	var all := TerrainField.new()
+	all.lay_rect(Rect2(0, 0, 40, 40), 8.0)
+	check("весь трак под холмом: ложа нет", tunnel_bed(all, s).is_empty())
+	check("весь трак под холмом: порталов нет", FieldBed.portals(s, Callable(all, "surface_at"), tunnel_params()).is_empty())
+
+	# холм посередине: два портала, оба смотрят наружу
+	var mid := TerrainField.new()
+	mid.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	mid.lay_rect(Rect2(14, 0, 12, 40), 8.0)
+	var pm := FieldBed.portals(s, Callable(mid, "surface_at"), tunnel_params())
+	check("холм посередине: два портала", pm.size() == 2, str(pm.size()))
+	if pm.size() == 2:
+		var xs: Array = []
+		for d: Dictionary in pm:
+			xs.append("%d:%d" % [roundi((d["p"] as Vector2).x), roundi((d["out"] as Vector2).x)])
+		xs.sort()
+		check("холм посередине: у входа x = 12 наружу влево, у выхода x = 28 наружу вправо", xs == ["12:-1", "28:1"], str(xs))
+	var mb := tunnel_bed(mid, s)
+	check("холм посередине: ложе по обе стороны холма, в холме нет", mb.has(Vector2i(node(6.0), node(20.0))) and mb.has(Vector2i(node(32.0), node(20.0)))
+			and not mb.has(Vector2i(node(20.0), node(20.0))))
+
+	# боковой склон ниже свода: трак на краю холма остаётся открытым
+	var edge := TerrainField.new()
+	edge.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	edge.lay_rect(Rect2(20, 0, 20, 20.5), 8.0)   # холм кончается у оси трака: правый край z = 21 на равнине
+	var es := FieldBed.tunnel_closed(s, Callable(edge, "surface_at"), tunnel_params())
+	check("край холма: сбоку земля ниже свода, образец открыт", es[10] == 0, str(es[10]))

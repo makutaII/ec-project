@@ -125,8 +125,10 @@ static func parts(width: float, floor_y: float, vault_y: float, top_y: float) ->
 	return res
 
 
-## Узел рамки в мире: боксы по parts, стиль задаёт цвет. at: точка устья (x, z), out: нормаль наружу. Без коллизии
-static func make_node(style: StringName, at: Vector2, out: Vector2, width: float, floor_y: float, vault_y: float, top_y: float) -> Node3D:
+## Узел рамки в мире: боксы по parts, стиль задаёт цвет. at: точка устья (x, z), out: нормаль наружу. Без коллизии.
+## fill (H7, портал в холме поля высот): проём закрыт тёмной плоскостью (зев тоннеля), рамка рисуется, только если стиль не пустой
+static func make_node(style: StringName, at: Vector2, out: Vector2, width: float, floor_y: float, vault_y: float, top_y: float,
+		fill: bool = false) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Portal"
 	var z := Vector3(out.x, 0.0, out.y).normalized()
@@ -135,6 +137,19 @@ static func make_node(style: StringName, at: Vector2, out: Vector2, width: float
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = COLORS.get(style, COLORS[STYLE_CONCRETE])
 	mat.roughness = 1.0
+	if fill and vault_y > floor_y and width > 0.0:
+		var dark := StandardMaterial3D.new()
+		dark.albedo_color = Color(0.02, 0.02, 0.02)
+		dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var fm := MeshInstance3D.new()
+		var fb := BoxMesh.new()
+		fb.size = Vector3(width, vault_y - floor_y, 0.04)
+		fm.mesh = fb
+		fm.material_override = dark
+		fm.position = Vector3(0.0, (floor_y + vault_y) * 0.5, 0.02)
+		root.add_child(fm)
+	if fill and style == STYLE_NONE:
+		return root
 	for part in parts(width, floor_y, vault_y, top_y):
 		var mi := MeshInstance3D.new()
 		var box := BoxMesh.new()
