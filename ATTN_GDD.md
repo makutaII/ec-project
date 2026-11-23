@@ -156,7 +156,7 @@ Build UI, Operate UI, InfoPanel, Power Layer, диагностические п�
 6. [ ] Terrain Tools, Decor collection, Room — контент для Build
 7. [ ] Customization — покраска, замена элементов, варианты исполнения ([ATTN_22](ATTN_22_library.md), шаги L3–L6)
 8. [ ] Сборка моделей зданий "из литников". Упрощенная генерация элементов зданий по паттерну Tiny Glade ([ATTN_22](ATTN_22_library.md), шаги L7–L10).
-9. [ ] Система автодорог. План: [ATTN_28](ATTN_28_car_system.md) (аналоговый уровень первым, лодки не планируются).
+9. [ ] Система автодорог.
 10. [ ] Timetable, POV-камера, погодный слой — из раздела "новые идеи" выше
 
 ## Related Documents
@@ -177,4 +177,3 @@ Build UI, Operate UI, InfoPanel, Power Layer, диагностические п�
 - [ATTN_25_rooms.md](ATTN_25_rooms.md) — Комнаты: активная комната, Room Studio, Observe без комнаты, пайплайн Blender для комнат, инструкции.
 - [ATTN_26_sound.md](ATTN_26_sound.md) — Звук: движение на DC, объекты, интерфейс, музыка, звук локо (DC, потом DCC).
 - [ATTN_27_coaster.md](ATTN_27_coaster.md) — Coaster: микроигра «горки» (траки-лотки, вагоны по инерции, цепной подъёмник, бустеры, заезд на время).
-- [ATTN_28_car_system.md](ATTN_28_car_system.md) — Car System: автодороги и машины (аналоговый уровень, справка по реальным системам, план).
