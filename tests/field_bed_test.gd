@@ -216,7 +216,7 @@ func _test_bake() -> void:
 
 
 func tunnel_params() -> Dictionary:
-	return FieldBed.params(1.0, 1.5, 3.0, 6.0, 2.0, 1.0)   # габарит 2 ю над низом балласта, свод не тоньше 1 ю
+	return FieldBed.params(1.0, 1.5, 3.0, 6.0, 2.0, 1.0, 0.5)   # габарит 2 ю над низом балласта, свод не тоньше 1 ю, стенки выемки круче (0,5)
 
 
 func tunnel_bed(f: TerrainField, s: Array) -> Dictionary:
@@ -244,15 +244,43 @@ func _test_tunnel() -> void:
 	var b := tunnel_bed(f, s)
 	check("тоннель: перед холмом ложе есть (полоса)", b.has(Vector2i(node(10.0), node(20.0))))
 	check("тоннель: в холме ложа нет", not b.has(Vector2i(node(26.0), node(20.0))) and not b.has(Vector2i(node(30.0), node(20.0))))
-	check("тоннель: торец не закруглён, за порталом (x = 18) земля цела", max_x(b) <= 18.001, str(max_x(b)))
+	check("тоннель: торец не закруглён, за порталом (x = 19,5) земля цела", max_x(b) <= 19.501, str(max_x(b)))
+	check("тоннель: ложе доходит до самого холма (до x = 19,5)", max_x(b) >= 19.499, str(max_x(b)))
 	var pl := FieldBed.portals(s, Callable(f, "surface_at"), tunnel_params())
 	check("тоннель: один портал у входа в холм", pl.size() == 1, str(pl.size()))
 	if pl.size() == 1:
 		var p: Dictionary = pl[0]
-		check("тоннель: портал на торце выемки (x = 18, z = 20)", (p["p"] as Vector2).is_equal_approx(Vector2(18.0, 20.0)), str(p["p"]))
+		check("тоннель: портал у самого холма (x = 19,5, холм с x = 20), а не на образце в стороне", (p["p"] as Vector2).is_equal_approx(Vector2(19.5, 20.0)), str(p["p"]))
+		check("тоннель: лицевая плоскость оголовка на 0,5 ю наружу от портала", (p["front"] as Vector2).is_equal_approx(Vector2(19.0, 20.0)), str(p["front"]))
+		var w: Dictionary = p["wall"]
+		var us: PackedFloat32Array = w["u"]
+		var bs: PackedFloat32Array = w["bottom"]
+		var ts: PackedFloat32Array = w["top"]
+		var c0 := -1
+		for i in us.size():
+			if absf(us[i]) < 0.001:
+				c0 = i
+		check("оголовок: колонка на оси от дна выемки до земли холма", c0 >= 0 and near(bs[c0], 1.0) and near(ts[c0], 8.0), "c0=%d" % c0)
+		check("оголовок: по краям сходит на нет", us.size() >= 5 and ts[0] - bs[0] < FieldBed.WALL_MIN and ts[us.size() - 1] - bs[us.size() - 1] < FieldBed.WALL_MIN,
+				str(us.size()))
 		check("тоннель: портал смотрит из холма в выемку", (p["out"] as Vector2).is_equal_approx(Vector2(-1.0, 0.0)), str(p["out"]))
+		var mesh := TunnelPortal.make_node(&"", p["front"], p["out"], 3.0, 1.0, 3.0, 8.0, true, p["wall"])
+		check("оголовок: узел портала с каменным оголовком, зевом и без рамки", mesh.get_node_or_null("Headwall") != null and mesh.get_child_count() == 2, str(mesh.get_child_count()))
+		mesh.free()
 		check("тоннель: проём от низа балласта на высоту габарита", near(p["floor"], 1.0) and near(p["vault"], 3.0), "%s %s" % [p["floor"], p["vault"]])
 		check("тоннель: у портала ширина балласта и высота земли в холме", near(p["width"], 2.0) and near(p["top"], 8.0), "%s %s" % [p["width"], p["top"]])
+
+	# стенки выемки у тоннеля круче: низкий холм (3 слоя), край выемки на 2,5 ю от оси есть, на 3,5 ю нет (обычный откос 1,5 дал бы и там)
+	var low_t := TerrainField.new()
+	low_t.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	low_t.lay_rect(Rect2(20, 0, 20, 40), 3.0)
+	var steep := tunnel_bed(low_t, s)
+	var soft := FieldBed.build_track(s, Callable(low_t, "surface_at"), Callable(low_t, "has_layer"), tunnel_params(), false)
+	var k25 := Vector2i(node(30.0), node(22.5))
+	var k35 := Vector2i(node(30.0), node(23.5))
+	check("тоннель: крутая стенка выемки у края (2,5 ю от оси, высота 2)", steep.has(k25) and near((steep[k25] as Vector3).y, 2.0), str(steep.get(k25)))
+	check("тоннель: на 3,5 ю от оси выемки уже нет (стенка крутая)", not steep.has(k35))
+	check("обычный трак: тот же откос положе (на 3,5 ю выемка есть)", soft.has(k35), str(soft.get(k35)))
 
 	# тот же трак без тоннеля режет холм целиком
 	var plain := FieldBed.build_track(s, Callable(f, "surface_at"), Callable(f, "has_layer"), tunnel_params(), false)
@@ -281,9 +309,9 @@ func _test_tunnel() -> void:
 	if pm.size() == 2:
 		var xs: Array = []
 		for d: Dictionary in pm:
-			xs.append("%d:%d" % [roundi((d["p"] as Vector2).x), roundi((d["out"] as Vector2).x)])
+			xs.append("%.2f:%d" % [(d["p"] as Vector2).x, roundi((d["out"] as Vector2).x)])
 		xs.sort()
-		check("холм посередине: у входа x = 12 наружу влево, у выхода x = 28 наружу вправо", xs == ["12:-1", "28:1"], str(xs))
+		check("холм посередине: у входа x = 13,5 наружу влево, у выхода x = 26,25 наружу вправо", xs == ["13.50:-1", "26.25:1"], str(xs))
 	var mb := tunnel_bed(mid, s)
 	check("холм посередине: ложе по обе стороны холма, в холме нет", mb.has(Vector2i(node(6.0), node(20.0))) and mb.has(Vector2i(node(32.0), node(20.0)))
 			and not mb.has(Vector2i(node(20.0), node(20.0))))

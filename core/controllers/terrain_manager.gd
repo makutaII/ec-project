@@ -455,8 +455,6 @@ const BED_DELAY := 0.12
 const BED_SAMPLE_STEP := 2.0
 ## Охват откоса по высоте, слоёв (дальше выемка обрывается)
 const BED_MAX_DH_LAYERS := 6.0
-## H7. На сколько ю в холм заглублена рамка портала от торца выемки
-const PORTAL_INSET := 0.25
 
 var _bed_cache := {}       # Entity -> {"s": образцы, "tun": тоннельный ли, "n": ложе трака, "rect": Rect2 влияния, "portals": порталы тоннеля}
 var _bed_stale := {}       # Entity -> true: пересчитать, даже если образцы те же (изменилось поле)
@@ -494,7 +492,8 @@ func _bed_params() -> Dictionary:
 	var T: float = Global.settings.layer_height
 	return FieldBed.params(Global.settings.embankment_shoulder, Global.settings.field_bed_run,
 			Global.settings.field_bed_fill_max * T, BED_MAX_DH_LAYERS * T,
-			Global.settings.get_track_height() + float(Global.settings.tunnel_clearance), Global.settings.field_tunnel_roof * T)
+			Global.settings.get_track_height() + float(Global.settings.tunnel_clearance), Global.settings.field_tunnel_roof * T,
+			Global.settings.field_tunnel_run)
 
 
 ## Пересчитать ложе траков сейчас (проверки, отладочная клавиша)
@@ -528,8 +527,9 @@ func bed_refresh() -> void:
 			for d: Dictionary in s:
 				lo = lo.min(d["l"]).min(d["r"])
 				hi = hi.max(d["l"]).max(d["r"])
-			c = {"s": s, "tun": tun, "n": FieldBed.build_track(s, raw, has, p, tun), "rect": Rect2(lo, hi - lo).grow(reach),
-				"portals": FieldBed.portals(s, raw, p) if tun else []}
+			var bed := FieldBed.build_track(s, raw, has, p, tun)
+			c = {"s": s, "tun": tun, "n": bed, "rect": Rect2(lo, hi - lo).grow(reach),
+				"portals": FieldBed.portals(s, raw, p, bed) if tun else []}
 			_bed_cache[e] = c
 		results.append(c["n"])
 	for e: Variant in _bed_cache.keys():
@@ -568,9 +568,8 @@ func _sync_portals(cache: Dictionary) -> void:
 		var holder := Node3D.new()
 		for d: Dictionary in list:
 			var out: Vector2 = d["out"]
-			var at: Vector2 = (d["p"] as Vector2) - out * PORTAL_INSET   # рамка стоит на стенке выемки, чуть в холме
-			holder.add_child(TunnelPortal.make_node(style, at, out, float(d["width"]) + 2.0 * margin,
-					float(d["floor"]), float(d["vault"]), float(d["top"]), true))
+			holder.add_child(TunnelPortal.make_node(style, d["front"], out, float(d["width"]) + 2.0 * margin,
+					float(d["floor"]), float(d["vault"]), float(d["top"]), true, d["wall"]))   # на лицевой плоскости оголовка
 		_portal_root.add_child(holder)
 		_portal_nodes[e] = {"sig": sig, "node": holder}
 

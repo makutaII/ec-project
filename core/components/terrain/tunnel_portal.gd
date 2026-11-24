@@ -25,6 +25,8 @@ const WING_DEG := 35.0
 const LINTEL_MAX := 1.2
 ## Фаска верхнего угла проёма: сторона квадрата, повёрнутого на 45°
 const CHAMFER := 0.7
+## Цвет оголовка в холме поля, когда стиль рамки не выбран
+const WALL_COLOR := Color(0.46, 0.43, 0.39)
 ## Устья ближе друг к другу, чем это (вершина контура даёт два попадания), считаем одним, ю
 const MERGE := 0.3
 
@@ -127,8 +129,10 @@ static func parts(width: float, floor_y: float, vault_y: float, top_y: float) ->
 
 ## Узел рамки в мире: боксы по parts, стиль задаёт цвет. at: точка устья (x, z), out: нормаль наружу. Без коллизии.
 ## fill (H7, портал в холме поля высот): проём закрыт тёмной плоскостью (зев тоннеля), рамка рисуется, только если стиль не пустой
+## wall (H7): оголовок FieldBed.headwall, камень вокруг проёма поверх склона между срезанным и несрезанным рядами узлов (иначе проём
+## чёрный прямоугольник перед склоном)
 static func make_node(style: StringName, at: Vector2, out: Vector2, width: float, floor_y: float, vault_y: float, top_y: float,
-		fill: bool = false) -> Node3D:
+		fill: bool = false, wall: Dictionary = {}) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Portal"
 	var z := Vector3(out.x, 0.0, out.y).normalized()
@@ -137,6 +141,10 @@ static func make_node(style: StringName, at: Vector2, out: Vector2, width: float
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = COLORS.get(style, COLORS[STYLE_CONCRETE])
 	mat.roughness = 1.0
+	if fill and not wall.is_empty():
+		var wm := _wall_mesh(wall, COLORS.get(style, WALL_COLOR))
+		if wm != null:
+			root.add_child(wm)
 	if fill and vault_y > floor_y and width > 0.0:
 		var dark := StandardMaterial3D.new()
 		dark.albedo_color = Color(0.02, 0.02, 0.02)
@@ -160,3 +168,45 @@ static func make_node(style: StringName, at: Vector2, out: Vector2, width: float
 		mi.rotation = Vector3(0.0, part["rot_y"], part["rot_z"])
 		root.add_child(mi)
 	return root
+
+
+## Оголовок портала в холме поля (H7): блок от лицевой плоскости (z = 0) вглубь холма на wall["depth"]; спереди стенка по колонкам
+## (низ это дно выемки, верх это земля холма), сверху крышка на высоте земли, закрывающая склон между срезанными и несрезанными узлами.
+## Локальные оси узла портала: x поперёк трака, y мировая высота, z наружу. null, если оголовок пуст
+static func _wall_mesh(wall: Dictionary, color: Color) -> MeshInstance3D:
+	var us: PackedFloat32Array = wall["u"]
+	var bs: PackedFloat32Array = wall["bottom"]
+	var ts: PackedFloat32Array = wall["top"]
+	var depth: float = wall["depth"]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var any := false
+	for i in us.size() - 1:
+		if ts[i] - bs[i] < 0.001 and ts[i + 1] - bs[i + 1] < 0.001:
+			continue
+		any = true
+		var bl := Vector3(us[i], bs[i] - 0.1, 0.0)
+		var tl := Vector3(us[i], ts[i], 0.0)
+		var tr := Vector3(us[i + 1], ts[i + 1], 0.0)
+		var br := Vector3(us[i + 1], bs[i + 1] - 0.1, 0.0)
+		st.set_normal(Vector3.BACK)
+		for v: Vector3 in [bl, tl, tr, bl, tr, br]:
+			st.add_vertex(v)
+		var cl := tl + Vector3(0.0, 0.02, 0.0)
+		var cr := tr + Vector3(0.0, 0.02, 0.0)
+		var dl := cl + Vector3(0.0, 0.0, -depth)
+		var dr := cr + Vector3(0.0, 0.0, -depth)
+		st.set_normal(Vector3.UP)
+		for v: Vector3 in [cl, dl, dr, cl, dr, cr]:
+			st.add_vertex(v)
+	if not any:
+		return null
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 1.0
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mi := MeshInstance3D.new()
+	mi.name = "Headwall"
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	return mi

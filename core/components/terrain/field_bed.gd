@@ -32,9 +32,12 @@ const REACH_SLACK := 1.0
 
 
 ## Параметры: shoulder (ю плечо), run (откос), fill_max (ю, насыпь не выше), max_dh (ю, охват откоса не больше),
-## body (ю, высота тоннеля над низом балласта: трак плюс габарит) и roof (ю, наименьшая толщина свода): только для тоннельных траков
-static func params(shoulder: float, run: float, fill_max: float, max_dh: float, body: float = 0.0, roof: float = 0.0) -> Dictionary:
-	return {"shoulder": shoulder, "run": maxf(run, 0.1), "fill_max": fill_max, "max_dh": max_dh, "body": body, "roof": roof}
+## body (ю, высота тоннеля над низом балласта: трак плюс габарит) и roof (ю, наименьшая толщина свода): только для тоннельных траков,
+## tunnel_run (ю в плане на 1 ю высоты): крутизна стенок выемки у тоннельного трака (0: как run), у портала выемка с крутыми стенками
+static func params(shoulder: float, run: float, fill_max: float, max_dh: float, body: float = 0.0, roof: float = 0.0,
+		tunnel_run: float = 0.0) -> Dictionary:
+	return {"shoulder": shoulder, "run": maxf(run, 0.1), "fill_max": fill_max, "max_dh": max_dh, "body": body, "roof": roof,
+		"tunnel_run": maxf(tunnel_run if tunnel_run > 0.0 else run, 0.1)}
 
 
 ## H7. Какие образцы тоннельного трака закрыты землёй (1) или открыты (0). Земля над образцом: самая низкая высота поля в точках оси
@@ -46,12 +49,49 @@ static func tunnel_closed(s: Array, raw: Callable, p: Dictionary) -> PackedByteA
 	var need: float = float(p["body"]) + float(p["roof"])
 	for k in s.size():
 		var d: Dictionary = s[k]
-		var l: Vector2 = d["l"]
-		var r: Vector2 = d["r"]
-		var g := INF
-		for pt: Vector2 in [(l + r) * 0.5, l, r]:
-			g = minf(g, float(raw.call(roundi(pt.x / STEP), roundi(pt.y / STEP))))
-		res[k] = 1 if g >= float(d["y"]) + need - EPS else 0
+		res[k] = 1 if _closed_at(d["l"], d["r"], float(d["y"]), raw, need) else 0
+	return res
+
+
+static func _closed_at(l: Vector2, r: Vector2, y: float, raw: Callable, need: float) -> bool:
+	var g := INF
+	for pt: Vector2 in [(l + r) * 0.5, l, r]:
+		g = minf(g, float(raw.call(roundi(pt.x / STEP), roundi(pt.y / STEP))))
+	return g >= y + need - EPS
+
+
+## Делений участка при поиске торца: образцы стоят через 2 ю, портал не должен стоять в воздухе перед холмом
+const REFINE := 8
+
+
+## H7. Образцы тоннельного трака с торцами: между открытым и закрытым образцом добавляется открытый образец в последней открытой точке
+## (шаг участка / REFINE), поэтому ложе кончается у самого холма, а портал стоит на его склоне, а не на образце в стороне от него
+static func tunnel_samples(s: Array, raw: Callable, p: Dictionary) -> Array:
+	var closed := tunnel_closed(s, raw, p)
+	var need: float = float(p["body"]) + float(p["roof"])
+	var res: Array = []
+	for k in s.size():
+		res.append(s[k])
+		if k + 1 >= s.size() or closed[k] == closed[k + 1]:
+			continue
+		var a: Dictionary = s[k]
+		var b: Dictionary = s[k + 1]
+		var from_closed := closed[k] == 1
+		var ti := -1.0   # где вставить открытый образец; -1: вставка не нужна
+		var found := false
+		for i in range(1, REFINE):
+			var t := float(i) / float(REFINE)
+			var is_closed := _closed_at((a["l"] as Vector2).lerp(b["l"], t), (a["r"] as Vector2).lerp(b["r"], t),
+					lerpf(float(a["y"]), float(b["y"]), t), raw, need)
+			if is_closed != from_closed:
+				ti = t if from_closed else float(i - 1) / float(REFINE)
+				found = true
+				break
+		if not found and not from_closed:
+			ti = float(REFINE - 1) / float(REFINE)   # закрыт только следующий образец: последняя открытая точка перед ним
+		if ti > 0.0:
+			res.append({"l": (a["l"] as Vector2).lerp(b["l"], ti), "r": (a["r"] as Vector2).lerp(b["r"], ti),
+				"y": lerpf(float(a["y"]), float(b["y"]), ti)})
 	return res
 
 
@@ -68,13 +108,16 @@ static func tunnel_skip(closed: PackedByteArray) -> PackedByteArray:
 
 
 ## H7. Порталы тоннельного трака: на каждом конце открытой выемки, где дальше поле закрывает трак. Список {"p": Vector2 точка на оси,
-## "out": Vector2 единичная нормаль наружу (из холма в выемку), "width": ширина балласта, "floor": Y низа проёма, "vault": Y верха проёма,
-## "top": Y земли в холме у портала}. s: образцы, raw: высота поля в узле, p: params
-static func portals(s: Array, raw: Callable, p: Dictionary) -> Array[Dictionary]:
+## "out": Vector2 единичная нормаль наружу (из холма в выемку), "front": Vector2 центр лицевой плоскости оголовка (p, сдвинутая наружу на
+## WALL_FRONT), "width": ширина балласта, "floor": Y низа проёма, "vault": Y верха проёма, "top": Y земли в холме у портала,
+## "wall": оголовок (headwall)}. s: образцы трака, raw: высота поля в узле, p: params, bed: ложе этого трака (build_track), чтобы оголовок
+## знал дно выемки
+static func portals(s: Array, raw: Callable, p: Dictionary, bed: Dictionary = {}) -> Array[Dictionary]:
 	var res: Array[Dictionary] = []
-	var n := s.size()
-	if n < 2:
+	if s.size() < 2:
 		return res
+	s = tunnel_samples(s, raw, p)
+	var n := s.size()
 	var closed := tunnel_closed(s, raw, p)
 	var skip := tunnel_skip(closed)
 	var body: float = p["body"]
@@ -87,23 +130,67 @@ static func portals(s: Array, raw: Callable, p: Dictionary) -> Array[Dictionary]
 			continue
 		var fwd := (b - a).normalized()
 		if k + 1 < n - 1 and skip[k + 1] == 1:
-			res.append(_portal(s, k + 1, -fwd, k + 2, raw, body))
+			res.append(_portal(s, k + 1, -fwd, k + 2, raw, body, bed))
 		if k > 0 and skip[k - 1] == 1:
-			res.append(_portal(s, k, fwd, k - 1, raw, body))
+			res.append(_portal(s, k, fwd, k - 1, raw, body, bed))
 	return res
+
+
+## Оголовок портала: лицевая плоскость на WALL_FRONT наружу от торца выемки (она впереди склона между последним срезанным рядом узлов
+## и первым несрезанным), глубина WALL_DEPTH внутрь холма (дальше первого несрезанного ряда). Колонки поперёк трака с шагом STEP:
+## низ это дно выемки в этом месте (ложе или земля), верх это земля в холме на задней грани. Высота колонки меньше WALL_MIN: край
+## оголовка, он сходит на нет по откосу выемки
+const WALL_FRONT := 0.5
+const WALL_DEPTH := 1.5
+const WALL_MIN := 0.05
+const WALL_MAX_U := 24.0
+
+
+## {"u": PackedFloat32Array смещения колонок от оси, "bottom": PackedFloat32Array, "top": PackedFloat32Array, "depth": float}
+static func headwall(p: Vector2, out: Vector2, raw: Callable, bed: Dictionary) -> Dictionary:
+	var lat := Vector2(-out.y, out.x)
+	var front := p + out * WALL_FRONT
+	var back := p - out * (WALL_DEPTH - WALL_FRONT)
+	var right: Array = []   # колонки от оси вправо: [u, низ, верх]
+	var left: Array = []    # колонки влево (u < 0), от оси наружу
+	for dir in [1.0, -1.0]:
+		var list: Array = right if dir > 0.0 else left
+		var k := 0 if dir > 0.0 else 1
+		while float(k) * STEP <= WALL_MAX_U:
+			var u: float = float(dir) * float(k) * STEP
+			var pf := front + lat * u
+			var pb := back + lat * u
+			var key := Vector2i(roundi(pf.x / STEP), roundi(pf.y / STEP))
+			var bottom := float((bed[key] as Vector3).y) if bed.has(key) else float(raw.call(key.x, key.y))
+			# колонка вне выемки (узла нет в ложе): это склон холма, оголовок его не закрывает
+			var top := maxf(float(raw.call(roundi(pb.x / STEP), roundi(pb.y / STEP))), bottom) if bed.has(key) else bottom
+			list.append([u, bottom, top])
+			if top - bottom < WALL_MIN:
+				break   # край оголовка: последняя колонка нулевой высоты
+			k += 1
+	var us := PackedFloat32Array()
+	var bs := PackedFloat32Array()
+	var ts := PackedFloat32Array()
+	left.reverse()
+	for col: Array in left + right:
+		us.append(float(col[0]))
+		bs.append(float(col[1]))
+		ts.append(float(col[2]))
+	return {"u": us, "bottom": bs, "top": ts, "depth": WALL_DEPTH}
 
 
 static func _center(d: Dictionary) -> Vector2:
 	return ((d["l"] as Vector2) + (d["r"] as Vector2)) * 0.5
 
 
-static func _portal(s: Array, at: int, out: Vector2, inner: int, raw: Callable, body: float) -> Dictionary:
+static func _portal(s: Array, at: int, out: Vector2, inner: int, raw: Callable, body: float, bed: Dictionary) -> Dictionary:
 	var d: Dictionary = s[at]
 	var c := _center(d)
 	var ci := _center(s[clampi(inner, 0, s.size() - 1)])
-	return {"p": c, "out": out, "width": (d["l"] as Vector2).distance_to(d["r"]),
+	return {"p": c, "out": out, "front": c + out * WALL_FRONT, "width": (d["l"] as Vector2).distance_to(d["r"]),
 		"floor": float(d["y"]), "vault": float(d["y"]) + body,
-		"top": float(raw.call(roundi(ci.x / STEP), roundi(ci.y / STEP)))}
+		"top": float(raw.call(roundi(ci.x / STEP), roundi(ci.y / STEP))),
+		"wall": headwall(c, out, raw, bed)}
 
 
 ## Ложе одного трака. s: образцы C_Path.ballast_samples ({"l": Vector2, "r": Vector2, "y": float}), raw: Callable(i, j) -> float
@@ -115,6 +202,8 @@ static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Diction
 		return out
 	var skip := PackedByteArray()
 	if tunnel:
+		s = tunnel_samples(s, raw, p)   # с образцами на торцах: ложе доходит до самого холма
+		n = s.size()
 		skip = tunnel_skip(tunnel_closed(s, raw, p))
 	var c := PackedVector2Array()
 	var hw := PackedFloat32Array()
@@ -130,6 +219,7 @@ static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Diction
 	for k in n:
 		touch[k] = 1 if _touches(c[k], hw[k], has_layer) else 0
 	var run: float = p["run"]
+	var run_cut: float = p["tunnel_run"] if tunnel else run   # H7: у тоннеля стенки выемки круче
 	var fill_max: float = p["fill_max"]
 	for k in n - 1:
 		if tunnel and skip[k] == 1:
@@ -170,7 +260,7 @@ static func build_track(s: Array, raw: Callable, has_layer: Callable, p: Diction
 				var run_s := 0.0 if flat else (dist - hwt) / run
 				var h := g
 				if g > by + EPS:
-					h = by if flat else minf(g, by + run_s)
+					h = by if flat else minf(g, by + (dist - hwt) / run_cut)
 				elif g < by - EPS:
 					if not can_fill or by - g > fill_max:
 						continue
