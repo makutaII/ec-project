@@ -61,8 +61,8 @@ func _half_width() -> float:
 ## (ось кривой, а при крене нижний край основания) касалась её. Origin в середине кривой, поэтому нижняя половина
 ## дуги, уклона или трака с креном раньше уходила в землю (у обычного пандуса это |rise|/2, а у RidePath rise = 0)
 func ground_anchor() -> float:
-	if curve == null or path_node == null:
-		return 0.0
+	if curve == null or path_node == null or has_comp(C_FlexShape):
+		return 0.0   # у flex origin в начале кривой, его высота задаётся началом и уровнями конца
 	return maxf(-(path_node.position.y + RideShape.lowest_y(curve, _half_width())), 0.0)
 
 
@@ -90,6 +90,11 @@ func underground_depth(xf: Transform3D) -> float:
 					gy = hit.position.y
 			worst = maxf(worst, gy - p.y)
 	return worst
+
+
+## Форма flex пересчитана (событие шлёт C_Path.set_curve): запечённый профиль нагрузок устарел
+func on_curve_changed(_d: Dictionary) -> void:
+	_dyn = {}
 
 
 ## Общая проверка центробежной силы по радиусу в плане здесь не нужна: боковую нагрузку считает ride_load_at (с учётом крена)

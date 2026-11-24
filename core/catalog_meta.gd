@@ -50,7 +50,7 @@ const TAGS := {
 	&"terrain": [&"foam", &"cut", &"field", &"relief", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14: field (H1b), relief (H2)
 	&"table": [&"section"],
 	&"coaster_car": [&"car"],   # XX claude-coaster C3
-	&"coaster_track": [&"straight", &"slope", &"bank"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)
+	&"coaster_track": [&"straight", &"slope", &"bank", &"flex"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)
 	&"dc_controller": [&"2d", &"3d", &"switch", &"wire"],
 }
 
@@ -71,6 +71,7 @@ const TAG_META := {
 	&"coaster_track": {
 		&"straight": {"name": "Прямые"},
 		&"slope": {"name": "Подъёмы и спуски"},
+		&"flex": {"name": "Гибкие", "tooltip": "Гибкий трак горок: свои пределы формы (поворот от 8, уклон до 35°)"},
 		&"bank": {"name": "Крен", "tooltip": "Траки с креном: штопор (крен меняется вдоль трака) и вираж (крен постоянный). Стык требует совпадения крена"},
 	},
 	&"coaster_car": {

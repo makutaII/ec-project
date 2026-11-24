@@ -210,6 +210,12 @@ func on_flex_limits_changed(_d: Dictionary) -> void:
 
 ## real = true: настоящие пределы (для проверки), иначе те, по которым решаем форму
 func _limits(real := false) -> FlexSolver.Limits:
+	# XX claude-coaster C8: паспорт трака может задать свои пределы (flex горок), иначе из GlobalSetting
+	var idc := get_comp(C_Identity) as C_Identity
+	var cfg := idc.object_config as TrackConfig if idc else null
+	var own := cfg.flex_limits() if cfg else null
+	if own != null and (real or not relaxed):
+		return own
 	var gs = Global.settings
 	var lim := FlexSolver.Limits.new()
 	if real or not relaxed:
@@ -493,11 +499,11 @@ func _zones_refresh(force := false) -> void:
 	var path := get_comp(C_Path) as C_Path
 	if path == null or path.curve == null or path.path_node == null:
 		return
-	var gs = Global.settings
+	var zl := _limits(true)   # XX claude-coaster C8: пределы flex горок свои (у обычного flex те же gs.flex_r_min и flex_max_grade)
 	var full := entity.has_comp(C_Ghost) or stretching or editing or entity.has_comp(C_Selected)
 	var fv := get_comp(C_FlexVisual) as C_FlexVisual
 	var rail_x: float = fv.style.rail_x if fv and fv.style else 0.875
-	var mesh := FlexZones.build_mesh(path, gs.flex_r_min, gs.flex_max_grade, full, rail_x * Global.flash_width)
+	var mesh := FlexZones.build_mesh(path, zl.r_min, zl.max_grade, full, rail_x * Global.flash_width)
 	if mesh == null:
 		_zones_hide()
 		return

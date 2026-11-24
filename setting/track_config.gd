@@ -31,6 +31,10 @@ class_name TrackConfig extends ObjectConfig
 ## RoadConfig подменяет её шириной полотна (road_width), чтобы ширина дороги жила в одном поле
 func effective_collision_width() -> float:
 	return collision_width
+## Пределы формы flex-трака из паспорта (FlexSolver.Limits). null = обычные, из GlobalSetting (flex_r_min, flex_l_*, flex_max_grade).
+## XX claude-coaster C8: RideFlexConfig задаёт свои, у горок они шире. Спрашивает C_FlexShape
+func flex_limits() -> FlexSolver.Limits:
+	return null
 
 
 ## Каким компонентом строится путь трака. XX claude-coaster C4: по умолчанию обычный C_Path, траки с особой формой

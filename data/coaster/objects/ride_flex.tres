@@ -1,0 +1,62 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_b1byy"]
+[ext_resource type="Script" path="res://core/coaster/ride_flex_config.gd" id="2_7w4hg"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_m67po"]
+[ext_resource type="Script" uid="uid://cfevyekcq7aco" path="res://core/components/comp_settings/flexvisual_setting.gd" id="4_y01i7"]
+[ext_resource type="Script" uid="uid://b1jwuxb32so7e" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="7_ajjs4"]
+[ext_resource type="Script" uid="uid://djbifkyei01t7" path="res://core/components/comp_settings/pivot_setting.gd" id="8_vuds4"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="9_8vra5"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="10_4bvee"]
+[ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="11_btd5m"]
+[ext_resource type="Script" uid="uid://bv065wdiw674c" path="res://core/components/comp_settings/socked_setting.gd" id="12_4qu3e"]
+[ext_resource type="Script" uid="uid://cs257ge2f37bu" path="res://core/components/comp_settings/tracksupport_setting.gd" id="14_tijak"]
+[ext_resource type="Resource" uid="uid://bbeytped68e3v" path="res://data/tracks/styles/coaster.tres" id="17_style"]
+[ext_resource type="Texture2D" uid="uid://6vvfxmo2e8wl" path="res://ui/icons/transport/rail_r1.svg" id="15_b1byy"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="16_lwvy1"]
+
+[sub_resource type="Resource" id="Resource_cfg"]
+script = ExtResource("2_7w4hg")
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_m67po")
+object_config = SubResource("Resource_cfg")
+
+[sub_resource type="Resource" id="Resource_flex"]
+script = ExtResource("4_y01i7")
+style = ExtResource("17_style")
+
+[sub_resource type="Resource" id="Resource_drag"]
+script = ExtResource("7_ajjs4")
+
+[sub_resource type="Resource" id="Resource_piv"]
+script = ExtResource("8_vuds4")
+
+[sub_resource type="Resource" id="Resource_hov"]
+script = ExtResource("9_8vra5")
+
+[sub_resource type="Resource" id="Resource_sel"]
+script = ExtResource("10_4bvee")
+
+[sub_resource type="Resource" id="Resource_blk"]
+script = ExtResource("11_btd5m")
+
+[sub_resource type="Resource" id="Resource_sock"]
+script = ExtResource("12_4qu3e")
+
+[sub_resource type="Resource" id="Resource_sup"]
+script = ExtResource("14_tijak")
+
+[resource]
+script = ExtResource("16_lwvy1")
+key = &"coaster_track.flex.ride_flex"
+sort_order = 10
+name = "Flex горок"
+description = "Гибкий трак горок. Клик: начало, второй клик: конец. Свои пределы: поворот от 8, длина 4-120, уклон до 35°"
+category = &"coaster_track"
+tag = &"flex"
+icon = ExtResource("15_b1byy")
+build_behavior = 2
+pick_layers = Array[StringName]([&"ground"])
+components = Array[ExtResource("1_b1byy")]([SubResource("Resource_id"), SubResource("Resource_flex"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock"), SubResource("Resource_sup")])
+metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

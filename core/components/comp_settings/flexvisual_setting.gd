@@ -20,7 +20,10 @@ func create_component(entity: Entity) -> Component:
 	entity.add_component(vis)
 
 	# 2. Путь: origin в начале кривой
-	var path := C_Path.new()
+	# XX claude-coaster C8: паспорт может подменить компонент пути (TrackConfig.create_path): у flex горок это C_RidePath
+	var pidc := entity.get_comp(C_Identity) as C_Identity
+	var pcfg := pidc.object_config as TrackConfig if pidc else null
+	var path: C_Path = pcfg.create_path() if pcfg else C_Path.new()
 	PathSetting.apply_passport(path, entity)   # radius, deg, rise, height, allow_underground из паспорта
 	path.centered = false
 	path.name = 'C_Path'
