@@ -72,7 +72,7 @@ func get_pick_layers() -> Array:
 func _base_pick_layers() -> Array:
 	if not pick_layers.is_empty():
 		return pick_layers
-	if category == &'track':
+	if category == &'track' or category == &'road':   # XX claude-car CS1: дорога ставится как трак
 		return [&'ground']   # трак ставится на уровень над землей, а не на другие траки
 	if category == &'terrain':
 		return [&'ground']   # лист пенопласта ставится на стол или на верх другого листа

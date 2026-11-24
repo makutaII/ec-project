@@ -143,12 +143,13 @@ func _apply_vertical_magnet(pos: Vector3) -> Vector3:
 	var best_d: float = gs.magnet_radius
 	var best_dy := 0.0
 	var path := entity.get_comp(C_Path) as C_Path
+	var net := mine.network()   # XX claude-car CS1: магнит тянет только к сокетам своей сети
 	for node in get_tree().get_nodes_in_group(&"track_socket"):
 		var other := node as Entity
 		if other == null or other == entity or other.is_queued_for_deletion() or other.has_comp(C_Ghost):
 			continue
 		var oc := other.get_comp(C_Socket) as C_Socket
-		if not oc:
+		if not oc or oc.network() != net:
 			continue
 		for osock in oc.sockets:
 			if not oc.is_socket_free(osock.socket):

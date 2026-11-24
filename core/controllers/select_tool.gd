@@ -30,7 +30,7 @@ var _marquee_additive := false   # рамка с Shift: добавляет к г
 var _shift_press := false        # ЛКМ нажата с Shift (Build): клик переключает объект в группе, драг добавляет рамкой
 var _shift_click: Entity         # объект под курсором в момент нажатия с Shift (null: пустое место)
 var _group_drag_candidate: Entity   # член группы под курсором в момент нажатия (без Shift/Ctrl): драг потащит всю группу
-const GROUP_MOVABLE: Array[StringName] = [&"track", &"building", &"coaster_track"]   # категории, которые группа умеет двигать (coaster_track: XX claude-coaster)
+const GROUP_MOVABLE: Array[StringName] = [&"track", &"road", &"building", &"coaster_track"]   # категории, которые группа умеет двигать (coaster_track: XX claude-coaster, road: XX claude-car CS1)
 var _group_layer: CanvasLayer
 var _marquee: MarqueeOverlay
 var _tooltip: GroupSelectionPanel
@@ -391,11 +391,11 @@ func _pick_ray() -> Dictionary:
 	# XX claude-table T1b: в режиме «Секции» смотрим только плиту (вагон или трак на ней не заслоняют её)
 	if Global.current_mode == &'sections':
 		return controller.get_mouse_ray(Global.active_layers(['ground', 'ghost']))
-	var hit: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','trains','ghost','power']))
+	var hit: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','roads','trains','ghost','power']))   # XX claude-car CS1: roads
 	if hit.is_empty():
 		# get_mouse_ray отбрасывает боковые грани слоя ground (бок стола не поверхность для трека). Для выбора и ховера бок
 		# пенопластового блока (C_TerrainLayer) годится: без этого блок наводился только по верхней грани
-		var raw: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','trains','ghost','power']), true)
+		var raw: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','roads','trains','ghost','power']), true)
 		if not raw.is_empty() and raw.collider is Node:
 			var raw_entity = _find_entity(raw.collider)
 			if raw_entity != null and raw_entity.has_comp(C_TerrainLayer):

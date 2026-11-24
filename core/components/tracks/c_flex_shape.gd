@@ -396,7 +396,7 @@ func _find_end_socket(world: Vector3) -> Dictionary:
 		if other == null or other == entity or other.is_queued_for_deletion() or other.has_comp(C_Ghost):
 			continue
 		var oc := other.get_comp(C_Socket) as C_Socket
-		if not oc:
+		if not oc or oc.network() != &"rail":   # XX claude-car CS1: flex цепляется только к рельсам
 			continue
 		for s in oc.sockets:
 			var a: Area3D = s.socket
@@ -442,7 +442,7 @@ func _neighbor_slope() -> float:
 		if other == null or other == entity or other.is_queued_for_deletion() or other.has_comp(C_Ghost):
 			continue
 		var oc := other.get_comp(C_Socket) as C_Socket
-		if not oc:
+		if not oc or oc.network() != &"rail":   # XX claude-car CS1: flex цепляется только к рельсам
 			continue
 		for s in oc.sockets:
 			var a: Area3D = s.socket

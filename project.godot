@@ -513,6 +513,7 @@ debug_vsync_toggle={
 3d_physics/layer_13="plaster"
 3d_physics/layer_14="power"
 3d_physics/layer_15="underside"
+3d_physics/layer_16="roads"
 
 [physics]
 

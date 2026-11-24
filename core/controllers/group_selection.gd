@@ -12,11 +12,12 @@ class_name GroupSelection extends RefCounted
 
 signal changed
 
-const CATEGORIES: Array[StringName] = [&"track", &"train", &"building", &"terrain"]
+const CATEGORIES: Array[StringName] = [&"track", &"road", &"train", &"building", &"terrain"]   # XX claude-car CS1: road
 ## XX claude-coaster: рамка в режиме «горки» берет только объекты горок (категории каталога режима, ATTN_27)
 const COASTER_CATEGORIES: Array[StringName] = [&"coaster_track", &"coaster_car"]
 const LABELS := {
 	&"track": "Траки",
+	&"road": "Дороги",   # XX claude-car CS1
 	&"train": "Вагоны",
 	&"building": "Домики",
 	&"terrain": "Террейн",
@@ -25,7 +26,7 @@ const LABELS := {
 }
 
 ## Включена ли категория в группу
-var enabled := {&"track": true, &"train": true, &"building": true, &"terrain": true, &"coaster_track": true, &"coaster_car": true}
+var enabled := {&"track": true, &"road": true, &"train": true, &"building": true, &"terrain": true, &"coaster_track": true, &"coaster_car": true}
 ## Все объекты последней рамки (до фильтра)
 var candidates: Array[Entity] = []
 ## Объекты группы: кандидаты с включенной категорией

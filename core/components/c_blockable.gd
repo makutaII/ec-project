@@ -53,6 +53,8 @@ func _should_block(_area):
 	var ent = find_entity_from_collider(_area) # Выдает сущность
 	if not ent or ent == entity: return false # Игнорим себя
 	if ent.has_comp(C_Ghost): return false    # Игнорим гостов
+	# XX claude-car CS1: основания рельса и дороги не мешают друг другу (слой ghost общий, слои tracks и roads разные)
+	if C_Path.network_of(ent) != C_Path.network_of(entity): return false
 	return true
 
 

@@ -445,6 +445,27 @@ func ground_anchor() -> float:
 	return absf(rise) * 0.5 if centered else 0.0
 
 
+# XX claude-car CS1 (ATTN_28 §28.3)
+## Сеть пути: ключ совместимости сокетов. У рельсов, стрелок и горок &"rail", у дороги (C_RoadPath) &"road".
+## Сокеты разных сетей не стыкуются, не считаются соседями и не занимают друг другу стык
+func network_id() -> StringName:
+	return &"rail"
+
+
+# XX claude-car CS1
+## Сеть сущности по её пути. Сущность без C_Path (и null) считается рельсовой
+static func network_of(e: Entity) -> StringName:
+	var p := e.get_comp(C_Path) as C_Path if e != null else null
+	return p.network_id() if p != null else &"rail"
+
+
+# XX claude-car CS1
+## Бит физического слоя основания (Ballast и HeadStaticBody3D): tracks у рельсов, roads у дороги.
+## В драге основание переходит на слой ghost (on_select_layer) и видит только свой слой
+func solid_layer_bit() -> int:
+	return Global.active_layers([&"tracks"])
+
+
 # XX claude-terra
 ## Насколько самая глубокая точка кривой уходит под землю, если Entity стоит в позе xf. 0 = не уходит.
 ## Землей считается слой 'ground' (стол, позже листы пенопласта).
@@ -693,21 +714,22 @@ func _on_track_shadows_changed(_on: bool) -> void:
 func on_select_layer(_data):
 	# нужные слои (collision_layer / collision_mask)
 	#area.set_collision_layer_value(3, true) # вкл этот слой 
+	var solid := solid_layer_bit()   # XX claude-car CS1: у рельсов слой 3 (tracks), у дороги roads
 	if _data.enabled:
 		ballast_node.collision_layer =  1 << 10	# заменяет активный слой на 11
-		ballast_node.collision_mask = 1 << 2 # гост видит только 3 слой
+		ballast_node.collision_mask = solid # гост видит только слой своей сети
 		
 		head_node.collision_layer =  1 << 10	# заменяет активный слой на 11
-		head_node.collision_mask = 1 << 2 # гост видит только 3 слой
+		head_node.collision_mask = solid
 		#headl_node.collision_layer =  1 << 10	# заменяет активный слой на 11
 		#headr_node.collision_layer =  1 << 10	# заменяет активный слой на 11
 		#headl_node.collision_mask = 1 << 2 # гост видит только 3 слой
 		#headr_node.collision_mask = 1 << 2 # гост видит только 3 слой
 	else:
-		ballast_node.collision_layer = 1 << 2 	# заменяет активный слой на 3
-		ballast_node.collision_mask = 1 << 2
-		head_node.collision_layer =  1 << 2	# заменяет активный слой на 11
-		head_node.collision_mask = 1 << 2 # гост видит только 3 слой
+		ballast_node.collision_layer = solid 	# заменяет активный слой на слой основания
+		ballast_node.collision_mask = solid
+		head_node.collision_layer =  solid
+		head_node.collision_mask = solid
 		#headl_node.collision_layer =  1 << 2	# заменяет активный слой на 11
 		#headr_node.collision_layer =  1 << 2	# заменяет активный слой на 11
 		#headl_node.collision_mask = 1 << 2 # гост видит только 3 слой

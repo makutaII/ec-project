@@ -47,7 +47,8 @@ static func set_box(cs: CollisionShape3D, size: Vector3, xf: Transform3D) -> voi
 ## Ballast/Head получают по одной заглушке коллизии (см. new_shape). Слои как у G239:
 ## треки = слой 3, видят треки и призраков. Используют C_FlexVisual и C_StyleVisual,
 ## чтобы структура сцены была одинаковой для C_Path / C_Blockable / C_Socket.
-static func build_skeleton(style: TrackStyle, root_name: String) -> Dictionary:
+## solid_bit (XX claude-car CS1): бит слоя основания, у рельсов 1 << 2 (tracks), у дороги слой roads (C_Path.solid_layer_bit)
+static func build_skeleton(style: TrackStyle, root_name: String, solid_bit: int = 1 << 2) -> Dictionary:
 	ensure_materials()
 	var root := Node3D.new()
 	root.name = root_name
@@ -61,16 +62,16 @@ static func build_skeleton(style: TrackStyle, root_name: String) -> Dictionary:
 
 	var ballast := Area3D.new()
 	ballast.name = "Ballast"
-	ballast.collision_layer = 1 << 2
-	ballast.collision_mask = (1 << 2) | (1 << 10)
+	ballast.collision_layer = solid_bit
+	ballast.collision_mask = solid_bit | (1 << 10)
 	root.add_child(ballast)
 	var b0 := new_shape()
 	ballast.add_child(b0)
 
 	var head := StaticBody3D.new()
 	head.name = "HeadStaticBody3D"
-	head.collision_layer = 1 << 2
-	head.collision_mask = (1 << 2) | (1 << 10)
+	head.collision_layer = solid_bit
+	head.collision_mask = solid_bit | (1 << 10)
 	var pm := PhysicsMaterial.new()
 	pm.friction = 0.0
 	head.physics_material_override = pm

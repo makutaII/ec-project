@@ -242,7 +242,7 @@ func _on_bind() -> void:
 		_n("IconRect").texture = identity.get_icon()
 		
 		match  identity.get_category():
-			&'track', &'coaster_track':   # XX claude-coaster C3: те же поля формы
+			&'track', &'coaster_track', &'road':   # XX claude-coaster C3: те же поля формы; road: XX claude-car CS1
 				var _path = target.get_comp(C_Path)
 				_n("TrackContainer").show()
 				_n("TrainContainer").hide()

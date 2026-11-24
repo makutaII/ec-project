@@ -12,7 +12,8 @@ var object_dirs := [	"res://data/tracks/objects/",
 						"res://data/table/objects/",
 						"res://ui/dc_controllers/objects/",
 						"res://data/power/objects/",
-						"res://data/coaster/objects/"]   # XX claude-coaster C0: ATTN_27
+						"res://data/coaster/objects/",   # XX claude-coaster C0: ATTN_27
+						"res://data/roads/objects/"]   # XX claude-car CS1: ATTN_28
 
 # Настройки объектов
 var settings: Resource = preload("res://setting/global_setting.tres")
@@ -111,6 +112,9 @@ func active_layers(data:Array) -> int:
 			'power'  : i = i | 1 << 13
 			# XX claude-wire W0: подстолье (ATTN_23 §23.9): низ плиты, брусья рамы, ножки. Лучи монтажа блоков и проводов под столом. Не в PROBE_LAYERS: вагон его не проверяет
 			'underside': i = i | 1 << 14
+			# XX claude-car CS1 (ATTN_28 §28.3): основание дороги (балласт и головка C_RoadPath). Слой 16: бит 13 занят под power, бит 14 под underside.
+			# Вагон его не проверяет (нет в PROBE_LAYERS), рельсовые траки не видят дорогу и наоборот
+			'roads'  : i = i | 1 << 15
 			## Контуры Outline это visual layers 15-20 (cull_mask), к физике не относятся
 	return i
 

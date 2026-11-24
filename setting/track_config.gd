@@ -27,6 +27,12 @@ class_name TrackConfig extends ObjectConfig
 #@export var align_ends := false # Выравнивание торцов коллизий
 
 
+## Ширина коллизии основания, которую применяют адаптеры визуала и пути (XX claude-car CS1). У обычного трака это collision_width;
+## RoadConfig подменяет её шириной полотна (road_width), чтобы ширина дороги жила в одном поле
+func effective_collision_width() -> float:
+	return collision_width
+
+
 ## Каким компонентом строится путь трака. XX claude-coaster C4: по умолчанию обычный C_Path, траки с особой формой
 ## (RideTrackConfig) подменяют. Спрашивает StyleVisualSetting
 func create_path() -> C_Path:
@@ -37,4 +43,4 @@ func create_path() -> C_Path:
 static func collision_width_of(entity: Entity) -> float:
 	var idc := entity.get_comp(C_Identity) as C_Identity
 	var cfg := idc.object_config as TrackConfig if idc else null
-	return cfg.collision_width if cfg else 0.0
+	return cfg.effective_collision_width() if cfg else 0.0   # XX claude-car CS1: было cfg.collision_width

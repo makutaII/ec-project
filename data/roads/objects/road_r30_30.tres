@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" path="res://core/road/road_config.gd" id="2_rc"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" uid="uid://1xmvhthiwc64" path="res://core/components/comp_settings/stylevisual_setting.gd" id="4_sv"]
+[ext_resource type="Resource" path="res://data/roads/styles/asphalt.tres" id="5_st"]
+[ext_resource type="Script" uid="uid://b1jwuxb32so7e" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="7_dr"]
+[ext_resource type="Script" uid="uid://djbifkyei01t7" path="res://core/components/comp_settings/pivot_setting.gd" id="8_pv"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="9_hv"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="10_sl"]
+[ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="11_bl"]
+[ext_resource type="Script" uid="uid://bv065wdiw674c" path="res://core/components/comp_settings/socked_setting.gd" id="12_sk"]
+[ext_resource type="Texture2D" uid="uid://c8tndy1lksot8" path="res://ui/icons/transport/rail-road.svg" id="15_ic"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="16_es"]
+
+[sub_resource type="Resource" id="Resource_cfg"]
+script = ExtResource("2_rc")
+radius = 30.0
+deg = 30.0
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_id")
+object_config = SubResource("Resource_cfg")
+
+[sub_resource type="Resource" id="Resource_vis"]
+script = ExtResource("4_sv")
+style = ExtResource("5_st")
+
+[sub_resource type="Resource" id="Resource_drag"]
+script = ExtResource("7_dr")
+
+[sub_resource type="Resource" id="Resource_piv"]
+script = ExtResource("8_pv")
+
+[sub_resource type="Resource" id="Resource_hov"]
+script = ExtResource("9_hv")
+
+[sub_resource type="Resource" id="Resource_sel"]
+script = ExtResource("10_sl")
+
+[sub_resource type="Resource" id="Resource_blk"]
+script = ExtResource("11_bl")
+
+[sub_resource type="Resource" id="Resource_sock"]
+script = ExtResource("12_sk")
+
+[resource]
+script = ExtResource("16_es")
+key = &"road.curve.road_r30_30"
+sort_order = 32
+name = "R30 30°"
+description = "Поворот радиуса 30, 30°"
+category = &"road"
+tag = &"curve"
+icon = ExtResource("15_ic")
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_vis"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock")])
+pick_layers = Array[StringName]([&"ground"])
+metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

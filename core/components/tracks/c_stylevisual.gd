@@ -34,7 +34,9 @@ func on_added() -> void:
 		style = TrackStyle.new()
 	rail_surface_index = style.rail_surface_index()
 
-	var sk := TrackMeshBuilder.build_skeleton(style, "StyleTrack")
+	# XX claude-car CS1: путь уже добавлен StyleVisualSetting, слой основания берём у него (у рельсов tracks, у дороги roads)
+	var own_path := get_comp(C_Path) as C_Path
+	var sk := TrackMeshBuilder.build_skeleton(style, "StyleTrack", own_path.solid_layer_bit() if own_path else (1 << 2))
 	mesh_node = sk.mesh_node
 	sleepers = sk.sleepers
 	ballast = sk.ballast

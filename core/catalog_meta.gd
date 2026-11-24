@@ -15,7 +15,8 @@ class_name CatalogMeta extends RefCounted
 
 ## Категории по режимам, в порядке показа кнопок
 const MODE_CATEGORIES := {
-	&"build": [&"train", &"track", &"building", &"decor", &"terrain"],
+	# XX claude-car CS1: road (ATTN_28). Категория car появится в build вместе с первой машиной (CS2), пока объектов нет
+	&"build": [&"train", &"track", &"road", &"building", &"decor", &"terrain"],
 	&"operate": [&"dc_controller", &"dcc_controller"],
 	&"sections": [&"table"],   # XX claude-table T2: секции подмакетника, не категория Build
 	&"coaster": [&"coaster_track", &"coaster_car"],   # XX claude-coaster C1, C3: ATTN_27, режим «горки»
@@ -24,6 +25,9 @@ const MODE_CATEGORIES := {
 const CATEGORIES := {
 	&"train": {"name": "Trains", "icon": preload("res://ui/icons/transport/steam-locomotive.svg")},
 	&"track": {"name": "Tracks", "icon": preload("res://ui/icons/transport/railway.svg")},
+	# XX claude-car CS1: дороги и машины (ATTN_28). Иконки пока взяты из набора transport, свои нарисуем позже
+	&"road": {"name": "Roads", "icon": preload("res://ui/icons/transport/rail-road.svg")},
+	&"car": {"name": "Cars", "icon": preload("res://ui/icons/transport/mine-truck.svg")},
 	&"building": {"name": "Building", "icon": preload("res://ui/icons/house/house.svg")},
 	&"decor": {"name": "Decor", "icon": preload("res://ui/icons/house/beech.svg")},
 	&"terrain": {"name": "Terrain", "icon": preload("res://ui/icons/tool/spade.svg")},
@@ -41,6 +45,7 @@ const CATEGORIES := {
 const TAGS := {
 	&"train": [&"loco", &"boxcar", &"parts", &"consist"],
 	&"track": [&"straight", &"curve", &"junction", &"special"],
+	&"road": [&"straight", &"curve"],   # XX claude-car CS1
 	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"field", &"relief", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14: field (H1b), relief (H2)
 	&"table": [&"section"],
@@ -70,6 +75,10 @@ const TAG_META := {
 	},
 	&"coaster_car": {
 		&"car": {"name": "Вагоны"},
+	},
+	&"road": {   # XX claude-car CS1
+		&"straight": {"name": "Прямые"},
+		&"curve": {"name": "Повороты"},
 	},
 	&"track": {
 		&"straight": {"name": "Прямые"},

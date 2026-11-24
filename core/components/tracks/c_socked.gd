@@ -23,7 +23,8 @@ var connected_entities: Array[Entity] = []
 ## Чужие сокеты, снап к которым отклонён (излом или подземное положение). Пока список не пуст,
 ## призрак или трак в драге красный (C_Invalid) и не ставится. Только жесткие траки: у flex свой C_Invalid
 var _snap_rejected: Array[Area3D] = []
-## Причина последнего отказа: "kink" (излом по вертикали), "bank" (крен не совпадает, ATTN_27), "underground" (трак уходит под землю) или "".
+## Причина последнего отказа: "kink" (излом по вертикали), "bank" (крен не совпадает, ATTN_27), "underground" (трак уходит под землю),
+## "network" (сокет другой сети: рельс и дорога, ATTN_28 §28.3) или "".
 ## Нужна для подсказки про разворот на 180°
 var snap_reject_reason := ""
 ## Строка общей метки TrackNote с причиной отказа (создается по требованию)
@@ -43,6 +44,13 @@ func on_added() -> void:
 
 func on_entity_ready():
 	_parse_paths()
+
+
+# XX claude-car CS1 (ATTN_28 §28.3)
+## Сеть сокетов сущности: &"rail" у рельсов, стрелок и горок, &"road" у дороги (C_Path.network_id).
+## Сокеты разных сетей не стыкуются, не считаются соседями и не занимают друг другу стык
+func network() -> StringName:
+	return C_Path.network_of(entity)
 
 
 
@@ -176,6 +184,16 @@ func _on_socket_area_entered(s_socket: Area3D, d_socket: Area3D) -> void:
 		return
 	
 	var neighbor_entity = _find_entity_from_collider(s_socket)
+
+	# XX claude-car CS1: сокет другой сети (рельс и дорога) не сосед и не цель снапа. Проверка раньше геометрических:
+	# призрак или трак в драге краснеет, причина "network" (ATTN_28 §28.3)
+	if neighbor_entity and neighbor_entity != entity and C_Path.network_of(neighbor_entity) != network():
+		if entity.has_comp(C_Drag) or entity.has_comp(C_Ghost):
+			_set_snap_rejected(s_socket, d_socket, true)
+			if _snap_rejected.has(s_socket):
+				snap_reject_reason = "network"
+				_update_reject_hint()
+		return
 
 	## Добавляем соседа в список. Предохранители:
 	# 1. Сущность найдена и это не мы сами. 2. Сущность не является призраком 3. Мы еще не добавили ее в массив.
@@ -440,6 +458,10 @@ func _is_socket_occupied(socket_area: Area3D) -> bool:
 		if other_entity == my_entity:
 			continue
 			
+		# XX claude-car CS1: сокет другой сети (рельс и дорога в одной точке) стык не занимает
+		if other_entity and C_Path.network_of(other_entity) != C_Path.network_of(my_entity):
+			continue
+
 		# 3. Игнорируем гостов и объекты, которые сейчас находятся в режиме Drag
 		if other_entity and (other_entity.has_comp(C_Ghost) or other_entity.has_comp(C_Drag)):
 			continue
@@ -577,6 +599,8 @@ func _update_reject_hint() -> void:
 		_hint.text = "Под землёй: разверни на 180° (Q/E ×4)"
 	elif snap_reject_reason == "bank":
 		_hint.text = "Крен не совпадает: больше %.0f°" % Global.settings.joint_bank_max_deg   # XX claude-coaster C5.4
+	elif snap_reject_reason == "network":
+		_hint.text = "Другая сеть: дорога не стыкуется с рельсом"   # XX claude-car CS1
 	else:
 		_hint.text = "Излом по вертикали больше %.0f°" % Global.settings.joint_kink_max_deg
 
