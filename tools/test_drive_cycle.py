@@ -120,6 +120,21 @@ wl_k = part_worlds(parent, rest, (0.939, 0.939, 0.939), 5)
 wl_k = [mm(w, m4([[1, 0.3, 0], [0, 1, 0], [0, 0, 1]])) for w in wl_k]
 check("перекос осей замечается", ns["track_from_worlds"](wl_k)["skew"] > 0.1)
 
+# деталь-пустышка с мешем внутри: меш переводится матрицей «мир кадра 0 без переноса шарнира»
+local_child = m4(mm(rot("z", 12), rot("x", 80)), (0.4, -0.2, 0.15), (0.95, 0.95, 0.95))
+child_w = [mm(w, local_child) for w in wl]
+t0 = tr["loc"][0]
+mg = [row[:3] + [row[3] - t0[r]] for r, row in enumerate(child_w[0][:3])]
+err_c = 0.0
+rnd_c = random.Random(11)
+for f in range(len(wl)):
+    node = m4(quat_rot(tr["quat"][f]), tr["loc"][f])
+    for _ in range(20):
+        v = [rnd_c.uniform(-2, 2) for _ in range(3)]
+        mv = apply4(mg + [[0, 0, 0, 1]], v)
+        err_c = max(err_c, max(abs(p - q) for p, q in zip(apply4(child_w[f], v), apply4(node, mv))))
+check("пустышка с мешем: геометрия внутри совпадает на всех кадрах", err_c < 1e-9, err_c)
+
 # непрерывность знака на полном обороте
 spin = [m4(rot("x", -7.5 * f)) for f in range(49)]
 q = ns["track_from_worlds"](spin)["quat"]

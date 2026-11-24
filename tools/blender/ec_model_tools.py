@@ -708,11 +708,69 @@ def _sample_worlds(scene, objs, frames, body_inv):
     return out
 
 
-def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
+MODEL_COLLECTION = "MODEL"
+
+
+def _geometry_of(part):
+    """Меши, которые едут вместе с деталью: она сама (если меш) и потомки без собственной анимации
+    (потомок с анимацией со своим поддеревом это отдельная деталь привода)"""
+    out = [part] if part.type == "MESH" else []
+
+    def walk(o):
+        for c in o.children:
+            if is_animated(c):
+                continue
+            if c.type == "MESH":
+                out.append(c)
+            walk(c)
+    walk(part)
+    return out
+
+
+def _label(obj):
+    """Имя для копии: у меша от импорта (имя_DD17_0 внутри пустышки) берём имя пустышки-родителя, если меш в ней один"""
+    p = obj.parent
+    if p is not None and p.type == "EMPTY" and sum(1 for c in p.children if c.type == "MESH") == 1:
+        return p.name
+    return obj.name
+
+
+def _model_collection(scene):
+    c = bpy.data.collections.get(MODEL_COLLECTION)
+    if c is None:
+        c = bpy.data.collections.new(MODEL_COLLECTION)
+    if not c.users:
+        scene.collection.children.link(c)
+    return c
+
+
+def _join(context, objs):
+    """Склеивает объекты в первый (его имя и origin остаются); меши и материалы объединяются"""
+    if len(objs) == 1:
+        return objs[0]
+    with context.temp_override(active_object=objs[0], selected_editable_objects=list(objs), selected_objects=list(objs)):
+        bpy.ops.object.join()
+    return objs[0]
+
+
+def _world_mesh(src, world, shift=(0.0, 0.0, 0.0)):
+    """Копия данных меша, переведённая матрицей world (4x4, строки), с вычитанием сдвига из переноса"""
+    rows = [list(world[r][:3]) + [world[r][3] - shift[r]] for r in range(3)] + [[0.0, 0.0, 0.0, 1.0]]
+    m = Matrix(rows)
+    mesh = src.data.copy()
+    mesh.transform(m)
+    if m.determinant() < 0:
+        mesh.flip_normals()
+    return mesh
+
+
+def bake_drive_cycle(context, body, wheel, parts, cycle_id):
     """Привод колеса: детали пересобираются чистыми детьми кузова (в покое без поворота и масштаба), движение запекается
     в замкнутый цикл на один оборот эталонного колеса, одним действием mech_<cycle_id> (по слоту на деталь).
+    Деталь это анимированный объект: меш или пустышка-шарнир с мешами внутри (меши детали склеиваются в один, origin в шарнире).
     Оборот берётся по самому колесу: n = 360 / шаг за кадр. Рост кадра = движение вперёд (нос +Y); если исходная анимация
     крутит назад, порядок кадров разворачивается. Исходные объекты не меняются. Возвращает (ошибка или None, строки отчёта)"""
+    scene = context.scene
     items = []
 
     def info(lv, tx):
@@ -722,22 +780,36 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
         return "Нужен Blender 4.4 или новее: одно действие на несколько объектов (слоты действия)", items
     if not re.match(r"^[a-z][a-z0-9_]*$", cycle_id or ""):
         return "Id цикла: a-z, 0-9, _, начинается с буквы", items
-    parts = [o for o in parts if o != wheel and o != body]
-    if wheel is None or wheel == body or not object_actions(wheel):
+    if wheel is None or wheel == body or not is_animated(wheel):
         return "Активным должно быть колесо с анимацией оборота (остальное выделение это детали привода)", items
+    sel = [o for o in parts if o != wheel and o != body]
+    parts = [o for o in sel if is_animated(o)]
     if not parts:
         return "Выделите детали привода (шатуны, дышла, парораспределение), активным сделайте колесо", items
-    bad = [o.name for o in parts if o.type != "MESH"]
+    bad = [o.name for o in parts if o.type not in {"MESH", "EMPTY"}]
     if bad:
-        return "Детали привода должны быть мешами: %s" % ", ".join(bad), items
-    still = [o.name for o in parts if not object_actions(o)]
-    if still:
-        return "Нет анимации у: %s" % ", ".join(still), items
+        return "Деталь привода это меш или пустышка с мешами: %s" % ", ".join(bad), items
+    geos = {o.name: _geometry_of(o) for o in parts}
+    empty = [n for n, g in geos.items() if not g]
+    if empty:
+        return "Нет мешей внутри: %s" % ", ".join(empty), items
+    covered = {g.name for lst in geos.values() for g in lst}
+    stray = [o.name for o in sel if not is_animated(o) and o.name not in covered]
+    if stray:
+        info("WARN", "Выделено, но не входит ни в одну деталь привода (пропущено): %s" % ", ".join(stray))
+    shared = {}
+    for n, lst in geos.items():
+        for g in lst:
+            shared.setdefault(g.name, []).append(n)
+    twice = [g for g, ns in shared.items() if len(ns) > 1]
+    if twice:
+        return "Меш входит в две детали: %s" % ", ".join(twice), items
 
     rng = [a.frame_range for o in [wheel] + parts for a in object_actions(o)]
     f0 = int(math.floor(min(r[0] for r in rng) + 1e-6))
     f1 = int(math.ceil(max(r[1] for r in rng) - 1e-6))
     n_src = f1 - f0 + 1
+    all_geo = [g for lst in geos.values() for g in lst]
     saved = scene.frame_current
     try:
         scene.frame_set(f0)
@@ -746,7 +818,7 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
         step, axis_x = wheel_step(ref[0], ref[1])
         if axis_x < 0.9:
             return ("Колесо '%s' вращается не вокруг оси X (|ось X| = %.2f). Нос модели должен смотреть в +Y, колёсные пары лежать "
-                    "осью вдоль X: проверьте ориентацию и применённые трансформы" % (wheel.name, axis_x)), items
+                    "осью вдоль X: проверьте ориентацию корня исходной модели" % (wheel.name, axis_x)), items
         period = cycle_period(step)
         if period is None:
             return "Колесо '%s' поворачивается на %.3f° за кадр: оборот не укладывается в целое число кадров" % (wheel.name, step), items
@@ -756,6 +828,7 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
         if n_src != period:
             info("WARN", "В анимации %d кадров, оборот колеса %d: лишние кадры отброшены" % (n_src, period))
         worlds = _sample_worlds(scene, parts, [f0 + i for i in range(period)], body_inv)
+        geo_w = _sample_worlds(scene, all_geo, [f0], body_inv)
         tracks = []
         for o in parts:
             tr = track_from_worlds([worlds[o.name][i] for i in order])
@@ -763,8 +836,9 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
                 info("WARN", "%s: масштаб меняется в анимации (на %.3f), в цикл он не переносится" % (o.name, tr["scale_dev"]))
             if tr["skew"] > 1e-3:
                 info("WARN", "%s: оси перекошены (родитель с неравномерным масштабом): форма в покое может отличаться" % o.name)
-            if o.modifiers:
-                info("WARN", "%s: модификаторы не переносятся (берутся данные меша)" % o.name)
+            for g in geos[o.name]:
+                if g.modifiers:
+                    info("WARN", "%s: модификаторы не переносятся (берутся данные меша)" % g.name)
             tracks.append(tr)
     except ValueError as e:
         return "Нулевой масштаб у детали: %s" % e, items
@@ -800,14 +874,15 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
     edit.keyframe_new_interpolation_type = "LINEAR"
     try:
         for o, r, tr in zip(parts, roles, tracks):
-            mesh = o.data.copy()
-            mesh.name = r
-            u4 = Matrix([tr["u"][0] + [0.0], tr["u"][1] + [0.0], tr["u"][2] + [0.0], [0.0, 0.0, 0.0, 1.0]])
-            mesh.transform(u4)
-            if u4.determinant() < 0:
-                mesh.flip_normals()
-            new = bpy.data.objects.new(r, mesh)
-            coll.objects.link(new)
+            t0 = tr["loc"][0]
+            made = []
+            for k, g in enumerate(geos[o.name]):
+                ob = bpy.data.objects.new("%s_%d" % (r, k), _world_mesh(g, geo_w[g.name][0], t0))
+                coll.objects.link(ob)
+                made.append(ob)
+            new = _join(context, made)
+            new.name = r
+            new.data.name = r
             new.parent = body
             new["role"] = r
             new["ec_cycle"] = cycle_id
@@ -822,7 +897,7 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
                 new.rotation_quaternion = tr["quat"][k]
                 new.keyframe_insert("location", frame=f0 + k)
                 new.keyframe_insert("rotation_quaternion", frame=f0 + k)
-            new.location = tr["loc"][0]
+            new.location = t0
             new.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
     finally:
         edit.keyframe_new_interpolation_type = prev_interp
@@ -832,9 +907,36 @@ def bake_drive_cycle(scene, body, wheel, parts, cycle_id):
     info("INFO", "Колесо '%s': %.3f° за кадр, оборот %d кадров; кадры цикла %d..%d, последний замыкающий" % (wheel.name, step, period, f0, f0 + period))
     info("INFO", "Рост кадра = движение вперёд%s" % (" (исходный порядок кадров развёрнут)" if step > 0 else ""))
     info("INFO", "Создано деталей: %d, действие '%s': %s" % (len(parts), act_name, ", ".join(roles)))
+    info("INFO", "Origin детали в точке её шарнира (у пустышки это её положение): проверьте на кадре 0 и 24")
     info("INFO", "Обе стороны одной детали движутся синфазно: если на колёсной паре пальцы кривошипа сдвинуты на 90°, "
          "делите деталь на левую и правую до запекания")
     return None, items
+
+
+def static_copies(context, meshes, to_center):
+    """Чистые копии мешей в позе текущего кадра: данные в мировых координатах, трансформ нулевой, без родителей и анимации.
+    to_center: origin в центр габарита (для колёсных пар: центр оси). Возвращает объекты в коллекции MODEL"""
+    scene = context.scene
+    coll = _model_collection(scene)
+    dg = bpy.context.evaluated_depsgraph_get()
+    out = []
+    for src in meshes:
+        world = _rows(src.evaluated_get(dg).matrix_world)
+        name = drive_role(_label(src), prefix="")
+        other = bpy.data.objects.get(name)
+        if other is not None and other.get("ec_copy") is None:
+            other.name = name + "_src"      # имя нужно копии: id зоны покраски строится из имени узла
+        ob = bpy.data.objects.new(name, _world_mesh(src, world))
+        coll.objects.link(ob)
+        ob.data.name = ob.name
+        if to_center and ob.data.vertices:
+            cs = [v.co for v in ob.data.vertices]
+            c = Vector([(min(p[i] for p in cs) + max(p[i] for p in cs)) / 2 for i in range(3)])
+            ob.data.transform(Matrix.Translation(-c))
+            ob.location = c
+        ob["ec_copy"] = "copy"
+        out.append(ob)
+    return out
 
 
 def _box(verts, faces, cx, cy, cz, sx, sy, sz):
@@ -1298,6 +1400,7 @@ class ECSettings(bpy.types.PropertyGroup):
     role: StringProperty(name="Роль", description="Custom Property role для выделенных объектов", default="")
     role_preset: EnumProperty(name="Шаблон", items=ROLE_PRESETS, default="body")
     mech_id: StringProperty(name="Id механизма", description="Имя действия станет mech_<id>", default="door_left")
+    copy_center: BoolProperty(name="Origin в центр габарита", description="Для копий колёсных пар: origin в центр оси (центр габарита)", default=True)
     cycle_id: StringProperty(name="Id цикла", description="Действие цикла привода станет mech_<id>", default="drive")
     mech_frames: IntProperty(name="Кадров хода", description="Длина хода механизма в кадрах (24 кадра = 1 с при 24 к/с)", default=24, min=2, max=600)
     wrap: IntProperty(name="Перенос строк", description="Ширина строки отчёта в панели, символов (подберите под ширину панели)", default=46, min=24, max=200)
@@ -1490,6 +1593,69 @@ class EC_OT_prepare(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EC_OT_static_body(bpy.types.Operator):
+    bl_idname = "ec.static_body"
+    bl_label = "Склеить статику в body"
+    bl_description = ("Выделенные меши (неподвижные части кузова) копируются в коллекцию MODEL в позе текущего кадра "
+                      "(трансформы родителей учтены) и склеиваются в один объект body с ролью body и origin в нуле мира. "
+                      "Исходные объекты не меняются; повторный запуск заменяет прежний body")
+
+    def execute(self, context):
+        scene = context.scene
+        meshes = [o for o in context.selected_objects if o.type == "MESH" and o.get("ec_copy") is None]
+        if not meshes:
+            self.report({"ERROR"}, "Выделите меши неподвижной части кузова")
+            return {"CANCELLED"}
+        for o in list(bpy.data.objects):
+            if o.get("ec_copy") == "body":
+                bpy.data.objects.remove(o, do_unlink=True)
+        if find_body(scene):
+            self.report({"ERROR"}, "В сцене уже есть объект с role = body (не от этого инструмента)")
+            return {"CANCELLED"}
+        if bpy.data.objects.get("body") is not None:
+            self.report({"ERROR"}, "Объект с именем body уже есть: переименуйте его")
+            return {"CANCELLED"}
+        copies = static_copies(context, meshes, False)
+        body = _join(context, copies)
+        body.name = "body"
+        body.data.name = "body"
+        body["role"] = "body"
+        body["ec_copy"] = "body"
+        s = settings(scene)
+        cs = [v.co for v in body.data.vertices]
+        lo = [min(p[i] for p in cs) for i in range(3)]
+        hi = [max(p[i] for p in cs) for i in range(3)]
+        items = [("INFO", "Склеено мешей: %d, треугольников: %d" % (len(meshes), sum(len(p.vertices) - 2 for p in body.data.polygons)), None),
+                 ("INFO", "Габарит: ширина (X) %.3f, длина (Y) %.3f, высота (Z) %.3f; Z от %.3f до %.3f" % (hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], lo[2], hi[2]), None)]
+        cx, cy = (hi[0] + lo[0]) / 2, (hi[1] + lo[1]) / 2
+        if abs(cx) > 0.05 or abs(cy) > 0.05:
+            items.append(("WARN", "Центр габарита смещён (X %.3f, Y %.3f): сдвиньте корень исходной модели на (%.3f, %.3f, 0) и склейте заново" % (cx, cy, -cx, -cy), None))
+        if abs(lo[2] + s.buffer_h) > 0.1:
+            items.append(("INFO", "Низ статики на Z %.3f, головка рельса на Z %.3f: колёса и рама могут быть выше низа" % (lo[2], -s.buffer_h), None))
+        text = format_report(items)
+        publish_report("Статика в body", text, REPORT_TEXT)
+        print(text)
+        self.report({"INFO"}, "Создан body в коллекции %s" % MODEL_COLLECTION)
+        return {"FINISHED"}
+
+
+class EC_OT_clean_copy(bpy.types.Operator):
+    bl_idname = "ec.clean_copy"
+    bl_label = "Чистые копии мешей"
+    bl_description = ("Каждый выделенный меш копируется в коллекцию MODEL в позе текущего кадра: без родителей, анимации, поворота и масштаба "
+                      "(колёсные пары ставьте на кадр 0). Имя берётся у пустышки-родителя, если меш в ней один")
+
+    def execute(self, context):
+        s = settings(context.scene)
+        meshes = [o for o in context.selected_objects if o.type == "MESH" and o.get("ec_copy") is None]
+        if not meshes:
+            self.report({"ERROR"}, "Выделите меши (колёсные пары, рамы тележек)")
+            return {"CANCELLED"}
+        copies = static_copies(context, meshes, s.copy_center)
+        self.report({"INFO"}, "Копий: %d (%s)" % (len(copies), ", ".join(o.name for o in copies[:6])))
+        return {"FINISHED"}
+
+
 class EC_OT_bake_cycle(bpy.types.Operator):
     bl_idname = "ec.bake_cycle"
     bl_label = "Нормализовать привод колеса"
@@ -1504,7 +1670,7 @@ class EC_OT_bake_cycle(bpy.types.Operator):
             self.report({"ERROR"}, "Нужен ровно один объект с role = body")
             return {"CANCELLED"}
         wheel = context.view_layer.objects.active
-        err, items = bake_drive_cycle(context.scene, bodies[0], wheel, list(context.selected_objects), s.cycle_id)
+        err, items = bake_drive_cycle(context, bodies[0], wheel, list(context.selected_objects), s.cycle_id)
         if err:
             items = [("ERROR", err, None)] + items
         text = format_report(items)
@@ -1658,6 +1824,12 @@ class EC_PT_panel(bpy.types.Panel):
         op = row.operator("ec.mech_key", text="Ключ: рабочее")
         op.rest = False
         box.separator()
+        box.label(text="Из чужой модели (Sketchfab и т. п.)")
+        box.operator("ec.static_body", icon="MESH_DATA")
+        row = box.row(align=True)
+        row.operator("ec.clean_copy", icon="DUPLICATE")
+        row.prop(s, "copy_center", text="", icon="PIVOT_BOUNDBOX")
+        box.separator()
         box.label(text="Привод колеса (цикл на оборот)")
         box.prop(s, "cycle_id")
         box.operator("ec.bake_cycle", icon="ACTION")
@@ -1686,7 +1858,7 @@ class EC_PT_panel(bpy.types.Panel):
 
 
 CLASSES = (ECSettings, EC_OT_check, EC_OT_show_report, EC_OT_copy_report, EC_OT_open_report, EC_OT_set_role, EC_OT_clear_role, EC_OT_add_buffers,
-           EC_OT_prepare, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
+           EC_OT_prepare, EC_OT_static_body, EC_OT_clean_copy, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
 
 
 def register():
