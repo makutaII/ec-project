@@ -15,6 +15,8 @@ var _info: Label
 var _support_option: OptionButton
 var _height_spin: SpinBox
 var _aisle_spin: SpinBox
+# XX claude-wire W2: подрамник под плитой (только при ножках)
+var _apron_check: CheckBox
 ## Идёт запись значений в контролы: их сигналы (SpinBox сам правит значение при смене пределов) в LYM не идут
 var _syncing := false
 
@@ -32,6 +34,11 @@ func _setup() -> void:
 		_support_option.add_item(LYM.support_name(s))
 	_support_option.item_selected.connect(_on_support_selected)
 	box.add_child(_support_option)
+	_apron_check = CheckBox.new()
+	_apron_check.text = "Подрамник под плитой"
+	_apron_check.tooltip_text = "Царги по контуру под плитой (при ножках). За них крепят блоки и провода под столом"
+	_apron_check.toggled.connect(_on_apron_toggled)
+	box.add_child(_apron_check)
 	var row := HBoxContainer.new()
 	var row_lbl := Label.new()
 	row_lbl.text = "Высота стола, u  "
@@ -83,6 +90,8 @@ func _sync(force: bool) -> void:
 	var idx := SUPPORTS.find(LYM.config.support)
 	if idx >= 0 and (force or _support_option.selected != idx):
 		_support_option.select(idx)
+	_apron_check.disabled = LYM.config.support != LayoutConfig.Support.LEGS   # у рамы и кронштейнов свои брусья
+	_apron_check.set_pressed_no_signal(LYM.config.apron)
 	var range_h := LayoutConfig.height_range(LYM.config.support)
 	_height_spin.min_value = range_h.x
 	_height_spin.max_value = range_h.y
@@ -97,6 +106,12 @@ func _on_support_selected(index: int) -> void:
 		return
 	footer_message(&"table_msg", LYM.set_support(SUPPORTS[index]), &"bad")
 	_sync(true)   # отказ: возвращает прежний выбор
+
+
+func _on_apron_toggled(on: bool) -> void:
+	if _syncing:
+		return
+	LYM.set_apron(on)
 
 
 func _on_height_changed(value: float) -> void:

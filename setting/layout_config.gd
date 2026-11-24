@@ -26,6 +26,8 @@ const PLINTH_HEIGHT_DEFAULT := 10.0
 @export var style: StringName = &"chipboard"
 ## Проход вокруг стола с рабочих сторон, u (лимит площади в T2)
 @export var aisle_min := 0.0
+# XX claude-wire W2: подрамник (царги) под плитой при ножках: за них крепят блоки и провода под столом (ATTN_23 §23.9)
+@export var apron := false
 
 
 ## Допустимая высота верха стола для вида опор: x = наименьшая, y = наибольшая. Ножки и кронштейны 5–130, рама 5–20
@@ -41,6 +43,7 @@ func get_state() -> Dictionary:
 		"height": height,
 		"style": String(style),
 		"aisle_min": aisle_min,
+		"apron": apron,
 	}
 
 
@@ -52,3 +55,4 @@ func set_state(d: Dictionary) -> void:
 	height = clampf(float(d.get("height", def.height)), range_h.x, range_h.y)
 	style = StringName(String(d.get("style", String(def.style))))
 	aisle_min = maxf(0.0, float(d.get("aisle_min", def.aisle_min)))
+	apron = bool(d.get("apron", def.apron))

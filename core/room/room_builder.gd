@@ -405,9 +405,10 @@ func _build_supports() -> void:
 		table.remove_child(c)
 		c.queue_free()
 	# XX claude-table T4: вид опор из LayoutConfig (ножки, рама, кронштейны), детали строит план TableSupports.parts
-	var room_layer := Global.active_layers(['room'])
+	# XX claude-wire W2: опоры ещё и на слое underside (лучи монтажа под столом), подрамник из LayoutConfig.apron
+	var room_layer := Global.active_layers(['room', 'underside'])
 	for part in TableSupports.parts(int(LYM.config.support), LYM.footprint(), LYM.config.height, LYM.plate_thickness(),
-			config.table_leg, config):
+			config.table_leg, config, LYM.config.apron):
 		var mi := _box(table, part["name"], part["size"], part["center"], COL_TABLE_LEG, room_layer, 1, true)
 		if mi != null:
 			var b := part["basis"] as Basis

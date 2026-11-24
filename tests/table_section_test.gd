@@ -21,6 +21,13 @@ func _top(p: Vector2) -> Variant:
 	return null if hit.is_empty() else hit.position.y
 
 
+# XX claude-wire W2: луч сверху по слою underside (тонкое тело под плитой): y попадания или null
+func _under(p: Vector2) -> Variant:
+	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, 50.0, p.y), Vector3(p.x, -200.0, p.y), Global.active_layers(['underside']))
+	var hit := get_viewport().world_3d.direct_space_state.intersect_ray(q)
+	return null if hit.is_empty() else hit.position.y
+
+
 func _ready() -> void:
 	print("== 1. Пресеты каталога")
 	for stem in ["sec_100x200", "sec_100x100", "sec_50x100", "sec_200x100"]:
@@ -43,6 +50,10 @@ func _ready() -> void:
 	check("верх плиты на y = 0", t0 != null and absf(t0) < 0.001, str(t0))
 	check("у края внутри тоже", _top(Vector2(99.5, 49.5)) != null)
 	check("за краем земли нет", _top(Vector2(-150, 0)) == null)
+	# XX claude-wire W2: подстолье
+	var u0 = _under(Vector2(0, 0))
+	check("слой underside: луч сверху бьёт в низ плиты (y = -5), плита его не закрывает", u0 != null and absf(u0 + 5.0) < 0.001, str(u0))
+	check("слой underside: за краем плиты пусто", _under(Vector2(-150, 0)) == null)
 	check("contains: внутри и снаружи", LYM.contains(0, 0) and LYM.contains(100, 50) and not LYM.contains(101, 0))
 
 	check("has_table: секция есть", LYM.has_table())   # XX claude-table T4c

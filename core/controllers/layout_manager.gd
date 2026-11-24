@@ -276,6 +276,14 @@ func set_aisle(v: float) -> void:
 	config.aisle_min = clampf(v, 0.0, 150.0)
 
 
+# XX claude-wire W2: подрамник под плитой (виден при ножках)
+func set_apron(on: bool) -> void:
+	if on == config.apron:
+		return
+	config.apron = on
+	layout_changed.emit()
+
+
 ## Сменить опоры. Возвращает причину отказа или пусто. Рама держит только низкий стол (5–20 u): высота подгоняется,
 ## при возврате на ножки прежняя высота возвращается, если её не меняли
 func set_support(s: int) -> String:

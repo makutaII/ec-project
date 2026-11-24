@@ -88,6 +88,41 @@ func _ready() -> void:
 		rail_ok = rail_ok and is_equal_approx((p["size"] as Vector3).y, 5.0) and is_equal_approx((p["center"] as Vector3).y, -7.5)
 	check("рама: от пола (-10) до низа плиты (-5)", rail_ok)
 	check("рама высотой 5 u: бруса нет (плита на полу)", TableSupports.parts(plinth, fp_v1, 5.0, th, 6.0, cfg).is_empty())
+	# XX claude-wire W2: подрамник под плитой
+	var p_apron := TableSupports.parts(legs, fp_v1, 50.0, th, 6.0, cfg, true)
+	check("подрамник: 4 ножки и 4 царги", _count(p_apron, "Leg") == 4 and _count(p_apron, "Apron") == 4 and p_apron.size() == 8, str(p_apron.size()))
+	var apron_ok := true
+	var long_n := 0
+	var short_n := 0
+	for p in p_apron:
+		if String(p["name"]) != "Apron":
+			continue
+		var sz := p["size"] as Vector3
+		var ctr := p["center"] as Vector3
+		apron_ok = apron_ok and is_equal_approx(sz.y, TableSupports.APRON_H) and is_equal_approx(ctr.y + sz.y * 0.5, -th)
+		if is_equal_approx(sz.x, 194.0):
+			long_n += 1
+			apron_ok = apron_ok and is_equal_approx(absf(ctr.z), 50.0 - TableSupports.EDGE_INSET - TableSupports.APRON_W * 0.5)
+		elif is_equal_approx(sz.x, 94.0):
+			short_n += 1
+			apron_ok = apron_ok and is_equal_approx(absf(ctr.x), 100.0 - TableSupports.EDGE_INSET - TableSupports.APRON_W * 0.5)
+	check("царги: верх на низе плиты, вдоль рёбер с отступом как у ножек", apron_ok and long_n == 2 and short_n == 2, "%d / %d" % [long_n, short_n])
+	check("без флага подрамника его нет", _count(TableSupports.parts(legs, fp_v1, 50.0, th, 6.0, cfg), "Apron") == 0)
+	check("рама с флагом подрамника: только брусья рамы", TableSupports.parts(plinth, fp_v1, 10.0, th, 6.0, cfg, true).size() == 4)
+	check("высота 5 u: ни ножек, ни царг", TableSupports.parts(legs, fp_v1, 5.0, th, 6.0, cfg, true).is_empty())
+	var low := TableSupports.parts(legs, fp_v1, 8.0, th, 6.0, cfg, true)
+	var low_h := 0.0
+	for p in low:
+		if String(p["name"]) == "Apron":
+			low_h = (p["size"] as Vector3).y
+	check("низкий стол: царга не выше ножки", is_equal_approx(low_h, 3.0), str(low_h))
+	var cs1 := LayoutConfig.new()
+	cs1.apron = true
+	var cs2 := LayoutConfig.new()
+	cs2.set_state(cs1.get_state())
+	check("LayoutConfig: подрамник пишется и читается", cs2.apron)
+	cs2.set_state({"version": 1, "height": 60.0})
+	check("старый сейв без ключа: подрамника нет", not cs2.apron)
 	var fp_wall: Array[PackedVector2Array] = [_poly(Rect2(-240, -50, 140, 100))]
 	var p_wall := TableSupports.parts(wall, fp_wall, 50.0, th, 6.0, cfg)
 	check("кронштейны: 3 штуки по 3 детали на западном ребре 100 u", p_wall.size() == 9 and _count(p_wall, "BracketArm") == 3, str(p_wall.size()))
@@ -207,6 +242,27 @@ func _ready() -> void:
 		if ch.name.begins_with("Leg"):
 			legs_back += 1
 	check("ножек у стола 340 x 100: 4 угла и по одной на длинных рёбрах", legs_back == 6, str(legs_back))
+	# XX claude-wire W2: подрамник в комнате и слой underside
+	LYM.set_apron(true)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var aprons := 0
+	var under_ok := true
+	for ch in rb.table.get_children():
+		if ch.name.begins_with("Apron"):
+			aprons += 1
+		if ch is StaticBody3D:
+			under_ok = under_ok and ((ch as StaticBody3D).collision_layer & Global.active_layers(['underside'])) != 0
+	check("RoomBuilder построил подрамник", aprons == 4 or aprons == 6, str(aprons))
+	check("ножки и царги на слое underside", under_ok)
+	LYM.set_apron(false)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	aprons = 0
+	for ch in rb.table.get_children():
+		if ch.name.begins_with("Apron"):
+			aprons += 1
+	check("подрамник выключен: царг нет", aprons == 0, str(aprons))
 	rb.queue_free()
 	s1.free()
 	s2.free()

@@ -13,6 +13,7 @@ class_name C_TableSection extends C_Visual
 ##  - TGM.terrain_changed: поставили, изменили, убрали секцию (опоры эстакады пересчитывают землю под собой).
 ## Опоры (ножки) в T1 по-прежнему строит RoomBuilder; секция про них не знает.
 ## Контуры состояний (ховер, выбор, призрак, красный призрак) рисует база C_Visual, как у листов пенопласта (T2).
+##  - подстолье (W2): тонкое тело UNDER_T сразу под плитой на слое underside; верхняя грань тела лежит на низе плиты.
 ## Сейв: thickness. Контур сохраняет C_Contour, поза лежит в transform Entity.
 
 ## Толщина плиты по умолчанию, u (значение v1: RoomConfig.table_top_thickness)
@@ -20,6 +21,8 @@ const DEFAULT_THICKNESS := 5.0
 ## Пределы толщины, u
 const MIN_THICKNESS := 0.5
 const MAX_THICKNESS := 20.0
+## XX claude-wire W2. Толщина тонкого тела подстолья под плитой, u
+const UNDER_T := 0.3
 ## Цвет плиты (как в v1: RoomBuilder.COL_TABLE). Материалы по стилям придут в T6
 const COL_TABLE := Color(0.62, 0.50, 0.38)
 
@@ -28,6 +31,8 @@ static var _material: StandardMaterial3D
 var thickness := DEFAULT_THICKNESS
 var mesh_node: MeshInstance3D
 var body: StaticBody3D
+# XX claude-wire W2: тонкая плита под плитой на слое underside (ATTN_23 §23.9): по ней бьют лучи монтажа под столом, плита сверху её не закрывает
+var under_body: StaticBody3D
 
 var _shapes: Array[CollisionShape3D] = []
 var _ready_done := false
@@ -49,6 +54,9 @@ func on_added() -> void:
 	body = StaticBody3D.new()
 	body.name = 'Body'
 	instance.add_child(body)
+	under_body = StaticBody3D.new()
+	under_body.name = 'Underside'
+	instance.add_child(under_body)
 	_apply_collision_layers()
 
 	parts = PartRegistry.build(instance)
@@ -108,6 +116,10 @@ func _apply_collision_layers(removing: Script = null) -> void:
 	var ghost := entity.has_comp(C_Ghost) and removing != C_Ghost
 	body.collision_layer = Global.active_layers(['ghost']) if ghost else Global.active_layers(['ground'])
 	body.collision_mask = 0   # статическое тело само ничего не ищет
+	if under_body != null:
+		# призрак подстолья не даёт: на него блоки под столом не ставят
+		under_body.collision_layer = 0 if ghost else Global.active_layers(['underside'])
+		under_body.collision_mask = 0
 
 
 ## --- Толщина ---
@@ -209,14 +221,22 @@ func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, nrm: Vector3) -> 
 
 func _build_collision(pts: PackedVector2Array, is_rect: bool) -> void:
 	_clear_shapes()
+	_add_shapes(body, pts, is_rect, 0.0, -thickness)
+	# XX claude-wire W2: тонкое тело подстолья под плитой
+	if under_body != null:
+		_add_shapes(under_body, pts, is_rect, -thickness, -thickness - UNDER_T)
+
+
+## Формы призмы контура между y_top и y_bottom в тело target. Прямоугольник это один BoxShape3D, остальное выпуклые куски
+func _add_shapes(target: StaticBody3D, pts: PackedVector2Array, is_rect: bool, y_top: float, y_bottom: float) -> void:
 	if is_rect:
 		var r := C_Contour.bounds_of(pts)
 		var box := BoxShape3D.new()
-		box.size = Vector3(r.size.x, thickness, r.size.y)
+		box.size = Vector3(r.size.x, y_top - y_bottom, r.size.y)
 		var cs := CollisionShape3D.new()
 		cs.shape = box
-		cs.position = Vector3(r.position.x + r.size.x * 0.5, -thickness * 0.5, r.position.y + r.size.y * 0.5)
-		body.add_child(cs)
+		cs.position = Vector3(r.position.x + r.size.x * 0.5, (y_top + y_bottom) * 0.5, r.position.y + r.size.y * 0.5)
+		target.add_child(cs)
 		_shapes.append(cs)
 		return
 	var pieces: Array = Geometry2D.decompose_polygon_in_convex(pts)
@@ -225,13 +245,13 @@ func _build_collision(pts: PackedVector2Array, is_rect: bool) -> void:
 	for piece: PackedVector2Array in pieces:
 		var v := PackedVector3Array()
 		for p: Vector2 in piece:
-			v.append(Vector3(p.x, -thickness, p.y))
-			v.append(Vector3(p.x, 0.0, p.y))
+			v.append(Vector3(p.x, y_bottom, p.y))
+			v.append(Vector3(p.x, y_top, p.y))
 		var shape := ConvexPolygonShape3D.new()
 		shape.points = v
 		var cs := CollisionShape3D.new()
 		cs.shape = shape
-		body.add_child(cs)
+		target.add_child(cs)
 		_shapes.append(cs)
 
 

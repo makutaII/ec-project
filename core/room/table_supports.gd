@@ -22,6 +22,10 @@ const BRK_BACK_T := 1.5
 const BRK_BRACE_T := 1.5
 const BRK_BRACE_MAX := 18.0
 
+## XX claude-wire W2. Подрамник (царги) под плитой: высота и ширина бруса, u. Отступ от края плиты как у ножек (EDGE_INSET)
+const APRON_H := 6.0
+const APRON_W := 2.0
+
 ## Зазор от края плиты до ножки, u
 const EDGE_INSET := 3.0
 ## Наибольший пролёт между ножками на длинном ребре, u (стол v1 200 u обходится углами)
@@ -97,8 +101,9 @@ static func _add_unique(list: PackedVector2Array, p: Vector2) -> void:
 ## {"name", "size": Vector3, "center": Vector3, "basis": Basis}, координаты мира (верх плиты y = 0, пол y = -height).
 ## Ножки: leg_positions. Рама: брус вдоль каждого ребра футпринта от пола до низа плиты, отступ внутрь.
 ## Кронштейны: вдоль рёбер, лежащих на стене, через каждые BRK_STEP; контур без стенового ребра (комнату сменили) встаёт на ножки.
+## XX claude-wire W2: apron добавляет подрамник под плитой к ножкам (у рамы и кронштейнов свои брусья, им он не нужен)
 static func parts(support: int, footprint: Array[PackedVector2Array], height: float, th: float, leg: float,
-		cfg: RoomConfig) -> Array[Dictionary]:
+		cfg: RoomConfig, apron := false) -> Array[Dictionary]:
 	var res: Array[Dictionary] = []
 	var leg_h := height - th
 	match support:
@@ -121,6 +126,11 @@ static func parts(support: int, footprint: Array[PackedVector2Array], height: fl
 					_legs(res, one, leg, leg_h, height)   # без стены: на ножки
 		_:
 			_legs(res, footprint, leg, leg_h, height)
+			if apron:
+				for raw in footprint:
+					if Geometry2D.is_polygon_clockwise(raw):
+						continue
+					_apron_beams(res, _cleaned(raw), th, leg_h)
 	return res
 
 
@@ -130,6 +140,27 @@ static func _legs(res: Array[Dictionary], footprint: Array[PackedVector2Array], 
 	for p in leg_positions(footprint, leg):
 		res.append({"name": "Leg", "size": Vector3(leg, leg_h, leg), "center": Vector3(p.x, -height + leg_h * 0.5, p.y),
 				"basis": Basis.IDENTITY})
+
+
+## XX claude-wire W2: подрамник. Брус вдоль каждого ребра контура сразу под плитой (верх бруса на низе плиты), отступ внутрь как у ножек.
+## Дыры (контуры по часовой) пропускаются, как у ножек. Нет места под плитой (leg_h <= 0): брусьев нет, высота бруса не больше ножки
+static func _apron_beams(res: Array[Dictionary], poly: PackedVector2Array, th: float, leg_h: float) -> void:
+	if leg_h <= 0.0:
+		return
+	var h := minf(APRON_H, leg_h)
+	var n := poly.size()
+	for i in n:
+		var a := poly[i]
+		var b := poly[(i + 1) % n]
+		var edge_len := a.distance_to(b) - 2.0 * EDGE_INSET
+		if edge_len < APRON_W:
+			continue
+		var dir := (b - a).normalized()
+		var nrm := _inward_normal(poly, a, b)
+		var mid := (a + b) * 0.5 + nrm * (APRON_W * 0.5 + EDGE_INSET)
+		var dir3 := Vector3(dir.x, 0.0, dir.y)
+		res.append({"name": "Apron", "size": Vector3(edge_len, h, APRON_W),
+				"center": Vector3(mid.x, -th - h * 0.5, mid.y), "basis": Basis(dir3, Vector3.UP, dir3.cross(Vector3.UP))})
 
 
 static func _inward_normal(poly: PackedVector2Array, a: Vector2, b: Vector2) -> Vector2:
