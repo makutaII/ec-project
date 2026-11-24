@@ -62,6 +62,7 @@ RAIL_H = 0.25
 WHEEL_T = 0.12
 AXLE_R = 0.07
 REF_COLLECTION = "EC_ref"
+SRC_COLLECTION = "SRC"   # исходная иерархия чужой модели: не проверяется и не экспортируется
 REPORT_TEXT = "EC_report"
 PREFLIGHT_TEXT = "EC_preflight"
 
@@ -217,7 +218,7 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
     for o in scene.objects:
         if o.parent is None and o is not body and o.type in {"MESH", "EMPTY"} and not o.name.startswith("EC_ref"):
             col_names = {c.name for c in o.users_collection}
-            if REF_COLLECTION in col_names:
+            if REF_COLLECTION in col_names or SRC_COLLECTION in col_names:
                 continue
             add("WARN", "Объект '%s' лежит рядом с кузовом и не войдёт в экспорт. Если он нужен, сделайте его потомком кузова; если это эталон, переименуйте EC_ref_*." % o.name, o)
 
@@ -392,7 +393,7 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
                     if kp.interpolation != "LINEAR":
                         add("WARN", "Действие '%s': интерполяция %s, поставьте Linear (плавность даёт игра)." % (act.name, kp.interpolation), o)
                         break
-            if kinds == {"move", "rot"}:
+            if kinds == {"move", "rot"} and not o.get("ec_cycle"):   # цикл привода (ec_cycle) двигает деталь и сдвигом и поворотом по замыслу
                 add("WARN", "Действие '%s': и сдвиг, и поворот. Один механизм это одно движение: разделите на две детали." % act.name, o)
             declared = o.get("mech_id")
             if isinstance(declared, str) and declared and act.name != "mech_" + declared:
@@ -901,6 +902,7 @@ def bake_drive_cycle(context, body, wheel, parts, cycle_id):
             new.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
     finally:
         edit.keyframe_new_interpolation_type = prev_interp
+    set_linear(act)   # настройка по умолчанию на keyframe_insert не всегда действует (в Blender 5 нет): ставим явно
     if scene.frame_end < f0 + period:
         scene.frame_end = f0 + period
     scene.frame_set(saved)
@@ -1652,7 +1654,38 @@ class EC_OT_clean_copy(bpy.types.Operator):
             self.report({"ERROR"}, "Выделите меши (колёсные пары, рамы тележек)")
             return {"CANCELLED"}
         copies = static_copies(context, meshes, s.copy_center)
-        self.report({"INFO"}, "Копий: %d (%s)" % (len(copies), ", ".join(o.name for o in copies[:6])))
+        bodies = find_body(context.scene)
+        kids = ""
+        if len(bodies) == 1:
+            for c in copies:
+                c.parent = bodies[0]
+                c.matrix_parent_inverse = bodies[0].matrix_world.inverted()
+            kids = ", дети body"
+        self.report({"INFO"}, "Копий: %d%s (%s)" % (len(copies), kids, ", ".join(o.name for o in copies[:6])))
+        return {"FINISHED"}
+
+
+class EC_OT_parent_body(bpy.types.Operator):
+    bl_idname = "ec.parent_body"
+    bl_label = "Выделенное: детьми body"
+    bl_description = "Делает выделенные объекты потомками body с сохранением положения (как Ctrl+P, Keep Transform, но без ручного выбора родителя)"
+
+    def execute(self, context):
+        bodies = find_body(context.scene)
+        if len(bodies) != 1:
+            self.report({"ERROR"}, "Нужен ровно один объект с role = body")
+            return {"CANCELLED"}
+        body = bodies[0]
+        n = 0
+        for o in context.selected_objects:
+            if o is body or o.parent is body:
+                continue
+            mw = o.matrix_world.copy()
+            o.parent = body
+            o.matrix_parent_inverse = body.matrix_world.inverted()
+            o.matrix_world = mw
+            n += 1
+        self.report({"INFO"}, "Детьми body: %d" % n)
         return {"FINISHED"}
 
 
@@ -1829,6 +1862,7 @@ class EC_PT_panel(bpy.types.Panel):
         row = box.row(align=True)
         row.operator("ec.clean_copy", icon="DUPLICATE")
         row.prop(s, "copy_center", text="", icon="PIVOT_BOUNDBOX")
+        box.operator("ec.parent_body", icon="OUTLINER_OB_GROUP_INSTANCE")
         box.separator()
         box.label(text="Привод колеса (цикл на оборот)")
         box.prop(s, "cycle_id")
@@ -1858,7 +1892,7 @@ class EC_PT_panel(bpy.types.Panel):
 
 
 CLASSES = (ECSettings, EC_OT_check, EC_OT_show_report, EC_OT_copy_report, EC_OT_open_report, EC_OT_set_role, EC_OT_clear_role, EC_OT_add_buffers,
-           EC_OT_prepare, EC_OT_static_body, EC_OT_clean_copy, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
+           EC_OT_prepare, EC_OT_static_body, EC_OT_clean_copy, EC_OT_parent_body, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
 
 
 def register():
