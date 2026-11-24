@@ -18,7 +18,7 @@
 - [ATTN_20_track_studio.md](docs/ATTN_20_track_studio.md) — Track Studio: редактор стилей траков и ресурсов для них (материалы из PBR-наборов, шпалы, профили, хоткеи).
 - [0_ATTN_21_dcc.md](0_ATTN_21_dcc.md) — DCC (заглушка).
 - [ATTN_22_library.md](ATTN_22_library.md) — Library (Model Studio): коллекция, кастомизация, сборка и генерация зданий, план L0–L12.
-- [ATTN_23_layout_table.md](docs/ATTN_23_layout_table.md) — Подмакетник (Layout Table): кастомизация, модули, крепление, задник, подстольный слой, план T0–T10.
+- [ATTN_23_layout_table.md](docs/ATTN_23_layout_table.md) — Подмакетник (Layout Table): кастомизация, модули, крепление, задник, подстольный слой, план T0–T10; провода под столом: аудит и план W0–W9 (§23.9).
 - [ATTN_24_model_pipeline.md](docs/ATTN_24_model_pipeline.md) — Модели из Blender: экспорт в `.glb`, роли, покраска, механизмы, свет.
 - [ATTN_25_rooms.md](ATTN_25_rooms.md) — Комнаты: активная комната, Room Studio, Observe без комнаты, пайплайн Blender для комнат, инструкции.
 - [ATTN_26_sound.md](ATTN_26_sound.md) — Звук: аудит, архитектура (`C_Sound`, `SND`), план S1–S4 (звук движения на DC, остальные объекты, интерфейс, музыка), минимальный набор звуковых файлов, декодер (DC как урезанный DCC) после основы DCC.
