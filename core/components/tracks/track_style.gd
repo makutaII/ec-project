@@ -68,7 +68,8 @@ const LEGACY_TILE_ALONG := 10.0
 @export var ballast_uv_rotate := false
 
 @export_category("Collision")
-## Ширина коллизии основания (балласт/шпалы), ю
+## Ширина коллизии основания (балласт/шпалы), ю. Паспорт трака перекрывает её: TrackConfig.collision_width,
+## а у дороги ширина полотна RoadConfig.road_width (она же ширина меша и ложа рельефа)
 @export var collision_width := 2.9
 
 @export_category("Surface")
@@ -82,6 +83,20 @@ const LEGACY_TILE_ALONG := 10.0
 ## (U: два борта; W: крайние стенки, средний выступ в коллизию не входит). Колёса идут по дну, а вагон, сошедший с трака,
 ## упирается в борта. Рельсы и шпалы лотка выключаются отдельно (rail_enabled, sleeper_enabled): на коллизию они не влияют
 @export var trough := false
+
+
+# XX claude-car CS1b (ATTN_28)
+@export_category("Marking")
+## Светлая полоска вдоль пути (разметка дороги): ширина, ю. 0 = полоски нет (все рельсовые стили)
+@export var marking_width := 0.0
+## Смещение полоски от оси пути по оси x профиля, ю (0 = по центру, у края куска полотна ±половина ширины)
+@export var marking_x := 0.0
+## Длина штриха и пробела, ю. Любое из двух равно 0: сплошная линия. Число штрихов подгоняется под длину куска так,
+## что пробел на стыке двух кусков равен пробелу внутри куска
+@export var marking_dash := 0.0
+@export var marking_gap := 0.0
+## null = светло-серый материал по умолчанию. Полоска это отдельная поверхность меша после балласта и рельсов, коллизии у неё нет
+@export var marking_material: Material
 
 
 # ==========================================
@@ -106,6 +121,11 @@ func sleeper_step() -> float:
 
 func ballast_height() -> float:
 	return _max_y(ballast_profile) if ballast_enabled else 0.0
+
+
+## Высота, на которой лежит полоска разметки над origin пути: верх основания (поверхность катания или верх балласта)
+func marking_base_y() -> float:
+	return maxf(surface_height, ballast_height())
 
 
 ## Хотя бы одна часть (балласт, шпалы, рельсы) включена. Стиль, у которого нет ни одной, считается ошибкой
@@ -216,6 +236,25 @@ func _max_y(p: PackedVector2Array) -> float:
 	for v in p:
 		m = maxf(m, v.y)
 	return m
+
+
+## XX claude-car CS1b. Стиль с полотном заданной ширины: x ломаной ballast_profile масштабируется так, чтобы вся ширина стала width.
+## width <= 0, у стиля нет профиля или ширина уже такая: возвращает сам стиль (общий ресурс не копируется)
+static func with_ballast_width(st: TrackStyle, width: float) -> TrackStyle:
+	if st == null or width <= 0.0 or st.ballast_profile.size() < 2:
+		return st
+	var hw := 0.0
+	for p in st.ballast_profile:
+		hw = maxf(hw, absf(p.x))
+	if hw < 0.001 or is_equal_approx(hw * 2.0, width):
+		return st
+	var k := width * 0.5 / hw
+	var pr := PackedVector2Array()
+	for p in st.ballast_profile:
+		pr.append(Vector2(p.x * k, p.y))
+	var c := st.duplicate() as TrackStyle
+	c.ballast_profile = pr
+	return c
 
 
 ## XX claude-switch. Стиль с шириной коллизии из паспорта трака (TrackConfig.collision_width).

@@ -459,6 +459,13 @@ static func network_of(e: Entity) -> StringName:
 	return p.network_id() if p != null else &"rail"
 
 
+# XX claude-car CS1b (ATTN_28 Р10)
+## Половина ширины ложа рельефа под путём, ю: по ней считаются образцы балласта (канава в листе, автоложе поля, насыпь).
+## У рельсов общая ширина балласта из настроек; C_RoadPath отдаёт половину ширины полотна
+func bed_half_width() -> float:
+	return Global.settings.track_ballast_segment.size.x * 0.5
+
+
 # XX claude-car CS1
 ## Бит физического слоя основания (Ballast и HeadStaticBody3D): tracks у рельсов, roads у дороги.
 ## В драге основание переходит на слой ghost (on_select_layer) и видит только свой слой
@@ -541,7 +548,7 @@ func ballast_samples(step: float = 2.0) -> Array[Dictionary]:
 	var res: Array[Dictionary] = []
 	if not curve or not path_node or not entity.is_inside_tree():
 		return res
-	var half: float = Global.settings.track_ballast_segment.size.x * 0.5
+	var half: float = bed_half_width()   # XX claude-car CS1b: было track_ballast_segment.size.x * 0.5
 	var length := curve.get_baked_length()
 	var n := maxi(2, ceili(length / step))
 	# Поза path_node в мире считаем от Entity и локальной позы path_node, а не path_node.to_global():

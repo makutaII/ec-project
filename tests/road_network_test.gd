@@ -9,6 +9,8 @@ extends Node
 ##   4) стык дороги с дорогой: соседи появляются
 ##   5) стык дороги с рельсом в одной точке: соседей нет, никто не заблокирован
 ##   6) дорога поверх рельса (пересечение): C_Blocked не вешается ни на дорогу, ни на рельс
+##   7) ширина полотна одна (road_width): меш, коллизия и ложе рельефа (ballast_samples) 8 ю, у рельса прежние 3.2
+##   8) светлая полоска: отдельная поверхность меша, штрихи разметки, with_ballast_width
 ## Красных строк E в Output быть не должно. Проверки перетаскивания (красный призрак, подсказка «Другая сеть»,
 ## магнит) руками в редакторе: см. ATTN_28 §28.7, этап CS1.
 
@@ -128,6 +130,45 @@ func _ready() -> void:
 	await frames(10)
 	check("дорога поверх рельса не заблокирована", not road2.has_comp(C_Blocked))
 	check("рельс под дорогой не заблокирован", not rail2.has_comp(C_Blocked))
+
+	print("== 7. ширина полотна и ложе")
+	await clear()
+	var wr := piece(road_s, Vector3.ZERO)
+	var wl := piece(rail_s, Vector3(0, 0, -30))
+	await frames(5)
+	var wrp := wr.get_comp(C_Path) as C_Path
+	var wlp := wl.get_comp(C_Path) as C_Path
+	var rs := wrp.ballast_samples()
+	var ls := wlp.ballast_samples()
+	check("ложе дороги: ширина образцов 8 ю", rs.size() >= 2 and is_equal_approx(((rs[0]["l"] as Vector2) - (rs[0]["r"] as Vector2)).length(), 8.0))
+	check("ложе рельса прежнее (ширина балласта из настроек)", ls.size() >= 2
+		and is_equal_approx(((ls[0]["l"] as Vector2) - (ls[0]["r"] as Vector2)).length(), float(Global.settings.track_ballast_segment.size.x)))
+	check("bed_half_width дороги 4, рельса по настройкам", is_equal_approx(wrp.bed_half_width(), 4.0)
+		and is_equal_approx(wlp.bed_half_width(), float(Global.settings.track_ballast_segment.size.x) * 0.5))
+	var wv := wr.get_comp(C_StyleVisual) as C_StyleVisual
+	check("меш полотна шириной road_width", wv != null and wv.mesh_node != null and wv.mesh_node.mesh != null
+		and absf(wv.mesh_node.mesh.get_aabb().size.x - 8.0) < 0.05)
+	check("коллизия основания шириной road_width", wv != null and wv.style != null and is_equal_approx(wv.style.collision_width, 8.0))
+
+	print("== 8. светлая полоска")
+	check("у меша дороги две поверхности: асфальт и полоска", wv != null and wv.mesh_node.mesh.get_surface_count() == 2)
+	var solid := TrackMeshBuilder.marking_ranges(10.0, 0.0, 0.0)
+	check("сплошная линия это один отрезок на весь кусок", solid.size() == 1 and is_equal_approx(solid[0].x, 0.0) and is_equal_approx(solid[0].y, 10.0))
+	var dashes := TrackMeshBuilder.marking_ranges(10.0, 1.5, 1.5)
+	var even := dashes.size() == 3
+	if even:
+		var gap01 := dashes[1].x - dashes[0].y
+		var gap12 := dashes[2].x - dashes[1].y
+		var edge := dashes[0].x + (10.0 - dashes[2].y)   # два края куска вместе дают один пробел на стыке
+		even = is_equal_approx(gap01, gap12) and is_equal_approx(edge, gap01)
+	check("штрихи 10 ю: три штриха, пробелы равны, на стыке тоже", even)
+	var narrow := TrackStyle.with_ballast_width(wv.style, 6.0)
+	var nx := 0.0
+	for pt in narrow.ballast_profile:
+		nx = maxf(nx, absf(pt.x))
+	check("with_ballast_width: ширина 6 даёт полуширину 3, копия, исходный стиль цел", is_equal_approx(nx, 3.0) and narrow != wv.style)
+	check("with_ballast_width: та же ширина возвращает тот же стиль", TrackStyle.with_ballast_width(wv.style, 8.0) == wv.style)
+	check("у рельсового стиля полоски нет (marking_width 0)", TrackStyle.new().marking_width == 0.0)
 
 	await clear()
 	print("== Итого: %s" % ("всё прошло" if _fails == 0 else "провалено проверок: %d" % _fails))

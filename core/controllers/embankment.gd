@@ -36,11 +36,16 @@ static func _build(track: Entity, tool: ToolController, stat: Dictionary) -> Str
 		return "Нет пресета foam_strip"
 	var T: float = Global.settings.layer_height
 
-	# 1. траки с осью. Стрелки и кроссы (несколько маршрутов) не берём
+	# 1. траки с осью. Стрелки и кроссы (несколько маршрутов) не берём. XX claude-car CS1b: цепочка только из своей сети
+	# (дорога не продолжается рельсом и наоборот), ширина насыпи по ложу выбранного пути
+	var own := track.get_comp(C_Path) as C_Path
+	if own == null:
+		return "Насыпь строится под обычным траком (не стрелка и не кросс)"
+	var net := own.network_id()
 	var items := {}
 	for t in TGM.get_tracks():
 		var p := t.get_comp(C_Path) as C_Path
-		if p == null or p.routes.size() > 1:
+		if p == null or p.routes.size() > 1 or p.network_id() != net:
 			continue
 		var pts := _centre_points(p)
 		if pts.size() >= 2:
@@ -68,7 +73,7 @@ static func _build(track: Entity, tool: ToolController, stat: Dictionary) -> Str
 			var axis := PackedVector3Array()
 			for q in range(idx, last + 2):
 				axis.append(chain[q])
-			_make_sheets(axis, r.z, setting, tool, stat, created)
+			_make_sheets(axis, r.z, setting, tool, stat, created, own.bed_half_width())
 			idx = last + 1
 
 	var text := "Насыпь: листов %d" % stat["made"]
@@ -148,12 +153,14 @@ static func _runs(levels: Array[int]) -> Array[Vector3i]:
 
 ## Лист-полоса (или стопка листов, если слоёв больше MAX_LEVELS) вдоль оси axis на k слоёв от стола
 static func _make_sheets(axis3: PackedVector3Array, k: int, setting: EntitySetting, tool: ToolController,
-		stat: Dictionary, created: Array[Entity]) -> void:
+		stat: Dictionary, created: Array[Entity], bed_hw: float = -1.0) -> void:
 	var T: float = Global.settings.layer_height
 	var axis := PackedVector2Array()
 	for p in axis3:
 		axis.append(Vector2(p.x, p.z))
-	var hw: float = Global.settings.track_ballast_segment.size.x * 0.5 + float(Global.settings.embankment_shoulder)
+	# XX claude-car CS1b: половина ширины ложа пути (bed_half_width); без неё прежняя ширина балласта
+	var half_bed: float = bed_hw if bed_hw > 0.0 else Global.settings.track_ballast_segment.size.x * 0.5
+	var hw: float = half_bed + float(Global.settings.embankment_shoulder)
 	var res := Geometry2D.offset_polyline(axis, hw, Geometry2D.JOIN_MITER, Geometry2D.END_BUTT)
 	if res.size() != 1:
 		_skip(stat, "петля или дыра")
