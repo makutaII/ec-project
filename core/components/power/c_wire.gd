@@ -1,20 +1,21 @@
 class_name C_Wire extends Component
 
 #####################
-## Провод (ATTN_10 §10.5.7, D4)
+## Провод (ATTN_10 §10.5.7, D4; ATTN_23 §23.9, W1)
 #####################
 ## Сущность-провод: два конца (клеммы PowerTerminal), точки излома между ними, «скрутка» (меняет полярность).
-## Визуал это цилиндры по ломаной над столом: узел `_vis` лежит в сущности, но не наследует её позу (top_level).
+## Вид: двужильный кабель одним мешем (WireMesh) по трассе со скруглёнными углами (WireRoute), одна область выбора на провод.
+## Узел `_vis` лежит в сущности, но не наследует её позу (top_level). Выбор и ховер подсвечивают оболочку (эмиссия), цвет жил не меняют.
 ## Концы следуют за клеммами: двигаешь пульт или трак, провод перерисовывается. Клемма исчезла (трак удалён,
 ## клип снят): провод удаляется. Любое изменение проводки просит PGM пересчитать сеть.
 ## Сейв: тип, ключ и позиция каждой клеммы; второй проход после загрузки (restore_after_load) находит клеммы по геометрии.
 
 const WIRE_SETTING_PATH := "res://ui/dc_controllers/objects/wire_01.tres"
-const RADIUS := 0.12
 const HIT_RADIUS := 0.3
-const COLOR_NORMAL := Color(0.85, 0.2, 0.15)
-const COLOR_TWIST := Color(0.2, 0.45, 0.95)
-const COLOR_DEAD := Color(0.45, 0.45, 0.45)
+## Изоляция жил: красная и чёрная. Скрутка меняет жилы местами по ходу провода
+const COLOR_RED := Color(0.85, 0.15, 0.12)
+const COLOR_BLACK := Color(0.08, 0.08, 0.09)
+## Подсветка оболочки (эмиссия)
 const COLOR_SELECTED := Color(1.0, 0.85, 0.2)
 const COLOR_HOVER := Color(1.0, 0.6, 0.35)
 ## Радиус поиска клеммы при восстановлении из сейва, ю
@@ -28,7 +29,9 @@ var points := PackedVector3Array()
 var twist := false
 
 var _vis: Node3D
-var _label: Label3D
+var _mi: MeshInstance3D
+var _area: Area3D
+var _mats: Array[StandardMaterial3D] = []
 var _sig := Vector3.ZERO
 var _loaded: Dictionary = {}
 var _attached := false
@@ -121,12 +124,12 @@ func _physics_process(_delta: float) -> void:
 
 func on_component_added(type: Script) -> void:
 	if type == C_Selected or type == C_Hovered:
-		_rebuild()
+		_apply_highlight()
 
 
 func on_component_removed(type: Script) -> void:
 	if type == C_Selected or type == C_Hovered:
-		_rebuild()
+		_apply_highlight()
 
 
 # XX claude-wire W0: провод и секция
@@ -158,72 +161,81 @@ func _ensure_visual() -> void:
 	_vis.name = "WireVisual"
 	_vis.top_level = true
 	entity.add_child(_vis)
-	_label = Label3D.new()
-	_label.text = "×"
-	_label.pixel_size = 0.02
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.no_depth_test = true
-	_label.modulate = COLOR_TWIST
-	_vis.add_child(_label)
+	_mi = MeshInstance3D.new()
+	_mi.name = "Cable"
+	_vis.add_child(_mi)
+	_mats.clear()
+	for col in [COLOR_RED, COLOR_BLACK]:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = col
+		m.roughness = 0.45
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_mats.append(m)
+	# область выбора мышью: одна на провод, по форме на отрезок
+	_area = Area3D.new()
+	_area.name = "Hit"
+	_area.collision_layer = Global.active_layers(["power"])
+	_area.collision_mask = 0
+	_area.monitoring = false
+	_vis.add_child(_area)
 
 
-func _current_color() -> Color:
+## Выбор и ховер: свечение оболочки, цвет жил не меняется
+func _apply_highlight() -> void:
+	var glow := Color.BLACK
+	var energy := 0.0
 	if entity != null and entity.has_comp(C_Selected):
-		return COLOR_SELECTED
-	if entity != null and entity.has_comp(C_Hovered):
-		return COLOR_HOVER
-	return COLOR_TWIST if twist else COLOR_NORMAL
+		glow = COLOR_SELECTED
+		energy = 0.9
+	elif entity != null and entity.has_comp(C_Hovered):
+		glow = COLOR_HOVER
+		energy = 0.6
+	for m in _mats:
+		m.emission_enabled = energy > 0.0
+		m.emission = glow
+		m.emission_energy_multiplier = energy
 
 
 func _rebuild() -> void:
 	_ensure_visual()
 	if not is_instance_valid(_vis) or not _vis.is_inside_tree():
 		return
-	for c in _vis.get_children():
-		if c != _label:
-			c.queue_free()
-	var line := polyline()
-	if line.size() < 2:
+	_clear_hit()
+	if is_instance_valid(a) and is_instance_valid(b):
+		_sig = a.global_position + b.global_position * 3.0
+	var route := WireRoute.from_polyline(polyline())
+	if route.points.size() < 2:
+		_mi.mesh = null
 		return
-	_sig = (a.global_position + b.global_position * 3.0) if is_instance_valid(a) and is_instance_valid(b) else Vector3.ZERO
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = _current_color()
+	var mesh := WireMesh.build(route.smooth(), twist)
+	for k in mesh.get_surface_count():
+		mesh.surface_set_material(k, _mats[k])
+	_mi.mesh = mesh
+	_add_hit(route.points)
+	_apply_highlight()
+
+
+func _clear_hit() -> void:
+	for c in _area.get_children():
+		_area.remove_child(c)
+		c.queue_free()
+
+
+## Область выбора: цилиндр на каждый отрезок исходной ломаной (углы без скругления)
+func _add_hit(line: PackedVector3Array) -> void:
 	for i in line.size() - 1:
 		var p0 := line[i]
 		var p1 := line[i + 1]
 		var seg_len := p0.distance_to(p1)
-		if seg_len < 0.001:
+		if seg_len < WireRoute.MIN_SEG:
 			continue
-		var mid := (p0 + p1) * 0.5
-		var bs := Basis.looking_at(p1 - p0, Vector3.UP if absf((p1 - p0).normalized().y) < 0.99 else Vector3.RIGHT)
-		# цилиндр вытянут по Y: поворачиваем ось Y на направление отрезка
-		var xf := Transform3D(bs * Basis(Vector3.RIGHT, PI * 0.5), mid)
-		var mi := MeshInstance3D.new()
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = RADIUS
-		cyl.bottom_radius = RADIUS
-		cyl.height = seg_len
-		cyl.radial_segments = 8
-		mi.mesh = cyl
-		mi.material_override = mat
-		_vis.add_child(mi)
-		mi.global_transform = xf
-		# область выбора мышью
-		var area := Area3D.new()
-		area.collision_layer = Global.active_layers(["power"])
-		area.collision_mask = 0
-		area.monitoring = false
 		var cs := CollisionShape3D.new()
 		var shape := CylinderShape3D.new()
 		shape.radius = HIT_RADIUS
 		shape.height = seg_len
 		cs.shape = shape
-		area.add_child(cs)
-		_vis.add_child(area)
-		area.global_transform = xf
-	_label.visible = twist
-	if twist:
-		_label.global_position = line[0].lerp(line[line.size() - 1], 0.5) + Vector3(0, 0.8, 0)
+		cs.transform = Transform3D(WireRoute.basis_along(p1 - p0), (p0 + p1) * 0.5)
+		_area.add_child(cs)
 
 
 # ------ СЕЙВ ------
