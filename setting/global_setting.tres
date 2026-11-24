@@ -4,5 +4,6 @@
 
 [resource]
 script = ExtResource("1_3d062")
+field_tunnel_run = 0.2
 plaster_lip = 0.95
 metadata/_custom_type_script = "uid://dtnlxwwqt15sb"
