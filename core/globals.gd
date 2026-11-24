@@ -109,6 +109,8 @@ func active_layers(data:Array) -> int:
 			'plaster': i = i | 1 << 12
 			# D4 (ATTN_10): корпуса пультов, клеммы и провода. Слой 13 занят гипсом, поэтому 14. Вагон его не проверяет (нет в PROBE_LAYERS)
 			'power'  : i = i | 1 << 13
+			# XX claude-wire W0: подстолье (ATTN_23 §23.9): низ плиты, брусья рамы, ножки. Лучи монтажа блоков и проводов под столом. Не в PROBE_LAYERS: вагон его не проверяет
+			'underside': i = i | 1 << 14
 			## Контуры Outline это visual layers 15-20 (cull_mask), к физике не относятся
 	return i
 

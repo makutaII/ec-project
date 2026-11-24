@@ -129,6 +129,17 @@ func on_component_removed(type: Script) -> void:
 		_rebuild()
 
 
+# XX claude-wire W0: провод и секция
+## Точки в плане (x = X, y = Z), по которым провод считается «стоящим» на секции (LYM.objects_on_section).
+## Сущность провода стоит в нуле мира, поэтому её позиция не считается: только точки излома. Провод без изломов
+## висит между клеммами хозяев, секцию не держит (хозяева считаются сами)
+func probe_points() -> Array[Vector2]:
+	var res: Array[Vector2] = []
+	for p in points:
+		res.append(Vector2(p.x, p.z))
+	return res
+
+
 ## Ломаная в мировых координатах
 func polyline() -> PackedVector3Array:
 	var res := PackedVector3Array()

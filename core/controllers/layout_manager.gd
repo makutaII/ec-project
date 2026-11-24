@@ -136,6 +136,10 @@ static func _any_has(polys: Array[PackedVector2Array], p: Vector2) -> bool:
 
 ## Начало объекта и контрольные точки пути (как у выбора рамкой), в плане (x = X, y = Z)
 static func _probe_points(e: Entity) -> Array[Vector2]:
+	# XX claude-wire W0: сущность провода стоит в нуле мира, считаем только его точки излома
+	var wire := e.get_comp(C_Wire) as C_Wire
+	if wire != null:
+		return wire.probe_points()
 	var pts: Array[Vector2] = [Vector2(e.global_position.x, e.global_position.z)]
 	var path := e.get_comp(C_Path) as C_Path
 	if path != null and path.path_node != null:
