@@ -1,15 +1,15 @@
-[gd_resource type="Resource" script_class="TrackStyle" format=4]
+[gd_resource type="Resource" script_class="TrackStyle" format=4 uid="uid://d1sea8roqx4ei"]
 
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="1_soaf5"]
-[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="1_ts"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_ORM.webp" id="2_5rtvx"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_NormalGL.webp" id="3_tldjy"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Metal007_1K-WebP/Metal007_1K-WebP_Color.webp" id="4_da8u5"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Metal007_1K-WebP/Metal007_1K-WebP_ORM.webp" id="5_0i8pi"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Metal007_1K-WebP/Metal007_1K-WebP_NormalGL.webp" id="6_w3ron"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_Color.webp" id="8_6t7op"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_ORM.webp" id="9_soaf5"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_NormalGL.webp" id="10_5rtvx"]
+[ext_resource type="Texture2D" uid="uid://v00iusfgv46f" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="1_soaf5"]
+[ext_resource type="Script" uid="uid://cfpx56q1cgoy5" path="res://core/components/tracks/track_style.gd" id="1_ts"]
+[ext_resource type="Texture2D" uid="uid://bbib2l5n1geuf" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_ORM.webp" id="2_5rtvx"]
+[ext_resource type="Texture2D" uid="uid://e6521jn8id6b" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_NormalGL.webp" id="3_tldjy"]
+[ext_resource type="Texture2D" uid="uid://by5vvru4mghac" path="res://data/textures/track/Metal007_1K-WebP/Metal007_1K-WebP_Color.webp" id="4_da8u5"]
+[ext_resource type="Texture2D" uid="uid://bwvxhlikbikr1" path="res://data/textures/track/Metal007_1K-WebP/Metal007_1K-WebP_ORM.webp" id="5_0i8pi"]
+[ext_resource type="Texture2D" uid="uid://b4k7qp4vxg7e3" path="res://data/textures/track/Metal007_1K-WebP/Metal007_1K-WebP_NormalGL.webp" id="6_w3ron"]
+[ext_resource type="Texture2D" uid="uid://dx7rq5gw802uc" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_Color.webp" id="8_6t7op"]
+[ext_resource type="Texture2D" uid="uid://b47kqwclmdwxi" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_ORM.webp" id="9_soaf5"]
+[ext_resource type="Texture2D" uid="uid://b22tjfvrsidwa" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_NormalGL.webp" id="10_5rtvx"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3vxvg"]
 albedo_texture = ExtResource("1_soaf5")
@@ -112,7 +112,7 @@ _surfaces = [{
 metadata/track_spec = {
 "chamfer": 0.02,
 "end_slope": 0.015,
-"height": 0.19999999999999998,
+"height": 0.2,
 "length": 3.0,
 "pad_color": Color(0.76953125, 0.76652527, 0.76652527, 1),
 "pad_height": 0.02,
@@ -128,7 +128,7 @@ metadata/track_spec = {
 "uv_rotate": true,
 "width": 0.34
 }
-metadata/seat_height = 0.19999999999999998
+metadata/seat_height = 0.2
 
 [resource]
 script = ExtResource("1_ts")

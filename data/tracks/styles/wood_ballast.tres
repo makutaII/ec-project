@@ -1,12 +1,12 @@
-[gd_resource type="Resource" script_class="TrackStyle" format=4]
+[gd_resource type="Resource" script_class="TrackStyle" format=4 uid="uid://r44woartsls6"]
 
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="1_kjvm8"]
-[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="1_ts"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_ORM.webp" id="2_uv7ai"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_NormalGL.webp" id="3_8kkxo"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="5_16t54"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="6_lj3fm"]
-[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="7_3khnx"]
+[ext_resource type="Texture2D" uid="uid://v00iusfgv46f" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="1_kjvm8"]
+[ext_resource type="Script" uid="uid://cfpx56q1cgoy5" path="res://core/components/tracks/track_style.gd" id="1_ts"]
+[ext_resource type="Texture2D" uid="uid://bbib2l5n1geuf" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_ORM.webp" id="2_uv7ai"]
+[ext_resource type="Texture2D" uid="uid://e6521jn8id6b" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_NormalGL.webp" id="3_8kkxo"]
+[ext_resource type="Texture2D" uid="uid://nj88biwq7ii" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="5_16t54"]
+[ext_resource type="Texture2D" uid="uid://cb2eqc78qqmjq" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="6_lj3fm"]
+[ext_resource type="Texture2D" uid="uid://cb0u4risyfmvm" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="7_3khnx"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_kjvm8"]
 albedo_color = Color(0.92578125, 0.92578125, 0.92578125, 1)
@@ -85,7 +85,7 @@ _surfaces = [{
 metadata/track_spec = {
 "chamfer": 0.02,
 "end_slope": 0.0,
-"height": 0.19999999999999998,
+"height": 0.2,
 "length": 3.0,
 "pad_color": Color(0.5625, 0.5625, 0.5625, 1),
 "pad_height": 0.02,
@@ -101,7 +101,7 @@ metadata/track_spec = {
 "uv_rotate": false,
 "width": 0.30000000000000004
 }
-metadata/seat_height = 0.19999999999999998
+metadata/seat_height = 0.2
 
 [resource]
 script = ExtResource("1_ts")

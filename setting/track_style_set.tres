@@ -1,13 +1,13 @@
-[gd_resource type="Resource" script_class="TrackStyleSet" format=3]
+[gd_resource type="Resource" script_class="TrackStyleSet" format=3 uid="uid://tqnjhue7evef"]
 
-[ext_resource type="Script" path="res://core/components/tracks/track_style_set.gd" id="1_set"]
-[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="2_ts"]
-[ext_resource type="Resource" path="res://data/tracks/styles/wood.tres" id="3_wood"]
-[ext_resource type="Resource" path="res://data/tracks/styles/wood_ballast.tres" id="4_wb"]
-[ext_resource type="Resource" path="res://data/tracks/styles/concrete.tres" id="5_conc"]
-[ext_resource type="Resource" path="res://data/tracks/styles/concrete_ballast.tres" id="6_cb"]
+[ext_resource type="Script" uid="uid://wannrf2bfqhx" path="res://core/components/tracks/track_style_set.gd" id="1_set"]
+[ext_resource type="Script" uid="uid://cfpx56q1cgoy5" path="res://core/components/tracks/track_style.gd" id="2_ts"]
+[ext_resource type="Resource" uid="uid://lisfngitns4c" path="res://data/tracks/styles/wood.tres" id="3_wood"]
+[ext_resource type="Resource" uid="uid://r44woartsls6" path="res://data/tracks/styles/wood_ballast.tres" id="4_wb"]
+[ext_resource type="Resource" uid="uid://d1sea8roqx4ei" path="res://data/tracks/styles/concrete.tres" id="5_conc"]
+[ext_resource type="Resource" uid="uid://c2jpochp4ijrp" path="res://data/tracks/styles/concrete_ballast.tres" id="6_cb"]
 [ext_resource type="Resource" path="res://data/tracks/styles/budget.tres" id="7_bud"]
-[ext_resource type="Resource" path="res://data/tracks/styles/coaster.tres" id="8_tk7qk"]
+[ext_resource type="Resource" uid="uid://bbeytped68e3v" path="res://data/tracks/styles/coaster.tres" id="8_tk7qk"]
 
 [resource]
 script = ExtResource("1_set")
