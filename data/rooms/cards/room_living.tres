@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="RoomConfig" format=3 uid="uid://cc7y551qtfmjp"]
+
+[ext_resource type="PackedScene" uid="uid://yobskeadprqo" path="res://data/models/room_living/room_living.tscn" id="1_5xacy"]
+[ext_resource type="Script" uid="uid://cbb2byx0tf34w" path="res://setting/room_config.gd" id="2_23ign"]
+
+[resource]
+script = ExtResource("2_23ign")
+id = &"room_living"
+title = "room living"
+tip = "Эталон пайплайна Blender → Godot (RM7/RM8): роли, свет, штора, лампочка. Заменяет комнату целиком"
+scene = ExtResource("1_5xacy")
+size = Vector3(500, 307.84, 400)
+window = {}
+door = {}
+daylight = false
+bounds = AABB(-249.75, -60, -200, 500, 307.84, 400)

@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" uid="uid://mbmaixfxpusa" path="res://tests/field_bed_test.gd" id="1"]
 
-[node name="FieldBedTest" type="Node"]
+[node name="FieldBedTest" type="Node" unique_id=1811605933]
 script = ExtResource("1")

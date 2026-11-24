@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://yobskeadprqo"]
+
+[ext_resource type="Script" uid="uid://c2q3oh5oln37o" path="res://core/room/room_root.gd" id="1_1vta5"]
+[ext_resource type="PackedScene" uid="uid://dg274q2jugsis" path="res://data/models/room_living/room_living.glb" id="2_qdjr3"]
+
+[node name="RoomLiving" type="Node3D" unique_id=195536478]
+script = ExtResource("1_1vta5")
+
+[node name="room_living" parent="." unique_id=1915781232 instance=ExtResource("2_qdjr3")]
