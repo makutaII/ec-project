@@ -14,6 +14,8 @@
 *.mp3
 *.ogg
 
+*.glb
+
 # Python (tools/)
 __pycache__/
 *.pyc
