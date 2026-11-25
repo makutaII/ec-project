@@ -94,6 +94,9 @@ func get_categories() -> Array[Dictionary]:
 func get_tags(category: StringName) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var tags: Array = _data.get(category, {}).keys()
+	var only := CatalogMeta.mode_tags(mode, category)   # XX claude-wire W3
+	if not only.is_empty():
+		tags = tags.filter(func(t) -> bool: return only.has(t))
 	if not _consists(category).is_empty():
 		tags.append(ConsistSetting.TAG)
 	if not _my_buildings(category).is_empty():

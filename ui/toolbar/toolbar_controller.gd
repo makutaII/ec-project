@@ -41,6 +41,9 @@ var _mode: StringName = &""
 var _providers := {}   # режим -> CatalogProvider
 var _receivers := {}   # режим -> Callable(setting)
 var _dup_btn: Button
+# XX claude-wire W3: режим «Монтаж»: кнопки «Плита» (показать и скрыть столешницу) и «Схема» (пути)
+var _plate_btn: Button
+var _scheme_btn: Button
 var _del_dc_btn: Button       # Operate: вместо «Дубль» кнопка «Удалить 2D-контроллер» (U15)
 var _dup_has_last := false     # есть последний поставленный объект
 var _dup_sel_name := ""        # название выбранного настоящего объекта, пусто: ничего не выбрано
@@ -60,6 +63,8 @@ func _ready() -> void:
 	register_mode(&"sections", EntityCatalogProvider.new(&"sections"), _emit_build_selected)
 	# XX claude-coaster C1: режим «Coaster» (ATTN_27): каталог траков горок, приёмник тот же: ToolController включит BuildTool
 	register_mode(&"coaster", EntityCatalogProvider.new(&"coaster"), _emit_build_selected)
+	# XX claude-wire W3: режим «Монтаж» (ATTN_23 §23.9): категория dc_controller, теги режима в CatalogMeta.MODE_TAGS
+	register_mode(&"wiring", EntityCatalogProvider.new(&"wiring"), _emit_build_selected)
 
 	_dup_btn = Button.new()
 	_dup_btn.text = "V"   # U15: на кнопке иконка того объекта, который будет повторён, и клавиша
@@ -92,6 +97,14 @@ func _ready() -> void:
 		_del_dc_btn.disabled = not dc_host.has_panel()
 	_view.actions_strip().add_child(_del_dc_btn)
 
+	# XX claude-wire W3: «Монтаж»: плита и пути
+	_plate_btn = _make_wiring_toggle("Плита", "Показать или скрыть столешницу. Блоки и провода под ней видны, когда плиты нет")
+	_plate_btn.button_pressed = LYM.plate_visible
+	_plate_btn.toggled.connect(func(on: bool) -> void: LYM.set_plate_visible(on))
+	LYM.plate_visible_changed.connect(func(on: bool) -> void: _plate_btn.set_pressed_no_signal(on))
+	_scheme_btn = _make_wiring_toggle("Схема", "Показывать только пути и проводку: поезда, здания, декор, рельеф и вода скрыты")
+	_scheme_btn.toggled.connect(_on_scheme_toggled)
+
 	# Ряд фильтров над объектами (первым в теле ToolDock)
 	_filter_bar = FilterBar.new()
 	_filter_bar.filters_changed.connect(_on_filters_changed)
@@ -101,6 +114,33 @@ func _ready() -> void:
 
 	# ToolController к этому моменту может быть не готов, поэтому связываем в конце кадра
 	_connect_game.call_deferred()
+
+
+## Кнопка-переключатель в полосе действий ToolDock, видна только в режиме «Монтаж»
+func _make_wiring_toggle(label: String, tip: String) -> Button:
+	var b := Button.new()
+	b.text = label
+	b.toggle_mode = true
+	b.custom_minimum_size = Vector2(0, 24)
+	b.focus_mode = Control.FOCUS_NONE
+	b.visible = false
+	b.tooltip_text = tip
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.theme_type_variation = &"ButtonSmall"
+	_view.actions_strip().add_child(b)
+	return b
+
+
+func _wiring_view() -> WiringView:
+	var tc := get_tree().get_first_node_in_group(&"tool_controller") as ToolController
+	return tc.wiring_view if tc != null else null
+
+
+func _on_scheme_toggled(on: bool) -> void:
+	var wv := _wiring_view()
+	if wv != null:
+		wv.set_paths(WiringView.Paths.SCHEME if on else WiringView.Paths.ALL)
 
 
 func _emit_build_selected(setting: Resource) -> void:
@@ -138,6 +178,13 @@ func show_mode_ui(mode: StringName) -> void:
 	_dup_btn.visible = mode == &"build" or mode == &"coaster"   # дубль имеет смысл в Build и в Coaster (XX claude-coaster C6.1)
 	_refresh_dup_btn()
 	_del_dc_btn.visible = mode == &"operate"
+	# XX claude-wire W3: кнопки «Плита» и «Схема» только в «Монтаже»; состояние берём из игры
+	_plate_btn.visible = mode == &"wiring"
+	_scheme_btn.visible = mode == &"wiring"
+	if mode == &"wiring":
+		_plate_btn.set_pressed_no_signal(LYM.plate_visible)
+		var wv := _wiring_view()
+		_scheme_btn.set_pressed_no_signal(wv == null or wv.paths == WiringView.Paths.SCHEME)
 	_view.mode_label().text = _mode_title(mode)
 	_rebuild_category_bar()
 	_view.show()
@@ -188,6 +235,7 @@ static func _mode_title(mode: StringName) -> String:
 		&"operate": return "Operate"
 		&"observe": return "Observe"
 		&"sections": return "Секции"
+		&"wiring": return "Монтаж"   # XX claude-wire W3
 		&"coaster": return "Coaster"   # XX claude-coaster C1
 	return String(mode)
 

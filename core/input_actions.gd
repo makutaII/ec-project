@@ -7,9 +7,9 @@ extends Node
 ## Одна запись описывает действие: id, ключ локализации названия, группа, контексты и клавиша по умолчанию.
 ## Окно ремапа (U11) и подсказки (U6.3) строятся из реестра, новые действия добавляются одной строкой в DEFAULTS.
 ##
-## Контекст: где действие живёт (global, build, select, operate, sections, drag, terrain_tools, wire, observe, debug).
+## Контекст: где действие живёт (global, build, select, operate, sections, wiring, drag, terrain_tools, wire, observe, debug).
 ## Контекст это место, где ввод читается: build, select, drag это инструменты режима Build (SelectTool, BuildTool, DragTool),
-## operate это SelectTool в режиме Operate, sections это SelectTool и TableTool в режиме «Секции», wire это WireTool.
+## operate это SelectTool в режиме Operate, sections это SelectTool и TableTool в режиме «Секции», wiring это режим «Монтаж», wire это WireTool.
 ## Одна клавиша может стоять в разных контекстах (законный повтор), конфликтом считается только повтор
 ## внутри одного контекста, а также повтор с действием контекста global (оно действует везде).
 ##
@@ -29,6 +29,7 @@ const G_BUILD := &"build"
 const G_SELECT := &"select"
 const G_OPERATE := &"operate"
 const G_SECTIONS := &"sections"
+const G_WIRING := &"wiring"   # XX claude-wire W3: режим «Монтаж» (SelectTool и WireTool)
 const G_DRAG := &"drag"
 const G_TERRAIN := &"terrain_tools"
 const G_WIRE := &"wire"
@@ -92,6 +93,8 @@ func _register_defaults() -> void:
 	register(&"cut_through", "action.cut_through", &"terrain", [G_TERRAIN], _key(KEY_END))
 	# Ctrl+Z: терморезак, вода, гипс и «убрать последнюю секцию» (TableTool)
 	register(&"tool_undo", "action.tool_undo", &"terrain", [G_TERRAIN, G_SECTIONS, G_SELECT], _key(KEY_Z, false, true))
+	# XX claude-wire W3: «Монтаж»: показать или скрыть столешницу (читает WiringView)
+	register(&"plate_toggle", "action.plate_toggle", &"wiring", [G_WIRING], _key(KEY_P))
 	# Провода: Esc отменяет провод, повторно выходит. Не переназначается: Esc займёт стек окон (U10), как observe_cancel
 	register(&"wire_cancel", "action.wire_cancel", &"wire", [G_WIRE], _key(KEY_ESCAPE), false)
 	# Общая отмена (U10): Esc закрывает верхнее окно, иначе снимает выбор и группу в SelectTool.
@@ -107,7 +110,7 @@ func _register_defaults() -> void:
 	# Общие
 	register(&"quick_save", "action.quick_save", &"system", [G_GLOBAL], _key(KEY_S, false, true))
 	# H: подсказки внизу экрана. Не global: в Observe H прячет интерфейс для снимка (photo_hide_ui)
-	register(&"hints_toggle", "action.hints_toggle", &"system", [G_BUILD, G_SELECT, G_OPERATE, G_SECTIONS, G_DRAG, G_TERRAIN, G_WIRE], _key(KEY_H))
+	register(&"hints_toggle", "action.hints_toggle", &"system", [G_BUILD, G_SELECT, G_OPERATE, G_SECTIONS, G_WIRING, G_DRAG, G_TERRAIN, G_WIRE], _key(KEY_H))
 	# Отладка
 	register(&"debug_panel_toggle", "action.debug_panel_toggle", &"debug", [G_DEBUG], _key(KEY_F3))
 	register(&"debug_vsync_toggle", "action.debug_vsync_toggle", &"debug", [G_DEBUG], _key(KEY_V, true, true))

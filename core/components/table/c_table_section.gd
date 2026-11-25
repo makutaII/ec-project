@@ -50,6 +50,9 @@ func on_added() -> void:
 	mesh_node.material_override = _get_material()
 	mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	instance.add_child(mesh_node)
+	# XX claude-wire W3: плиту может скрывать режим «Монтаж» (коллизия остаётся). Призрак секции виден всегда
+	mesh_node.visible = LYM.plate_visible or entity.has_comp(C_Ghost)
+	LYM.plate_visible_changed.connect(_on_plate_visible)
 
 	body = StaticBody3D.new()
 	body.name = 'Body'
@@ -155,6 +158,12 @@ func _world_aabb() -> AABB:
 		return AABB()
 	var b := C_Contour.bounds_of(poly)
 	return AABB(Vector3(b.position.x, -thickness, b.position.y), Vector3(b.size.x, thickness, b.size.y))
+
+
+## XX claude-wire W3
+func _on_plate_visible(on: bool) -> void:
+	if mesh_node != null and is_instance_valid(mesh_node):
+		mesh_node.visible = on or (entity != null and entity.has_comp(C_Ghost))
 
 
 ## --- Сборка ---

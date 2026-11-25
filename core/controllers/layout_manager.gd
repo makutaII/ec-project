@@ -13,6 +13,8 @@ extends Node
 
 ## ⚡ Подмакетник изменился (секция, высота, опоры, загрузка сейва). Слушают опоры, границы камеры, домен воды
 signal layout_changed
+## XX claude-wire W3: показана ли плита стола. Скрывает её режим «Монтаж» (WiringView), коллизия плиты остаётся
+signal plate_visible_changed(on: bool)
 ## ⚡ Сообщение игроку по подмакетнику (отказ удалить секцию, высота стола). Показывает SelectTool
 signal notice(text: String)
 
@@ -276,6 +278,17 @@ func set_aisle(v: float) -> void:
 	config.aisle_min = clampf(v, 0.0, 150.0)
 
 
+# XX claude-wire W3: плита стола показана (true) или скрыта (режим «Монтаж»). В сейв не пишется
+var plate_visible := true
+
+
+func set_plate_visible(on: bool) -> void:
+	if on == plate_visible:
+		return
+	plate_visible = on
+	plate_visible_changed.emit(on)
+
+
 # XX claude-wire W2: подрамник под плитой (виден при ножках)
 func set_apron(on: bool) -> void:
 	if on == config.apron:
@@ -426,4 +439,5 @@ func set_state(d: Dictionary) -> void:
 
 ## Новый макет: всё по умолчанию
 func reset() -> void:
+	set_plate_visible(true)   # XX claude-wire W3: новая игра начинается с видимой плитой
 	set_state({})

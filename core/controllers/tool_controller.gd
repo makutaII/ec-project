@@ -28,6 +28,7 @@ var paint_tool: PaintTool   # XX claude-terra 13.13 K2
 var field_tool: FieldTool   # XX claude-terra 13.14 H1b
 var brush_tool: BrushTool   # XX claude-terra 13.14 H2
 var wire_tool: WireTool   # D4 (ATTN_10): провода между клеммами
+var wiring_view: WiringView   # XX claude-wire W3: вид режима «Монтаж» (плита, пути)
 var table_tool: TableTool   # XX claude-table T2: постановка секций подмакетника (режим «Секции»)
 #@onready var save_controller: SaveManager = %SaveManager
 
@@ -96,6 +97,12 @@ func _ready() -> void:
 	# Инициализируем инструменты, передав им ссылку на себя
 	for tool in %Tools.get_children():
 		tool.controller = self
+
+	# XX claude-wire W3: вид режима «Монтаж» (узел не инструмент, лежит рядом с ними)
+	wiring_view = WiringView.new()
+	wiring_view.name = &"WiringView"
+	wiring_view.entities_root = entities_root
+	add_child(wiring_view)
 		
 	# При старте инструмент - select_tool
 	switch_tool(select_tool) 
@@ -366,6 +373,11 @@ func on_current_mode_changed(_new_mode):
 	if active_tool == table_tool and _new_mode != &'sections':
 		switch_tool(select_tool)   # TableTool живёт только в режиме «Секции»
 	elif _new_mode == &'sections' and active_tool != select_tool:
+		switch_tool(select_tool)
+	# XX claude-wire W3: режим «Монтаж»: плита и пути, начинаем с выбора (инструмент «Провод» берут из каталога режима)
+	if wiring_view:
+		wiring_view.on_mode_changed(_new_mode)
+	if _new_mode == &'wiring' and active_tool != select_tool and active_tool != wire_tool:
 		switch_tool(select_tool)
 	select_tool.on_mode_changed()
 

@@ -321,7 +321,12 @@ func _kill_entity(e: Entity) -> void:
 ## XX claude-table T1b: что можно выбрать в текущем режиме. Секции стола (ящики) выбираются только в режиме «Секции»,
 ## а в нём не выбирается ничего, кроме секций. В остальных режимах секция для выбора и рамки не существует
 func _is_pickable(e: Entity) -> bool:
-	return e != null and e.has_comp(C_TableSection) == (Global.current_mode == &'sections')
+	if e == null:
+		return false
+	# XX claude-wire W3: в режиме «Монтаж» выбираются только пульты, блоки и провода (см. WiringView)
+	if Global.current_mode == &'wiring':
+		return e.has_comp(C_PowerSource) or e.has_comp(C_PowerDevice) or e.has_comp(C_Wire)
+	return e.has_comp(C_TableSection) == (Global.current_mode == &'sections')
 
 
 ## Смена режима (зовёт ToolController): выбор и ховер, которых в новом режиме быть не может, снимаются
@@ -388,6 +393,9 @@ func _describe_hit(h: Dictionary) -> String:
 
 
 func _pick_ray() -> Dictionary:
+	# XX claude-wire W3: в режиме «Монтаж» только слой power (пульты, блоки, провода, клеммы): плита, трак и вагон не заслоняют
+	if Global.current_mode == &'wiring':
+		return controller.get_mouse_ray(Global.active_layers(['power', 'ghost']))
 	# XX claude-table T1b: в режиме «Секции» смотрим только плиту (вагон или трак на ней не заслоняют её)
 	if Global.current_mode == &'sections':
 		return controller.get_mouse_ray(Global.active_layers(['ground', 'ghost']))

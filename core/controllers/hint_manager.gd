@@ -56,6 +56,10 @@ const HINTS := {
 	"table_place": [["@rotate_left/@rotate_right", "повернуть на 90°"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["@tool_undo", "убрать последнюю"]],
 	"sections/select_sel": [["@delete", "убрать секцию (последнюю и с объектами на ней нельзя)"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"], ["Кнопка секции внизу", "поставить новую"]],
 	"sections/select_switch": [["@delete", "убрать секцию"], ["@level_up/@level_down", "высота стола ±5 (Shift ×5)"]],
+	# XX claude-wire W3: режим «Монтаж» (ATTN_23 §23.9). Без выбранного объекта тоже: клавиша плиты нигде не видна
+	"wiring/select_none": [["@plate_toggle", "столешница: показать / скрыть"]],
+	"wiring/select_sel": [["@delete", "удалить"], ["@plate_toggle", "столешница: показать / скрыть"]],
+	"wiring/select_switch": [["@delete", "удалить"], ["@plate_toggle", "столешница: показать / скрыть"]],
 	# XX claude-coaster C1: подсказки режима «Coaster» (ATTN_27). Без V и Z: дубль и зоны flex работают только в Build
 	"coaster/select_sel": [["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"]],
 	"coaster/build": [["@duplicate_last", "дубль последнего"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"]],
