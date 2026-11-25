@@ -441,8 +441,12 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
                     add("WARN", "Действие '%s': анимация масштаба не поддерживается." % act.name, o)
                 if any(kp.interpolation != "LINEAR" for kp in fc.keyframe_points):
                     nonlin += 1
-                if cyc and len(fc.keyframe_points) > 1 and abs(fc.keyframe_points[0].co[1] - fc.keyframe_points[-1].co[1]) > 1e-4:
-                    open_ch += 1
+                if cyc and len(fc.keyframe_points) > 1:
+                    v0, v1 = fc.keyframe_points[0].co[1], fc.keyframe_points[-1].co[1]
+                    if fc.data_path == "rotation_quaternion":
+                        v0, v1 = abs(v0), abs(v1)   # q и -q это один поворот: деталь, делающая полный оборот, замыкается со сменой знака
+                    if abs(v0 - v1) > 1e-4:
+                        open_ch += 1
             if nonlin:
                 add("WARN", "Действие '%s': у %d каналов интерполяция не Linear (плавность даёт игра). Кнопка «Ключи → Linear» в блоке 3." % (act.name, nonlin), o)
             if open_ch:
@@ -1008,7 +1012,9 @@ def bake_drive_cycle(context, body, wheel, parts, cycle_id):
             new.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
     finally:
         edit.keyframe_new_interpolation_type = prev_interp
-    set_linear(act)   # настройка по умолчанию на keyframe_insert не всегда действует (в Blender 5 нет): ставим явно
+    fixed = set_linear(act)   # настройка по умолчанию на keyframe_insert не всегда действует (в Blender 5 нет): ставим явно
+    if fixed:
+        items.append(("INFO", "Интерполяция Linear выставлена у %d ключей" % fixed, None))
     if scene.frame_end < f0 + period:
         scene.frame_end = f0 + period
     scene.frame_set(saved)
@@ -1297,9 +1303,14 @@ def rotation_path(obj):
 
 
 def set_linear(act):
+    """Linear всем ключам действия; возвращает, сколько ключей изменено"""
+    n = 0
     for fc in iter_fcurves(act):
         for kp in fc.keyframe_points:
-            kp.interpolation = "LINEAR"
+            if kp.interpolation != "LINEAR":
+                kp.interpolation = "LINEAR"
+                n += 1
+    return n
 
 
 def remove_static_channels(act, eps=1e-4):
@@ -1864,9 +1875,8 @@ class EC_OT_linear_keys(bpy.types.Operator):
             for a in object_actions(o):
                 if a not in acts:
                     acts.append(a)
-        for a in acts:
-            set_linear(a)
-        self.report({"INFO"}, "Действий: %d (%s)" % (len(acts), ", ".join(a.name for a in acts[:5])))
+        changed = sum(set_linear(a) for a in acts)
+        self.report({"INFO"}, "Действий: %d (%s), ключей изменено: %d" % (len(acts), ", ".join(a.name for a in acts[:5]), changed))
         return {"FINISHED"}
 
 
