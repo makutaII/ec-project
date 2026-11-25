@@ -54,6 +54,7 @@ const TAGS := {
 	&"road": [&"straight", &"curve"],   # XX claude-car CS1
 	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"field", &"relief", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14: field (H1b), relief (H2)
+	&"decor": [&"portal"],   # XX claude-terra 13.14 H7b
 	&"table": [&"section"],
 	&"coaster_car": [&"car"],   # XX claude-coaster C3
 	&"coaster_track": [&"straight", &"slope", &"bank", &"flex"],   # XX claude-coaster C1: дальше slope, curve, vertical, bank, drive (ATTN_27 §27.4)
@@ -63,6 +64,9 @@ const TAGS := {
 ## Подписи и иконки тегов (необязательно): {category: {tag: {"name": String, "icon": Texture2D}}}.
 ## Пока пусто: подпись это id тега, иконка у первого объекта тега. Заполнять по мере появления иконок (U18)
 const TAG_META := {
+	&"decor": {   # XX claude-terra 13.14 H7b
+		&"portal": {"name": "Порталы", "tooltip": "Портал тоннеля: арка входа в гору. Рельеф не меняет; рельсы с флагом U, портал задвинуть в гору. R/F уровень, G стиль, глубина в панели «Вид»"},
+	},
 	&"terrain": {   # XX claude-terra 13.14
 		&"field": {"name": "Шпатлёвка", "tooltip": "Слой шпатлёвки на стол или лист: прямоугольник, полигон, вся столешница"},
 		&"relief": {"name": "Рельеф", "tooltip": "Кисти рельефа: холм, гравий, скалы. Ctrl+колесо подъём и яма, ЛКМ выравнивание"},

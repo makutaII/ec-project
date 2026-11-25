@@ -3,6 +3,7 @@ class_name TunnelPortal extends RefCounted
 # XX claude-terra 13.13 K5 (новый файл)
 #######################
 ## Портал тоннеля (ATTN_13 §13.13). Чистые функции без сцены: где устья, какой проём, из каких коробок рамка.
+## H7b: тот же набор коробок строит арку отдельного объекта «Портал тоннеля» (C_TunnelPortal): make_arch.
 #######################
 ## Устье это место, где ось тоннельного трака пересекает внешний контур листа. Рамка стоит на стенке листа лицом наружу:
 ## две стойки, перемычка над проёмом, фаски верхних углов и два крыла под углом. В v1 рамка прямоугольная с фаской
@@ -25,8 +26,12 @@ const WING_DEG := 35.0
 const LINTEL_MAX := 1.2
 ## Фаска верхнего угла проёма: сторона квадрата, повёрнутого на 45°
 const CHAMFER := 0.7
-## Цвет оголовка в холме поля, когда стиль рамки не выбран
-const WALL_COLOR := Color(0.46, 0.43, 0.39)
+## Объект «Портал тоннеля» (H7b): глубина арки в ю (от лицевой плоскости вглубь), толщина свода над проёмом, цвет тёмной плоскости
+const DEPTH_MIN := 1
+const DEPTH_MAX := 5
+const DEPTH_DEFAULT := 3
+const ROOF := 0.6
+const DARK_COLOR := Color(0.02, 0.02, 0.02)
 ## Устья ближе друг к другу, чем это (вершина контура даёт два попадания), считаем одним, ю
 const MERGE := 0.3
 
@@ -127,86 +132,76 @@ static func parts(width: float, floor_y: float, vault_y: float, top_y: float) ->
 	return res
 
 
-## Узел рамки в мире: боксы по parts, стиль задаёт цвет. at: точка устья (x, z), out: нормаль наружу. Без коллизии.
-## fill (H7, портал в холме поля высот): проём закрыт тёмной плоскостью (зев тоннеля), рамка рисуется, только если стиль не пустой
-## wall (H7): оголовок FieldBed.headwall, камень вокруг проёма поверх склона между срезанным и несрезанным рядами узлов (иначе проём
-## чёрный прямоугольник перед склоном)
-static func make_node(style: StringName, at: Vector2, out: Vector2, width: float, floor_y: float, vault_y: float, top_y: float,
-		fill: bool = false, wall: Dictionary = {}) -> Node3D:
+## Узел рамки в мире: боксы по parts, стиль задаёт цвет. at: точка устья (x, z), out: нормаль наружу. Без коллизии
+static func make_node(style: StringName, at: Vector2, out: Vector2, width: float, floor_y: float, vault_y: float, top_y: float) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Portal"
 	var z := Vector3(out.x, 0.0, out.y).normalized()
 	var x := Vector3.UP.cross(z).normalized()
 	root.transform = Transform3D(Basis(x, Vector3.UP, z), Vector3(at.x, 0.0, at.y))
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = COLORS.get(style, COLORS[STYLE_CONCRETE])
-	mat.roughness = 1.0
-	if fill and not wall.is_empty():
-		var wm := _wall_mesh(wall, COLORS.get(style, WALL_COLOR))
-		if wm != null:
-			root.add_child(wm)
-	if fill and vault_y > floor_y and width > 0.0:
-		var dark := StandardMaterial3D.new()
-		dark.albedo_color = Color(0.02, 0.02, 0.02)
-		dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var fm := MeshInstance3D.new()
-		var fb := BoxMesh.new()
-		fb.size = Vector3(width, vault_y - floor_y, 0.04)
-		fm.mesh = fb
-		fm.material_override = dark
-		fm.position = Vector3(0.0, (floor_y + vault_y) * 0.5, 0.02)
-		root.add_child(fm)
-	if fill and style == STYLE_NONE:
-		return root
+	var mat := _style_material(style)
 	for part in parts(width, floor_y, vault_y, top_y):
-		var mi := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = part["size"]
-		mi.mesh = box
-		mi.material_override = mat
-		mi.position = part["pos"]
-		mi.rotation = Vector3(0.0, part["rot_y"], part["rot_z"])
-		root.add_child(mi)
+		root.add_child(_box_node(part, mat))
 	return root
 
 
-## Оголовок портала в холме поля (H7): блок от лицевой плоскости (z = 0) вглубь холма на wall["depth"]; спереди стенка по колонкам
-## (низ это дно выемки, верх это земля холма), сверху крышка на высоте земли, закрывающая склон между срезанными и несрезанными узлами.
-## Локальные оси узла портала: x поперёк трака, y мировая высота, z наружу. null, если оголовок пуст
-static func _wall_mesh(wall: Dictionary, color: Color) -> MeshInstance3D:
-	var us: PackedFloat32Array = wall["u"]
-	var bs: PackedFloat32Array = wall["bottom"]
-	var ts: PackedFloat32Array = wall["top"]
-	var depth: float = wall["depth"]
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var any := false
-	for i in us.size() - 1:
-		if ts[i] - bs[i] < 0.001 and ts[i + 1] - bs[i + 1] < 0.001:
-			continue
-		any = true
-		var bl := Vector3(us[i], bs[i] - 0.1, 0.0)
-		var tl := Vector3(us[i], ts[i], 0.0)
-		var tr := Vector3(us[i + 1], ts[i + 1], 0.0)
-		var br := Vector3(us[i + 1], bs[i + 1] - 0.1, 0.0)
-		st.set_normal(Vector3.BACK)
-		for v: Vector3 in [bl, tl, tr, bl, tr, br]:
-			st.add_vertex(v)
-		var cl := tl + Vector3(0.0, 0.02, 0.0)
-		var cr := tr + Vector3(0.0, 0.02, 0.0)
-		var dl := cl + Vector3(0.0, 0.0, -depth)
-		var dr := cr + Vector3(0.0, 0.0, -depth)
-		st.set_normal(Vector3.UP)
-		for v: Vector3 in [cl, dl, dr, cl, dr, cr]:
-			st.add_vertex(v)
-	if not any:
-		return null
+## Арка объекта «Портал тоннеля» в местной системе: начало на полу в центре проёма на лицевой плоскости, x поперёк, y вверх,
+## z наружу (из горы); арка уходит вглубь горы на depth ю (в -z). Лицевая рамка и крылья те же, что у рамки листа (parts), за ними
+## тело арки: две стенки и свод поверх проёма. На дальнем конце тёмная плоскость, закрывающая проём. Коллизии нет
+## (выбор объекта идёт по отдельному телу, см. C_TunnelPortal). Проём: width x height, пол на y = 0
+static func make_arch(style: StringName, width: float, height: float, depth: float) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Arch"
+	if width <= 0.0 or height <= 0.0:
+		return root
+	var d := clampf(depth, float(DEPTH_MIN), float(DEPTH_MAX))
+	var mat := _style_material(style)
+	for part in parts(width, 0.0, height, height + ROOF):
+		root.add_child(_box_node(part, mat))
+	for part in body_parts(width, height, d):
+		root.add_child(_box_node(part, mat))
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = DARK_COLOR
+	dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var fm := MeshInstance3D.new()
+	fm.name = "Dark"
+	var fb := BoxMesh.new()
+	fb.size = Vector3(width, height, 0.04)
+	fm.mesh = fb
+	fm.material_override = dark
+	fm.position = Vector3(0.0, height * 0.5, -d + 0.02)
+	root.add_child(fm)
+	return root
+
+
+## Коробки тела арки (за лицевой плоскостью, z от 0 до -depth): две стенки и свод. Формат как у parts
+static func body_parts(width: float, height: float, depth: float) -> Array[Dictionary]:
+	var res: Array[Dictionary] = []
+	if width <= 0.0 or height <= 0.0 or depth <= 0.0:
+		return res
+	var hw := width * 0.5
+	for s in [-1.0, 1.0]:
+		var sg: float = s
+		res.append({"pos": Vector3(sg * (hw + POST * 0.5), (height + ROOF) * 0.5, -depth * 0.5),
+			"size": Vector3(POST, height + ROOF, depth), "rot_y": 0.0, "rot_z": 0.0})
+	res.append({"pos": Vector3(0.0, height + ROOF * 0.5, -depth * 0.5),
+		"size": Vector3(width + POST * 2.0, ROOF, depth), "rot_y": 0.0, "rot_z": 0.0})
+	return res
+
+
+static func _style_material(style: StringName) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
+	mat.albedo_color = COLORS.get(style, COLORS[STYLE_CONCRETE])
 	mat.roughness = 1.0
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return mat
+
+
+static func _box_node(part: Dictionary, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	mi.name = "Headwall"
-	mi.mesh = st.commit()
+	var box := BoxMesh.new()
+	box.size = part["size"]
+	mi.mesh = box
 	mi.material_override = mat
+	mi.position = part["pos"]
+	mi.rotation = Vector3(0.0, part["rot_y"], part["rot_z"])
 	return mi

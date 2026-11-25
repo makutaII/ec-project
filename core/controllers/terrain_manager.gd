@@ -447,7 +447,7 @@ func field_objects(area: Rect2) -> Array[Dictionary]:
 
 
 # ===== H5. Автоложе трака =====
-## Ложе считается по образцам балласта (C_Path.ballast_samples) каждого обычного трака (тоннельные и призраки не берутся) и кладётся
+## Ложе считается по образцам балласта (C_Path.ballast_samples) каждого обычного трака (трак с флагом U, C_Tunnel, и призраки не берутся) и кладётся
 ## поверх поля (TerrainField.set_bed). Пересчёт с задержкой BED_DELAY после последнего изменения трака, листа или поля;
 ## считаются только новые и изменившиеся траки, остальное берётся из кэша
 
@@ -456,13 +456,11 @@ const BED_SAMPLE_STEP := 2.0
 ## Охват откоса по высоте, слоёв (дальше выемка обрывается)
 const BED_MAX_DH_LAYERS := 6.0
 
-var _bed_cache := {}       # Entity -> {"s": образцы, "tun": тоннельный ли, "n": ложе трака, "rect": Rect2 влияния, "portals": порталы тоннеля}
+var _bed_cache := {}       # Entity -> {"s": образцы, "n": ложе трака, "rect": Rect2 влияния}
 var _bed_stale := {}       # Entity -> true: пересчитать, даже если образцы те же (изменилось поле)
 var _bed_dirty := false
 var _bake_top := false     # последняя правка поля это фиксация ложа (её можно отменить в режиме выбора)
 var _bed_wait := 0.0
-var _portal_root: Node3D                 # H7: рамки и зев порталов тоннелей в холме поля
-var _portal_nodes := {}                  # Entity -> {"sig": подпись (порталы и стиль), "node": Node3D}
 
 
 func _process(delta: float) -> void:
@@ -491,9 +489,7 @@ func _on_field_changed_bed(keys: Array) -> void:
 func _bed_params() -> Dictionary:
 	var T: float = Global.settings.layer_height
 	return FieldBed.params(Global.settings.embankment_shoulder, Global.settings.field_bed_run,
-			Global.settings.field_bed_fill_max * T, BED_MAX_DH_LAYERS * T,
-			Global.settings.get_track_height() + float(Global.settings.tunnel_clearance), Global.settings.field_tunnel_roof * T,
-			Global.settings.field_tunnel_run)
+			Global.settings.field_bed_fill_max * T, BED_MAX_DH_LAYERS * T)
 
 
 ## Пересчитать ложе траков сейчас (проверки, отладочная клавиша)
@@ -502,7 +498,6 @@ func bed_refresh() -> void:
 	if not Global.settings.field_bed_enabled or field.is_empty():
 		_bed_cache.clear()
 		_bed_stale.clear()
-		_sync_portals({})
 		field.set_bed({})
 		return
 	var p := _bed_params()
@@ -515,72 +510,28 @@ func bed_refresh() -> void:
 		var path := e.get_comp(C_Path) as C_Path
 		if path == null:
 			continue
-		var tun := path.allows_underground()   # H7: тоннельный трак не режет холм там, где земля над ним служит сводом
+		if path.allows_underground():
+			continue   # H7b: трак с флагом U без ложа: ни выемки, ни насыпи
 		var s := path.ballast_samples(BED_SAMPLE_STEP)
 		if s.size() < 2:
 			continue
 		alive[e] = true
 		var c: Dictionary = _bed_cache.get(e, {})
-		if c.is_empty() or _bed_stale.has(e) or c["s"] != s or c["tun"] != tun:
+		if c.is_empty() or _bed_stale.has(e) or c["s"] != s:
 			var lo := Vector2(INF, INF)
 			var hi := Vector2(-INF, -INF)
 			for d: Dictionary in s:
 				lo = lo.min(d["l"]).min(d["r"])
 				hi = hi.max(d["l"]).max(d["r"])
-			var bed := FieldBed.build_track(s, raw, has, p, tun)
-			c = {"s": s, "tun": tun, "n": bed, "rect": Rect2(lo, hi - lo).grow(reach),
-				"portals": FieldBed.portals(s, raw, p, bed) if tun else []}
+			var bed := FieldBed.build_track(s, raw, has, p)
+			c = {"s": s, "n": bed, "rect": Rect2(lo, hi - lo).grow(reach)}
 			_bed_cache[e] = c
 		results.append(c["n"])
 	for e: Variant in _bed_cache.keys():
 		if not alive.has(e):
 			_bed_cache.erase(e)
 	_bed_stale.clear()
-	_sync_portals(_bed_cache)
 	field.set_bed(FieldBed.to_chunks(FieldBed.merge(results), has))
-
-
-## H7. Порталы тоннельных траков в холме: зев (чёрная плоскость в проёме) и рамка стиля C_Tunnel.portal. Пересобираются, только если изменились
-## порталы трака или стиль. cache: Entity -> запись кэша ложа; траков, которых там нет (в драге, удалены, не тоннельные), узлы снимаются
-func _sync_portals(cache: Dictionary) -> void:
-	for e: Variant in _portal_nodes.keys():
-		var rec: Dictionary = cache.get(e, {})
-		if rec.is_empty() or (rec["portals"] as Array).is_empty() or not is_instance_valid(e):
-			_free_portal(e)
-	if cache.is_empty():
-		return
-	var margin: float = Global.settings.terrain_cut_margin
-	for e: Variant in cache:
-		var rec: Dictionary = cache[e]
-		var list: Array = rec["portals"]
-		if list.is_empty() or not is_instance_valid(e):
-			continue
-		var tun := (e as Entity).get_comp(C_Tunnel) as C_Tunnel
-		var style: StringName = tun.portal if tun != null else TunnelPortal.STYLE_NONE
-		var sig := [list, style, margin]
-		if _portal_nodes.has(e) and (_portal_nodes[e] as Dictionary)["sig"] == sig:
-			continue
-		_free_portal(e)
-		if _portal_root == null:
-			_portal_root = Node3D.new()
-			_portal_root.name = &"FieldPortals"
-			add_child(_portal_root)
-		var holder := Node3D.new()
-		for d: Dictionary in list:
-			var out: Vector2 = d["out"]
-			holder.add_child(TunnelPortal.make_node(style, d["front"], out, float(d["width"]) + 2.0 * margin,
-					float(d["floor"]), float(d["vault"]), float(d["top"]), true, d["wall"]))   # на лицевой плоскости оголовка
-		_portal_root.add_child(holder)
-		_portal_nodes[e] = {"sig": sig, "node": holder}
-
-
-func _free_portal(e: Variant) -> void:
-	if not _portal_nodes.has(e):
-		return
-	var n: Node = (_portal_nodes[e] as Dictionary)["node"]
-	if is_instance_valid(n):
-		n.queue_free()
-	_portal_nodes.erase(e)
 
 
 ## H5b. Зафиксировать ложе трака в поле (хоткей на выбранном траке): под траком остаётся настоящий рельеф, как от кисти.
@@ -589,6 +540,10 @@ func field_bake_bed(track: Entity) -> Dictionary:
 	var res := {"nodes": 0, "why": ""}
 	if track == null or not Global.settings.field_bed_enabled:
 		res["why"] = "Автоложе выключено"
+		return res
+	var tp := track.get_comp(C_Path) as C_Path
+	if tp != null and tp.allows_underground():
+		res["why"] = "Трак с флагом U без ложа: фиксировать нечего"
 		return res
 	bed_refresh()
 	var c: Dictionary = _bed_cache.get(track, {})

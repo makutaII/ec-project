@@ -120,4 +120,40 @@ func _ready() -> void:
 	t.free()
 	t2.free()
 
+	# H7b: арка объекта «Портал тоннеля»
+	var bp := TunnelPortal.body_parts(4.0, 6.0, 3.0)
+	check("арка: тело из трёх коробок (две стенки и свод)", bp.size() == 3, str(bp.size()))
+	var behind := true
+	for b in bp:
+		if float((b["pos"] as Vector3).z) > 0.0:
+			behind = false
+	check("арка: тело целиком за лицевой плоскостью (z <= 0)", behind)
+	check("арка: нулевая глубина или проём без тела", TunnelPortal.body_parts(4.0, 6.0, 0.0).is_empty() and TunnelPortal.body_parts(0.0, 6.0, 3.0).is_empty())
+	var arch := TunnelPortal.make_arch(TunnelPortal.STYLE_STONE, 4.0, 6.0, 3.0)
+	var front := TunnelPortal.parts(4.0, 0.0, 6.0, 6.0 + TunnelPortal.ROOF)
+	check("арка: рамка, тело и тёмная плоскость", arch.get_child_count() == front.size() + 3 + 1, str(arch.get_child_count()))
+	var dark := arch.get_node_or_null("Dark") as Node3D
+	check("арка: тёмная плоскость на дальнем конце (z = -3 + 0,02)", dark != null and is_equal_approx(dark.position.z, -2.98), str(dark.position if dark != null else null))
+	arch.free()
+	var deep := TunnelPortal.make_arch(TunnelPortal.STYLE_CONCRETE, 4.0, 6.0, 10.0)
+	var dd := deep.get_node_or_null("Dark") as Node3D
+	check("арка: глубина больше 5 ю обрезается до 5", dd != null and is_equal_approx(dd.position.z, -4.98), str(dd.position if dd != null else null))
+	deep.free()
+	check("арка: нулевой проём пустой", TunnelPortal.make_arch(TunnelPortal.STYLE_STONE, 0.0, 6.0, 3.0).get_child_count() == 0)
+
+	check("объект: глубина зажата в 1-5", C_TunnelPortal.clamp_depth(0) == 1 and C_TunnelPortal.clamp_depth(9) == 5 and C_TunnelPortal.clamp_depth(3) == 3)
+	check("объект: стили бетон, камень по кругу", C_TunnelPortal.next_style(&"concrete") == &"stone" and C_TunnelPortal.next_style(&"stone") == &"concrete" and C_TunnelPortal.next_style(&"gold") == &"concrete")
+	var cp := C_TunnelPortal.new()
+	check("объект: по умолчанию бетон и глубина 3", cp.style == &"concrete" and cp.depth == 3)
+	cp.style = &"stone"
+	cp.depth = 5
+	var cd := cp.save_data()
+	var cp2 := C_TunnelPortal.new()
+	cp2.load_data(cd)
+	check("объект: сейв и загрузка возвращают стиль и глубину", cp2.style == &"stone" and cp2.depth == 5, str(cd))
+	cp2.load_data({"style": "gold", "depth": 99})
+	check("объект: неизвестный стиль это бетон, глубина зажимается", cp2.style == &"concrete" and cp2.depth == 5, "%s %d" % [cp2.style, cp2.depth])
+	cp.free()
+	cp2.free()
+
 	print("---- tunnel_portal_test: ", "ВСЕ PASS" if _fails == 0 else "ПРОВАЛОВ: %d" % _fails)

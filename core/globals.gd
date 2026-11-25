@@ -13,7 +13,8 @@ var object_dirs := [	"res://data/tracks/objects/",
 						"res://ui/dc_controllers/objects/",
 						"res://data/power/objects/",
 						"res://data/coaster/objects/",   # XX claude-coaster C0: ATTN_27
-						"res://data/roads/objects/"]   # XX claude-car CS1: ATTN_28
+						"res://data/roads/objects/",   # XX claude-car CS1: ATTN_28
+						"res://data/decor/objects/"]   # XX claude-terra 13.14 H7b: портал тоннеля
 
 # Настройки объектов
 var settings: Resource = preload("res://setting/global_setting.tres")

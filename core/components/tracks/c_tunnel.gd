@@ -8,6 +8,7 @@ class_name C_Tunnel extends Component
 ##  - C_Path.underground_depth не считает листы землей (стол остается землей, ниже стола трак не идет);
 ##  - лист над таким траком прорезается тоннелем с кровлей (C_TerrainLayer.recompute_auto_cuts), а не
 ##    канавой во всю высоту: над тоннелем остается свод, высота прохода TunnelClearance над головкой рельса.
+## H7b: трак с флагом U не получает автоложа (ни выемки, ни насыпи): TerrainManager.bed_refresh его пропускает.
 ## Включается клавишей U: в BuildTool на призраке (режим запоминается), в SelectTool на выбранном траке.
 ## Можно задать и в .tres трака: TrackConfig.allow_underground.
 ## Сохраняется (save_data) и переходит из призрака в настоящий объект (on_clone_state_to).

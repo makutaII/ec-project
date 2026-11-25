@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" path="res://core/entity_setting.gd" id="2_es"]
+[ext_resource type="Script" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" path="res://core/components/comp_settings/tunnelportal_setting.gd" id="4_tp"]
+[ext_resource type="Script" path="res://core/components/comp_settings/portaldraggable_setting.gd" id="5_dr"]
+[ext_resource type="Script" path="res://core/components/comp_settings/hoverable_setting.gd" id="6_ho"]
+[ext_resource type="Script" path="res://core/components/comp_settings/selectable_setting.gd" id="7_se"]
+[ext_resource type="Texture2D" path="res://ui/icons/transport/gold-mine.svg" id="8_ic"]
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_id")
+
+[sub_resource type="Resource" id="Resource_tp"]
+script = ExtResource("4_tp")
+
+[sub_resource type="Resource" id="Resource_dr"]
+script = ExtResource("5_dr")
+
+[sub_resource type="Resource" id="Resource_ho"]
+script = ExtResource("6_ho")
+
+[sub_resource type="Resource" id="Resource_se"]
+script = ExtResource("7_se")
+
+[resource]
+script = ExtResource("2_es")
+key = &"decor.portal.tunnel_portal"
+name = "Портал тоннеля"
+description = "Арка входа в гору (бетон или камень), глубина 1-5 ю, тёмный проём. Рельеф не меняет: рельсы с флагом U, портал задвигается в гору, R/F уровень, G стиль"
+category = &"decor"
+tag = &"portal"
+icon = ExtResource("8_ic")
+sort_order = 10
+build_behavior = 1
+pick_layers = Array[StringName]([&"ground", &"tracks", &"plaster"])
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_tp"), SubResource("Resource_dr"), SubResource("Resource_ho"), SubResource("Resource_se")])

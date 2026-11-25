@@ -2,7 +2,7 @@ extends Node
 
 # XX claude-terra 13.14 H5 (новый файл)
 ## Тест автоложа трака (FieldBed и TerrainField.set_bed): выемка в холме, насыпь над низиной, эстакада без ложа,
-## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b), тоннельный трак в холме с порталами (H7).
+## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b), трак с флагом U без ложа (H7b).
 ## Запуск: открыть tests/field_bed_test.tscn и нажать F6. Результат в Output: строки PASS / FAIL и итог.
 ## Проверки на собственном TerrainField без сцены игры (образцы трака задаются вручную).
 
@@ -215,110 +215,15 @@ func _test_bake() -> void:
 	check("пустое ложе: нечего писать", FieldBed.bake(TerrainField.new(), {}, table_polys(), Callable()) == 0)
 
 
-func tunnel_params() -> Dictionary:
-	return FieldBed.params(1.0, 1.5, 3.0, 6.0, 2.0, 1.0, 0.5)   # габарит 2 ю над низом балласта, свод не тоньше 1 ю, стенки выемки круче (0,5)
-
-
-func tunnel_bed(f: TerrainField, s: Array) -> Dictionary:
-	return FieldBed.build_track(s, Callable(f, "surface_at"), Callable(f, "has_layer"), tunnel_params(), true)
-
-
-func max_x(b: Dictionary) -> float:
-	var m := -INF
-	for key: Vector2i in b:
-		m = maxf(m, float(key.x) * TerrainField.STEP)
-	return m
-
-
-## H7. Тоннельный трак в холме: под высоким холмом ложа нет (холм свод), перед ним открытая выемка, на её торце портал; низкий холм режется целиком
+## H7b. Трак с флагом U ложа не получает (TerrainManager.bed_refresh пропускает его), автотоннеля в FieldBed больше нет.
+## Здесь проверяем то, что видно без сцены: у параметров ложа нет тоннельных полей, а обычный трак по-прежнему режет холм целиком
 func _test_tunnel() -> void:
-	# холм с x = 20 (8 слоёв) над равниной 1 слой; трак на высоте 1 входит в холм
+	var p := params()
+	check("H7b: в параметрах ложа нет тоннельных полей", not p.has("tunnel_run") and not p.has("roof") and not p.has("body"), str(p.keys()))
 	var f := TerrainField.new()
 	f.lay_rect(Rect2(0, 0, 40, 40), 1.0)
 	f.lay_rect(Rect2(20, 0, 20, 40), 8.0)
 	var s := straight(1.0, 4.0, 36.0)
-	var closed := FieldBed.tunnel_closed(s, Callable(f, "surface_at"), tunnel_params())
-	# образцы x = 4, 6, ..., 36: закрыты с x = 20 (индекс 8) и дальше
-	check("тоннель: до холма образцы открыты", closed[0] == 0 and closed[7] == 0 and closed[8] == 1)
-	check("тоннель: в холме образцы закрыты", closed[8] == 1 and closed[16] == 1)
-	var b := tunnel_bed(f, s)
-	check("тоннель: перед холмом ложе есть (полоса)", b.has(Vector2i(node(10.0), node(20.0))))
-	check("тоннель: в холме ложа нет", not b.has(Vector2i(node(26.0), node(20.0))) and not b.has(Vector2i(node(30.0), node(20.0))))
-	check("тоннель: торец не закруглён, за порталом (x = 19,5) земля цела", max_x(b) <= 19.501, str(max_x(b)))
-	check("тоннель: ложе доходит до самого холма (до x = 19,5)", max_x(b) >= 19.499, str(max_x(b)))
-	var pl := FieldBed.portals(s, Callable(f, "surface_at"), tunnel_params())
-	check("тоннель: один портал у входа в холм", pl.size() == 1, str(pl.size()))
-	if pl.size() == 1:
-		var p: Dictionary = pl[0]
-		check("тоннель: портал у самого холма (x = 19,5, холм с x = 20), а не на образце в стороне", (p["p"] as Vector2).is_equal_approx(Vector2(19.5, 20.0)), str(p["p"]))
-		check("тоннель: лицевая плоскость оголовка на 0,5 ю наружу от портала", (p["front"] as Vector2).is_equal_approx(Vector2(19.0, 20.0)), str(p["front"]))
-		var w: Dictionary = p["wall"]
-		var us: PackedFloat32Array = w["u"]
-		var bs: PackedFloat32Array = w["bottom"]
-		var ts: PackedFloat32Array = w["top"]
-		var c0 := -1
-		for i in us.size():
-			if absf(us[i]) < 0.001:
-				c0 = i
-		check("оголовок: колонка на оси от дна выемки до земли холма", c0 >= 0 and near(bs[c0], 1.0) and near(ts[c0], 8.0), "c0=%d" % c0)
-		check("оголовок: по краям сходит на нет", us.size() >= 5 and ts[0] - bs[0] < FieldBed.WALL_MIN and ts[us.size() - 1] - bs[us.size() - 1] < FieldBed.WALL_MIN,
-				str(us.size()))
-		check("тоннель: портал смотрит из холма в выемку", (p["out"] as Vector2).is_equal_approx(Vector2(-1.0, 0.0)), str(p["out"]))
-		var mesh := TunnelPortal.make_node(&"", p["front"], p["out"], 3.0, 1.0, 3.0, 8.0, true, p["wall"])
-		check("оголовок: узел портала с каменным оголовком, зевом и без рамки", mesh.get_node_or_null("Headwall") != null and mesh.get_child_count() == 2, str(mesh.get_child_count()))
-		mesh.free()
-		check("тоннель: проём от низа балласта на высоту габарита", near(p["floor"], 1.0) and near(p["vault"], 3.0), "%s %s" % [p["floor"], p["vault"]])
-		check("тоннель: у портала ширина балласта и высота земли в холме", near(p["width"], 2.0) and near(p["top"], 8.0), "%s %s" % [p["width"], p["top"]])
-
-	# стенки выемки у тоннеля круче: низкий холм (3 слоя), край выемки на 2,5 ю от оси есть, на 3,5 ю нет (обычный откос 1,5 дал бы и там)
-	var low_t := TerrainField.new()
-	low_t.lay_rect(Rect2(0, 0, 40, 40), 1.0)
-	low_t.lay_rect(Rect2(20, 0, 20, 40), 3.0)
-	var steep := tunnel_bed(low_t, s)
-	var soft := FieldBed.build_track(s, Callable(low_t, "surface_at"), Callable(low_t, "has_layer"), tunnel_params(), false)
-	var k25 := Vector2i(node(30.0), node(22.5))
-	var k35 := Vector2i(node(30.0), node(23.5))
-	check("тоннель: крутая стенка выемки у края (2,5 ю от оси, высота 2)", steep.has(k25) and near((steep[k25] as Vector3).y, 2.0), str(steep.get(k25)))
-	check("тоннель: на 3,5 ю от оси выемки уже нет (стенка крутая)", not steep.has(k35))
-	check("обычный трак: тот же откос положе (на 3,5 ю выемка есть)", soft.has(k35), str(soft.get(k35)))
-
-	# тот же трак без тоннеля режет холм целиком
-	var plain := FieldBed.build_track(s, Callable(f, "surface_at"), Callable(f, "has_layer"), tunnel_params(), false)
-	check("без тоннеля: ложе идёт и в холме", plain.has(Vector2i(node(30.0), node(20.0))))
-
-	# низкий холм (3 слоя) ниже габарита и свода: открыт на всю длину, режется выемкой, порталов нет
-	var low := TerrainField.new()
-	low.lay_rect(Rect2(0, 0, 40, 40), 1.0)
-	low.lay_rect(Rect2(20, 0, 20, 40), 3.0)
-	var lb := tunnel_bed(low, s)
-	check("низкий холм: выемка по всей длине", lb.has(Vector2i(node(30.0), node(20.0))) and near((lb[Vector2i(node(30.0), node(20.0))] as Vector3).y, 1.0))
-	check("низкий холм: порталов нет", FieldBed.portals(s, Callable(low, "surface_at"), tunnel_params()).is_empty())
-
-	# трак целиком под холмом: ложа и порталов нет
-	var all := TerrainField.new()
-	all.lay_rect(Rect2(0, 0, 40, 40), 8.0)
-	check("весь трак под холмом: ложа нет", tunnel_bed(all, s).is_empty())
-	check("весь трак под холмом: порталов нет", FieldBed.portals(s, Callable(all, "surface_at"), tunnel_params()).is_empty())
-
-	# холм посередине: два портала, оба смотрят наружу
-	var mid := TerrainField.new()
-	mid.lay_rect(Rect2(0, 0, 40, 40), 1.0)
-	mid.lay_rect(Rect2(14, 0, 12, 40), 8.0)
-	var pm := FieldBed.portals(s, Callable(mid, "surface_at"), tunnel_params())
-	check("холм посередине: два портала", pm.size() == 2, str(pm.size()))
-	if pm.size() == 2:
-		var xs: Array = []
-		for d: Dictionary in pm:
-			xs.append("%.2f:%d" % [(d["p"] as Vector2).x, roundi((d["out"] as Vector2).x)])
-		xs.sort()
-		check("холм посередине: у входа x = 13,5 наружу влево, у выхода x = 26,25 наружу вправо", xs == ["13.50:-1", "26.25:1"], str(xs))
-	var mb := tunnel_bed(mid, s)
-	check("холм посередине: ложе по обе стороны холма, в холме нет", mb.has(Vector2i(node(6.0), node(20.0))) and mb.has(Vector2i(node(32.0), node(20.0)))
-			and not mb.has(Vector2i(node(20.0), node(20.0))))
-
-	# боковой склон ниже свода: трак на краю холма остаётся открытым
-	var edge := TerrainField.new()
-	edge.lay_rect(Rect2(0, 0, 40, 40), 1.0)
-	edge.lay_rect(Rect2(20, 0, 20, 20.5), 8.0)   # холм кончается у оси трака: правый край z = 21 на равнине
-	var es := FieldBed.tunnel_closed(s, Callable(edge, "surface_at"), tunnel_params())
-	check("край холма: сбоку земля ниже свода, образец открыт", es[10] == 0, str(es[10]))
+	var b := bed_of(f, s)
+	check("H7b: обычный трак режет холм (в холме ложе есть)", b.has(Vector2i(node(30.0), node(20.0))))
+	check("H7b: ложе в холме на высоте балласта", near((b[Vector2i(node(30.0), node(20.0))] as Vector3).y, 1.0), str(b.get(Vector2i(node(30.0), node(20.0)))))
