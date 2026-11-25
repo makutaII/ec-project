@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EntitySetting" format=3]
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://die72tma78qp6"]
 
 [ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_cs"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
@@ -7,13 +7,10 @@
 
 [sub_resource type="Resource" id="Resource_brush"]
 script = ExtResource("2_tb")
-surface_mix = Vector3(1.0, 0.0, 0.0)
-angle_deg = 25.0
 
 [resource]
 script = ExtResource("1_es")
 key = &"terrain.relief.hill"
-sort_order = 0
 name = "Кисть рельефа: холм"
 description = "Гладкий холм или яма: пологий склон, гладкая поверхность. Ctrl+колесо подъём и яма, Alt+колесо радиус, ЛКМ выравнивание"
 category = &"terrain"

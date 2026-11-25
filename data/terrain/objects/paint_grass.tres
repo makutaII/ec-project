@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="EntitySetting" format=3]
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://c16dc1gdo1ug1"]
 
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_uxw5j"]
 [ext_resource type="Texture2D" uid="uid://0dc80urwl0ii" path="res://ui/icons/house/beech.svg" id="2_ic"]
 
 [resource]
@@ -9,7 +10,6 @@ key = &"terrain.brush.grass"
 facets = {
 "brush": "grass"
 }
-sort_order = 0
 name = "Кисть: трава"
 description = "ЛКМ красить, Ctrl+ЛКМ стереть, [ ] радиус. Красит только лист с гипсовым бинтом"
 category = &"terrain"
