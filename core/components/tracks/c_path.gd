@@ -38,6 +38,16 @@ var collision_width := 0.0
 
 # XX claude-terra --- пандус и подготовка к Flex ---
 var rise := 0.0       # подъем вдоль трака (ю), только прямые
+
+# XX claude-terra 13.14 H5c
+## Режим ложа трака на поле высот: AUTO (выемка или насыпь с откосом field_bed_run), STRIP (режется и насыпается только ширина
+## балласта с плечом, борта почти вертикальные, остальной холм цел), OFF (без ложа). Трак с флагом U ложа не получает при любом режиме
+enum BedMode { AUTO, STRIP, OFF }
+const BED_STEEP_MIN := 0.02
+const BED_STEEP_MAX := 1.5
+var bed_mode: int = BedMode.AUTO
+## Откос бортов в режиме STRIP, ю в плане на 1 ю высоты. 0 = по умолчанию из GlobalSetting.field_bed_strip_run
+var bed_steep := 0.0
 var pitch := 0.0      # угол наклона инстанса, рад
 ## true: origin сущности в середине кривой (жесткие траки). false: в начале (flex)
 var centered := true
@@ -378,16 +388,23 @@ func _generate_collision_segments(
 ## Данные для сохранения.
 ## Этот компонент отвечает за path и ballast. На данном этапе из этих значений можно получить копию трака
 func save_data() -> Dictionary:
-	return {
+	var d := {
 		'comp_path':get_script().resource_path,		# "res://core/components/c_power_clip.gd"
 		'comp_name':get_script().resource_path.get_file().get_basename(),
 		"radius": radius,
 		"rise": rise,   # XX claude-terra
 		"deg": deg
 	}
+	if bed_mode != BedMode.AUTO:   # XX claude-terra 13.14 H5c: только отличное от умолчания
+		d["bed_mode"] = bed_mode
+	if bed_steep > 0.0:
+		d["bed_steep"] = bed_steep
+	return d
 
 
 func load_data(data: Dictionary) -> void:
+	bed_mode = clampi(int(data.get("bed_mode", BedMode.AUTO)), BedMode.AUTO, BedMode.OFF)   # XX claude-terra 13.14 H5c
+	bed_steep = clampf(float(data.get("bed_steep", 0.0)), 0.0, BED_STEEP_MAX)
 	if data.has("radius"):
 		radius = data.radius
 	if data.has("deg"):
@@ -517,6 +534,67 @@ func bottom_y() -> float:
 
 # XX claude-terra T6
 ## Тоннельный трак (C_Tunnel): может уходить под листы пенопласта
+## H5c. Участвует ли трак в автоложе: режим не OFF и нет флага U
+func has_bed() -> bool:
+	return bed_mode != BedMode.OFF and not allows_underground()
+
+
+## H5c. Откос бортов ложа этого трака: AUTO это общий field_bed_run, STRIP свой или field_bed_strip_run
+func bed_run() -> float:
+	if bed_mode == BedMode.STRIP:
+		return clampf(bed_steep if bed_steep > 0.0 else float(Global.settings.field_bed_strip_run), BED_STEEP_MIN, BED_STEEP_MAX)
+	return float(Global.settings.field_bed_run)
+
+
+func set_bed_mode(mode: int) -> void:
+	var m := clampi(mode, BedMode.AUTO, BedMode.OFF)
+	if m == bed_mode:
+		return
+	bed_mode = m
+	_bed_changed()
+
+
+func set_bed_steep(run: float) -> void:
+	var v := clampf(run, BED_STEEP_MIN, BED_STEEP_MAX)
+	if is_equal_approx(v, bed_steep):
+		return
+	bed_steep = v
+	_bed_changed()
+
+
+## Рельеф пересчитает ложе (C_TrackSupport.on_bed_changed, отложено)
+func _bed_changed() -> void:
+	if entity != null:
+		entity.send_event("on_bed_changed", {})
+
+
+## H5c. Панель «Вид»: режим ложа и откос бортов
+func get_info_sections() -> Array[InfoSection]:
+	return [InfoSection.make("Ложе трака", [
+		InfoSection.list("Ложе", [BedMode.AUTO, BedMode.STRIP, BedMode.OFF], ["Авто", "Только полоса", "Выкл"],
+				Callable(self, "_get_bed_mode"), Callable(self, "_set_bed_mode_row")),
+		InfoSection.slider("Откос борта полосы, ю на 1 ю высоты", BED_STEEP_MIN, BED_STEEP_MAX, 0.01,
+				Callable(self, "_get_bed_steep"), Callable(self, "_set_bed_steep_row")),
+		InfoSection.note("Флаг U (тоннельный трак) отключает ложе в любом режиме"),
+	])]
+
+
+func _get_bed_mode() -> Variant:
+	return bed_mode
+
+
+func _set_bed_mode_row(v: Variant) -> void:
+	set_bed_mode(int(v))
+
+
+func _get_bed_steep() -> float:
+	return clampf(bed_steep if bed_steep > 0.0 else float(Global.settings.field_bed_strip_run), BED_STEEP_MIN, BED_STEEP_MAX)
+
+
+func _set_bed_steep_row(v: float) -> void:
+	set_bed_steep(v)
+
+
 func allows_underground() -> bool:
 	return has_comp(C_Tunnel)
 

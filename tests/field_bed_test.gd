@@ -2,7 +2,7 @@ extends Node
 
 # XX claude-terra 13.14 H5 (новый файл)
 ## Тест автоложа трака (FieldBed и TerrainField.set_bed): выемка в холме, насыпь над низиной, эстакада без ложа,
-## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b), трак с флагом U без ложа (H7b).
+## возврат рельефа после снятия ложа, сигнал bed_changed, переопределение типа, фиксация ложа в поле (FieldBed.bake, H5b), трак с флагом U без ложа (H7b), режим ложа «Только полоса» (H5c).
 ## Запуск: открыть tests/field_bed_test.tscn и нажать F6. Результат в Output: строки PASS / FAIL и итог.
 ## Проверки на собственном TerrainField без сцены игры (образцы трака задаются вручную).
 
@@ -53,6 +53,7 @@ func _ready() -> void:
 	_test_merge()
 	_test_bake()
 	_test_tunnel()
+	_test_strip()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
 
 
@@ -227,3 +228,29 @@ func _test_tunnel() -> void:
 	var b := bed_of(f, s)
 	check("H7b: обычный трак режет холм (в холме ложе есть)", b.has(Vector2i(node(30.0), node(20.0))))
 	check("H7b: ложе в холме на высоте балласта", near((b[Vector2i(node(30.0), node(20.0))] as Vector3).y, 1.0), str(b.get(Vector2i(node(30.0), node(20.0)))))
+
+
+## H5c. Режим «Только полоса»: тот же расчёт с почти вертикальным откосом. Полоса (балласт 2 ю и плечо 1 ю, до 2 ю от оси) режется
+## и там, и там; за её краем «Авто» (откос 1,5) ещё режет холм, «Только полоса» (откос 0,05) его не трогает
+func _test_strip() -> void:
+	var f := TerrainField.new()
+	f.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	f.lay_rect(Rect2(20, 0, 20, 40), 3.0)
+	var s := straight(1.0, 4.0, 36.0)
+	var auto := bed_of(f, s)
+	var strip := FieldBed.build_track(s, Callable(f, "surface_at"), Callable(f, "has_layer"), FieldBed.params(1.0, 0.05, 3.0, 6.0))
+	var edge := Vector2i(node(30.0), node(22.0))   # на краю полосы (2 ю от оси)
+	var out := Vector2i(node(30.0), node(22.5))   # на 0,5 ю за краем
+	check("полоса: узел на краю полосы срезан до ложа", strip.has(edge) and near((strip[edge] as Vector3).y, 1.0), str(strip.get(edge)))
+	check("полоса: за краем холм не тронут (борт почти вертикальный)", not strip.has(out) or near((strip[out] as Vector3).y, 3.0), str(strip.get(out)))
+	check("авто: за краем полосы откос ещё режет холм", auto.has(out) and (auto[out] as Vector3).y < 2.0, str(auto.get(out)))
+	check("полоса: в самой полосе ложе то же, что у «Авто»", strip.has(Vector2i(node(30.0), node(20.0))) and near((strip[Vector2i(node(30.0), node(20.0))] as Vector3).y, 1.0))
+	check("откос не меньше FieldBed.MIN_RUN", is_equal_approx(float(FieldBed.params(1.0, 0.0, 3.0, 6.0)["run"]), FieldBed.MIN_RUN))
+	# насыпь над низиной с тем же крутым бортом: плечо поднято, за краем земля цела
+	var g := TerrainField.new()
+	g.lay_rect(Rect2(0, 0, 40, 40), 1.0)
+	var hi := straight(3.0)
+	var fs := FieldBed.build_track(hi, Callable(g, "surface_at"), Callable(g, "has_layer"), FieldBed.params(1.0, 0.05, 3.0, 6.0))
+	var fe := Vector2i(node(20.0), node(22.0))
+	check("полоса: насыпь в полосе поднята до ложа (3)", fs.has(fe) and near((fs[fe] as Vector3).y, 3.0), str(fs.get(fe)))
+	check("полоса: за краем насыпи земля цела", not fs.has(Vector2i(node(20.0), node(22.5))) or near((fs[Vector2i(node(20.0), node(22.5))] as Vector3).y, 1.0), str(fs.get(Vector2i(node(20.0), node(22.5)))))

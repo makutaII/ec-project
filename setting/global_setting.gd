@@ -82,6 +82,10 @@ class_name GlobalSetting extends Resource
 @export var field_bed_enabled := true
 ## Откос ложа: ю в плане на 1 ю высоты (1,5 это около 34°)
 @export var field_bed_run := 1.5
+# XX claude-terra 13.14 H5c
+## Откос бортов в режиме ложа «Только полоса» по умолчанию, ю в плане на 1 ю высоты (меньше: круче; 0,05 почти вертикально).
+## У каждого трака можно задать свой в InfoPanel (вкладка «Вид»)
+@export var field_bed_strip_run := 0.05
 ## Насыпь не выше этого над землёй, слоёв (выше эстакада на опорах, поле под ней не трогается)
 @export var field_bed_fill_max := 3.0
 # XX claude-terra 13.5

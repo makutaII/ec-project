@@ -447,7 +447,7 @@ func field_objects(area: Rect2) -> Array[Dictionary]:
 
 
 # ===== H5. Автоложе трака =====
-## Ложе считается по образцам балласта (C_Path.ballast_samples) каждого обычного трака (трак с флагом U, C_Tunnel, и призраки не берутся) и кладётся
+## Ложе считается по образцам балласта (C_Path.ballast_samples) каждого обычного трака (трак с флагом U, C_Tunnel, с режимом ложа «Выкл» и призраки не берутся) и кладётся
 ## поверх поля (TerrainField.set_bed). Пересчёт с задержкой BED_DELAY после последнего изменения трака, листа или поля;
 ## считаются только новые и изменившиеся траки, остальное берётся из кэша
 
@@ -456,7 +456,7 @@ const BED_SAMPLE_STEP := 2.0
 ## Охват откоса по высоте, слоёв (дальше выемка обрывается)
 const BED_MAX_DH_LAYERS := 6.0
 
-var _bed_cache := {}       # Entity -> {"s": образцы, "n": ложе трака, "rect": Rect2 влияния}
+var _bed_cache := {}       # Entity -> {"s": образцы, "run": откос, "n": ложе трака, "rect": Rect2 влияния}
 var _bed_stale := {}       # Entity -> true: пересчитать, даже если образцы те же (изменилось поле)
 var _bed_dirty := false
 var _bake_top := false     # последняя правка поля это фиксация ложа (её можно отменить в режиме выбора)
@@ -503,28 +503,30 @@ func bed_refresh() -> void:
 	var p := _bed_params()
 	var raw := Callable(field, "surface_at")
 	var has := Callable(field, "has_layer")
-	var reach: float = Global.settings.embankment_shoulder + float(p["run"]) * float(p["max_dh"]) + 4.0
 	var alive := {}
 	var results: Array = []
 	for e in get_tracks():
 		var path := e.get_comp(C_Path) as C_Path
 		if path == null:
 			continue
-		if path.allows_underground():
-			continue   # H7b: трак с флагом U без ложа: ни выемки, ни насыпи
+		if not path.has_bed():
+			continue   # H7b: трак с флагом U без ложа: ни выемки, ни насыпи. H5c: так же режим ложа «Выкл»
 		var s := path.ballast_samples(BED_SAMPLE_STEP)
 		if s.size() < 2:
 			continue
 		alive[e] = true
 		var c: Dictionary = _bed_cache.get(e, {})
-		if c.is_empty() or _bed_stale.has(e) or c["s"] != s:
+		var run := path.bed_run()   # H5c: «Авто» общий откос, «Только полоса» свой (почти вертикальные борта)
+		if c.is_empty() or _bed_stale.has(e) or c["s"] != s or not is_equal_approx(float(c["run"]), run):
 			var lo := Vector2(INF, INF)
 			var hi := Vector2(-INF, -INF)
 			for d: Dictionary in s:
 				lo = lo.min(d["l"]).min(d["r"])
 				hi = hi.max(d["l"]).max(d["r"])
-			var bed := FieldBed.build_track(s, raw, has, p)
-			c = {"s": s, "n": bed, "rect": Rect2(lo, hi - lo).grow(reach)}
+			var pt := FieldBed.params(Global.settings.embankment_shoulder, run, float(p["fill_max"]), float(p["max_dh"]))
+			var reach: float = Global.settings.embankment_shoulder + float(pt["run"]) * float(pt["max_dh"]) + 4.0
+			var bed := FieldBed.build_track(s, raw, has, pt)
+			c = {"s": s, "run": run, "n": bed, "rect": Rect2(lo, hi - lo).grow(reach)}
 			_bed_cache[e] = c
 		results.append(c["n"])
 	for e: Variant in _bed_cache.keys():
@@ -544,6 +546,9 @@ func field_bake_bed(track: Entity) -> Dictionary:
 	var tp := track.get_comp(C_Path) as C_Path
 	if tp != null and tp.allows_underground():
 		res["why"] = "Трак с флагом U без ложа: фиксировать нечего"
+		return res
+	if tp != null and tp.bed_mode == C_Path.BedMode.OFF:
+		res["why"] = "Ложе трака выключено: фиксировать нечего"
 		return res
 	bed_refresh()
 	var c: Dictionary = _bed_cache.get(track, {})

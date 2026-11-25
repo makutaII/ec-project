@@ -70,6 +70,11 @@ func on_tunnel_changed(_d: Dictionary) -> void:
 	call_deferred("_notify_terrain")
 
 
+## XX claude-terra 13.14 H5c: режим ложа или откос бортов трака сменили (C_Path.set_bed_mode, set_bed_steep). Отложено, как у тоннеля
+func on_bed_changed(_d: Dictionary) -> void:
+	call_deferred("_notify_terrain")
+
+
 ## XX claude-switch: стрелка получила маршруты
 func on_routes_changed(_d: Dictionary) -> void:
 	_wake(0.0)

@@ -16,6 +16,8 @@ class_name FieldBed extends RefCounted
 ## Результат по траку: Dictionary узел (Vector2i) -> Vector3(расстояние до оси, высота ложа, 1 если полоса / 0 если откос).
 ## H7b. Трак с флагом U (C_Tunnel) ложа не получает вовсе: ни выемки, ни насыпи (TerrainManager.bed_refresh пропускает его).
 
+## H5c: наименьший откос (ю в плане на 1 ю высоты): режим «Только полоса» почти вертикальные борта
+const MIN_RUN := 0.02
 const STEP := TerrainField.STEP
 const EPS := 0.001
 ## Тип «каменистая» в переопределении типа и бит «без шума высоты» (шейдер читает tmap: тип и бит 4)
@@ -30,7 +32,7 @@ const REACH_SLACK := 1.0
 
 ## Параметры: shoulder (ю плечо), run (откос), fill_max (ю, насыпь не выше), max_dh (ю, охват откоса не больше)
 static func params(shoulder: float, run: float, fill_max: float, max_dh: float) -> Dictionary:
-	return {"shoulder": shoulder, "run": maxf(run, 0.1), "fill_max": fill_max, "max_dh": max_dh}
+	return {"shoulder": shoulder, "run": maxf(run, MIN_RUN), "fill_max": fill_max, "max_dh": max_dh}
 
 
 ## Ложе одного трака. s: образцы C_Path.ballast_samples ({"l": Vector2, "r": Vector2, "y": float}), raw: Callable(i, j) -> float
