@@ -5,7 +5,7 @@ class_name C_Wire extends Component
 #####################
 ## Сущность-провод: два конца (клеммы PowerTerminal), точки излома между ними, «скрутка» (меняет полярность).
 ## Вид: двужильный кабель одним мешем (WireMesh) по трассе со скруглёнными углами (WireRoute), одна область выбора на провод.
-## Узел `_vis` лежит в сущности, но не наследует её позу (top_level). Выбор и ховер подсвечивают оболочку (эмиссия), цвет жил не меняют.
+## Узел `_vis` лежит в сущности, но не наследует её позу (top_level). Выбор и ховер обводят кабель контуром (next_pass, раздутая оболочка), цвет жил не меняют.
 ## Концы следуют за клеммами: двигаешь пульт или трак, провод перерисовывается. Клемма исчезла (трак удалён,
 ## клип снят): провод удаляется. Любое изменение проводки просит PGM пересчитать сеть.
 ## Сейв: тип, ключ и позиция каждой клеммы; второй проход после загрузки (restore_after_load) находит клеммы по геометрии.
@@ -15,9 +15,10 @@ const HIT_RADIUS := 0.3
 ## Изоляция жил: красная и чёрная. Скрутка меняет жилы местами по ходу провода
 const COLOR_RED := Color(0.85, 0.15, 0.12)
 const COLOR_BLACK := Color(0.08, 0.08, 0.09)
-## Подсветка оболочки (эмиссия)
+## Цвет и толщина контура выбора и ховера
 const COLOR_SELECTED := Color(1.0, 0.85, 0.2)
 const COLOR_HOVER := Color(1.0, 0.6, 0.35)
+const OUTLINE_GROW := 0.035
 ## Радиус поиска клеммы при восстановлении из сейва, ю
 const RESTORE_RADIUS := 1.0
 
@@ -32,6 +33,8 @@ var _vis: Node3D
 var _mi: MeshInstance3D
 var _area: Area3D
 var _mats: Array[StandardMaterial3D] = []
+var _outline_selected: StandardMaterial3D
+var _outline_hover: StandardMaterial3D
 var _sig := Vector3.ZERO
 var _loaded: Dictionary = {}
 var _attached := false
@@ -171,6 +174,8 @@ func _ensure_visual() -> void:
 		m.roughness = 0.45
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_mats.append(m)
+	_outline_selected = _make_outline(COLOR_SELECTED)
+	_outline_hover = _make_outline(COLOR_HOVER)
 	# область выбора мышью: одна на провод, по форме на отрезок
 	_area = Area3D.new()
 	_area.name = "Hit"
@@ -180,20 +185,26 @@ func _ensure_visual() -> void:
 	_vis.add_child(_area)
 
 
-## Выбор и ховер: свечение оболочки, цвет жил не меняется
+## Контур: раздутая по нормалям копия без лицевых граней, видна только кромкой вокруг жил
+func _make_outline(col: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_FRONT
+	m.grow = true
+	m.grow_amount = OUTLINE_GROW
+	return m
+
+
+## Выбор и ховер: контур вокруг кабеля (выбор важнее ховера), цвет жил не меняется
 func _apply_highlight() -> void:
-	var glow := Color.BLACK
-	var energy := 0.0
+	var outline: StandardMaterial3D = null
 	if entity != null and entity.has_comp(C_Selected):
-		glow = COLOR_SELECTED
-		energy = 0.9
+		outline = _outline_selected
 	elif entity != null and entity.has_comp(C_Hovered):
-		glow = COLOR_HOVER
-		energy = 0.6
+		outline = _outline_hover
 	for m in _mats:
-		m.emission_enabled = energy > 0.0
-		m.emission = glow
-		m.emission_energy_multiplier = energy
+		m.next_pass = outline
 
 
 func _rebuild() -> void:
