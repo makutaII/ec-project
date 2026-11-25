@@ -1,0 +1,170 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://rlf2ixbprmsx"]
+
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_aodhn"]
+[ext_resource type="Script" uid="uid://7vuxuiiysiji" path="res://setting/bogie_config.gd" id="2_7m61j"]
+[ext_resource type="PackedScene" uid="uid://cl6t7b6265rj" path="res://data/trains/default_bogie.tscn" id="3_u4bn7"]
+[ext_resource type="PackedScene" uid="uid://dv6rw0lglxdei" path="res://data/trains/wheel_pair_p01.tscn" id="4_2o8dr"]
+[ext_resource type="PackedScene" uid="uid://be7il350r4fss" path="res://data/trains/wheel_pair_01.tscn" id="5_u6i14"]
+[ext_resource type="Script" uid="uid://daeylhso0elsx" path="res://setting/light_config.gd" id="6_g04a0"]
+[ext_resource type="Script" uid="uid://cteud8ws67l53" path="res://setting/glow_rect.gd" id="7_4iepu"]
+[ext_resource type="Script" uid="uid://gv2lrhu17dtf" path="res://setting/mechanism_config.gd" id="8_70t6v"]
+[ext_resource type="PackedScene" uid="uid://f08rax813uk5" path="res://data/models/loco_blue_baby/loco_blue_baby.tscn" id="9_aodhn"]
+[ext_resource type="Script" uid="uid://bicjny5dv1h3s" path="res://setting/wagon_config.gd" id="10_ua0d2"]
+[ext_resource type="Script" uid="uid://bwaluvayi2o8k" path="res://setting/suspension_config.gd" id="11_ryaq6"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="12_5mbgj"]
+[ext_resource type="Script" uid="uid://b830vi2lx3hl5" path="res://core/components/comp_settings/trainvisual_setting.gd" id="13_ahkk7"]
+[ext_resource type="Script" uid="uid://bkdny7eq5jthn" path="res://core/components/comp_settings/traindraggable_setting.gd" id="14_oe360"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="15_gqvj2"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="16_xx6g1"]
+[ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="17_stbws"]
+[ext_resource type="Script" uid="uid://bhvk4o3qrvslv" path="res://core/components/comp_settings/chassis_setting.gd" id="18_psfn6"]
+[ext_resource type="Script" uid="uid://cpuhrycuvnuar" path="res://core/components/comp_settings/kinematics_setting.gd" id="19_sdtph"]
+[ext_resource type="Script" uid="uid://b5kx0oyxhiaux" path="res://core/components/comp_settings/bogie_setting.gd" id="20_1iicp"]
+[ext_resource type="Script" uid="uid://x3e5f07xbe1r" path="res://core/components/comp_settings/engine_setting.gd" id="21_7tsme"]
+[ext_resource type="Script" uid="uid://d4advxi3tkwvc" path="res://core/components/comp_settings/camera_target_setting.gd" id="22_ctvdq"]
+[ext_resource type="Script" uid="uid://mqrnwkjfweqr" path="res://core/components/comp_settings/coupler_setting.gd" id="23_rd4mu"]
+[ext_resource type="Script" uid="uid://brbladjp7pfki" path="res://core/components/comp_settings/mechanisms_setting.gd" id="24_4b6le"]
+[ext_resource type="Script" uid="uid://0kotdjt5iv43" path="res://core/components/comp_settings/sound_setting.gd" id="25_2m6ix"]
+[ext_resource type="Texture2D" uid="uid://ccglkaaxdcb5b" path="res://ui/icons/transport/steam-locomotive.svg" id="26_ek0p6"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="27_8tvvt"]
+
+[sub_resource type="Resource" id="Resource_m448q"]
+script = ExtResource("2_7m61j")
+b_offset_z = -2.5599999999999987
+wheel_pair_scene = ExtResource("4_2o8dr")
+wheel_pair_position = Vector3(0, 0.82, 1.5)
+metadata/_custom_type_script = "uid://7vuxuiiysiji"
+
+[sub_resource type="Resource" id="Resource_ibl0p"]
+script = ExtResource("2_7m61j")
+b_offset_z = 2.5600000000000023
+wheel_pair_position = Vector3(0, 0.715, 1.5)
+metadata/_custom_type_script = "uid://7vuxuiiysiji"
+
+[sub_resource type="Resource" id="Resource_lt_front"]
+script = ExtResource("6_g04a0")
+title = "Фара передняя"
+kind = 1
+rule = 2
+position = Vector3(0, 3, -4.8)
+rotation_deg = Vector3(-6, 0, 0)
+light_range = 40.0
+spot_angle = 30.0
+glow_shape = 1
+glow_size = 1.0
+glow_offset = Vector3(0, 0, -0.15)
+glow_energy = 4.0
+
+[sub_resource type="Resource" id="Resource_lt_rear"]
+script = ExtResource("6_g04a0")
+id = &"headlight_rear"
+title = "Фара задняя"
+kind = 1
+rule = 2
+dir_end = 1
+position = Vector3(0, 3, 4.4)
+rotation_deg = Vector3(-6, 180, 0)
+color = Color(1, 0.15, 0.1, 1)
+light_range = 25.0
+glow_shape = 1
+glow_size = 0.8
+glow_offset = Vector3(0, 0, 0.15)
+
+[sub_resource type="Resource" id="Resource_lt_cab"]
+script = ExtResource("6_g04a0")
+id = &"cab_light"
+title = "Кабина"
+kind = 1
+rule = 1
+position = Vector3(0, 4, 1.5)
+color = Color(1, 0.85, 0.6, 1)
+energy = 1.5
+light_range = 8.0
+
+[sub_resource type="Resource" id="Resource_0p1ic"]
+script = ExtResource("11_ryaq6")
+metadata/_custom_type_script = "uid://bwaluvayi2o8k"
+
+[sub_resource type="Resource" id="Resource_ybgll"]
+script = ExtResource("10_ua0d2")
+mass = 4.0
+max_grip = 400.0
+suspension = SubResource("Resource_0p1ic")
+has_engine = true
+max_theoretical_speed = 50.0
+scene = ExtResource("9_aodhn")
+offset_mesh_y = 1.815
+bogie_configs = Array[ExtResource("2_7m61j")]([SubResource("Resource_m448q"), SubResource("Resource_ibl0p")])
+coupler_offset = 5.5
+coupler_travel = 0.05
+coupler_strength = 120.0
+lights = Array[ExtResource("6_g04a0")]([SubResource("Resource_lt_front"), SubResource("Resource_lt_rear"), SubResource("Resource_lt_cab")])
+metadata/_custom_type_script = "uid://bicjny5dv1h3s"
+
+[sub_resource type="Resource" id="Resource_ldqha"]
+script = ExtResource("12_5mbgj")
+object_config = SubResource("Resource_ybgll")
+metadata/_custom_type_script = "uid://mpakwrr6lum8"
+
+[sub_resource type="Resource" id="Resource_y13in"]
+script = ExtResource("13_ahkk7")
+metadata/_custom_type_script = "uid://b830vi2lx3hl5"
+
+[sub_resource type="Resource" id="Resource_2odj0"]
+script = ExtResource("14_oe360")
+metadata/_custom_type_script = "uid://bkdny7eq5jthn"
+
+[sub_resource type="Resource" id="Resource_4lulw"]
+script = ExtResource("15_gqvj2")
+metadata/_custom_type_script = "uid://cuumo0qj7r7gb"
+
+[sub_resource type="Resource" id="Resource_ii5fe"]
+script = ExtResource("16_xx6g1")
+metadata/_custom_type_script = "uid://deljgsmo4bpow"
+
+[sub_resource type="Resource" id="Resource_ywat7"]
+script = ExtResource("17_stbws")
+metadata/_custom_type_script = "uid://chprgtlxn3aub"
+
+[sub_resource type="Resource" id="Resource_bbw2b"]
+script = ExtResource("18_psfn6")
+metadata/_custom_type_script = "uid://bhvk4o3qrvslv"
+
+[sub_resource type="Resource" id="Resource_d4y6m"]
+script = ExtResource("19_sdtph")
+metadata/_custom_type_script = "uid://cpuhrycuvnuar"
+
+[sub_resource type="Resource" id="Resource_ivg4w"]
+script = ExtResource("20_1iicp")
+metadata/_custom_type_script = "uid://b5kx0oyxhiaux"
+
+[sub_resource type="Resource" id="Resource_keywu"]
+script = ExtResource("21_7tsme")
+metadata/_custom_type_script = "uid://x3e5f07xbe1r"
+
+[sub_resource type="Resource" id="Resource_saak8"]
+script = ExtResource("22_ctvdq")
+metadata/_custom_type_script = "uid://d4advxi3tkwvc"
+
+[sub_resource type="Resource" id="Resource_nex2q"]
+script = ExtResource("23_rd4mu")
+metadata/_custom_type_script = "uid://mqrnwkjfweqr"
+
+[sub_resource type="Resource" id="Resource_mchlt"]
+script = ExtResource("24_4b6le")
+metadata/_custom_type_script = "uid://brbladjp7pfki"
+
+[sub_resource type="Resource" id="Resource_snd01"]
+script = ExtResource("25_2m6ix")
+
+[resource]
+script = ExtResource("27_8tvvt")
+key = &"train.loco.loco.blue_baby"
+name = "loco 1"
+description = "локо 1"
+category = &"train"
+tag = &"loco"
+icon = ExtResource("26_ek0p6")
+build_behavior = 1
+components = Array[ExtResource("1_aodhn")]([SubResource("Resource_ldqha"), SubResource("Resource_y13in"), SubResource("Resource_2odj0"), SubResource("Resource_4lulw"), SubResource("Resource_ii5fe"), SubResource("Resource_ywat7"), SubResource("Resource_bbw2b"), SubResource("Resource_d4y6m"), SubResource("Resource_ivg4w"), SubResource("Resource_keywu"), SubResource("Resource_saak8"), SubResource("Resource_nex2q"), SubResource("Resource_mchlt"), SubResource("Resource_snd01")])
+metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

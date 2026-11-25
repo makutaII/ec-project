@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://f08rax813uk5"]
+
+[ext_resource type="PackedScene" uid="uid://kq3jds6nm5p2" path="res://data/models/loco_blue_baby/loco_blue_baby.glb" id="1_t8tdw"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1l2rq"]
+size = Vector3(3.5120912, 3.823801, 16.061726)
+
+[node name="WagonRigidBody3D" type="RigidBody3D" unique_id=994244073]
+
+[node name="WagonCollisionShape3D" type="CollisionShape3D" parent="." unique_id=816151352]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.597, 0)
+shape = SubResource("BoxShape3D_1l2rq")
+debug_color = Color(0, 0.6, 0.69803923, 1)
+
+[node name="loco_blue_baby" parent="." unique_id=2093818605 instance=ExtResource("1_t8tdw")]
