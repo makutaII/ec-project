@@ -7,10 +7,18 @@
 [ext_resource type="Script" path="res://core/components/comp_settings/portaldraggable_setting.gd" id="5_dr"]
 [ext_resource type="Script" path="res://core/components/comp_settings/hoverable_setting.gd" id="6_ho"]
 [ext_resource type="Script" path="res://core/components/comp_settings/selectable_setting.gd" id="7_se"]
+[ext_resource type="Script" path="res://setting/portal_config.gd" id="9_pc"]
 [ext_resource type="Texture2D" path="res://ui/icons/transport/gold-mine.svg" id="8_ic"]
+
+[sub_resource type="Resource" id="Resource_pc"]
+script = ExtResource("9_pc")
+depth = 5
+dark_depth = 2.0
+anchor = 1
 
 [sub_resource type="Resource" id="Resource_id"]
 script = ExtResource("3_id")
+object_config = SubResource("Resource_pc")
 
 [sub_resource type="Resource" id="Resource_tp"]
 script = ExtResource("4_tp")
@@ -28,7 +36,7 @@ script = ExtResource("7_se")
 script = ExtResource("2_es")
 key = &"decor.portal.tunnel_portal"
 name = "Портал тоннеля"
-description = "Арка входа в гору (бетон или камень), глубина 1-5 ю, тёмный проём. Рельеф не меняет: рельсы с флагом U, портал задвигается в гору, R/F уровень, G стиль"
+description = "Визуал входа в гору (бетон или камень), глубина арки до 100 ю, тёмная плоскость. Рельеф не меняет: рельсы с флагом U, портал задвигается в гору, R/F уровень, G стиль"
 category = &"decor"
 tag = &"portal"
 icon = ExtResource("8_ic")

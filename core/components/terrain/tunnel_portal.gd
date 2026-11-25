@@ -26,10 +26,13 @@ const WING_DEG := 35.0
 const LINTEL_MAX := 1.2
 ## Фаска верхнего угла проёма: сторона квадрата, повёрнутого на 45°
 const CHAMFER := 0.7
-## Объект «Портал тоннеля» (H7b): глубина арки в ю (от лицевой плоскости вглубь), толщина свода над проёмом, цвет тёмной плоскости
+## Объект «Портал тоннеля» (H7b): глубина арки в ю (от лицевой плоскости вглубь), толщина свода над проёмом, цвет тёмной плоскости.
+## H7b2: глубина до 100 ю, тёмная плоскость стоит на своей глубине (не глубже арки); значения по умолчанию берёт паспорт (PortalConfig)
 const DEPTH_MIN := 1
-const DEPTH_MAX := 5
-const DEPTH_DEFAULT := 3
+const DEPTH_MAX := 100
+const DEPTH_DEFAULT := 5
+const DARK_DEFAULT := 2.0
+const DARK_STEP := 0.5
 const ROOF := 0.6
 const DARK_COLOR := Color(0.02, 0.02, 0.02)
 ## Устья ближе друг к другу, чем это (вершина контура даёт два попадания), считаем одним, ю
@@ -147,9 +150,10 @@ static func make_node(style: StringName, at: Vector2, out: Vector2, width: float
 
 ## Арка объекта «Портал тоннеля» в местной системе: начало на полу в центре проёма на лицевой плоскости, x поперёк, y вверх,
 ## z наружу (из горы); арка уходит вглубь горы на depth ю (в -z). Лицевая рамка и крылья те же, что у рамки листа (parts), за ними
-## тело арки: две стенки и свод поверх проёма. На дальнем конце тёмная плоскость, закрывающая проём. Коллизии нет
-## (выбор объекта идёт по отдельному телу, см. C_TunnelPortal). Проём: width x height, пол на y = 0
-static func make_arch(style: StringName, width: float, height: float, depth: float) -> Node3D:
+## тело арки: две стенки и свод поверх проёма. Тёмная плоскость закрывает проём на глубине dark_depth (меньше нуля: на дальнем
+## конце арки; больше глубины арки: на дальнем конце). Коллизии нет (выбор объекта идёт по отдельному телу, см. C_TunnelPortal).
+## Проём: width x height, пол на y = 0
+static func make_arch(style: StringName, width: float, height: float, depth: float, dark_depth := -1.0) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Arch"
 	if width <= 0.0 or height <= 0.0:
@@ -160,6 +164,18 @@ static func make_arch(style: StringName, width: float, height: float, depth: flo
 		root.add_child(_box_node(part, mat))
 	for part in body_parts(width, height, d):
 		root.add_child(_box_node(part, mat))
+	root.add_child(make_dark(width, height, dark_z(d, dark_depth)))
+	return root
+
+
+## Тёмная плоскость: z её центра при глубине dark_depth (меньше нуля или глубже арки: на дальнем конце)
+static func dark_z(depth: float, dark_depth: float) -> float:
+	var dd := depth if (dark_depth < 0.0 or dark_depth > depth) else dark_depth
+	return -dd + 0.02
+
+
+## Тёмная плоскость проёма: чёрный бокс без освещения, центр на (0, height / 2, z)
+static func make_dark(width: float, height: float, z: float) -> MeshInstance3D:
 	var dark := StandardMaterial3D.new()
 	dark.albedo_color = DARK_COLOR
 	dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -169,9 +185,8 @@ static func make_arch(style: StringName, width: float, height: float, depth: flo
 	fb.size = Vector3(width, height, 0.04)
 	fm.mesh = fb
 	fm.material_override = dark
-	fm.position = Vector3(0.0, height * 0.5, -d + 0.02)
-	root.add_child(fm)
-	return root
+	fm.position = Vector3(0.0, height * 0.5, z)
+	return fm
 
 
 ## Коробки тела арки (за лицевой плоскостью, z от 0 до -depth): две стенки и свод. Формат как у parts

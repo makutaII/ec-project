@@ -135,24 +135,54 @@ func _ready() -> void:
 	var dark := arch.get_node_or_null("Dark") as Node3D
 	check("арка: тёмная плоскость на дальнем конце (z = -3 + 0,02)", dark != null and is_equal_approx(dark.position.z, -2.98), str(dark.position if dark != null else null))
 	arch.free()
-	var deep := TunnelPortal.make_arch(TunnelPortal.STYLE_CONCRETE, 4.0, 6.0, 10.0)
+	var deep := TunnelPortal.make_arch(TunnelPortal.STYLE_CONCRETE, 4.0, 6.0, 200.0)
 	var dd := deep.get_node_or_null("Dark") as Node3D
-	check("арка: глубина больше 5 ю обрезается до 5", dd != null and is_equal_approx(dd.position.z, -4.98), str(dd.position if dd != null else null))
+	check("арка: глубина больше 100 ю обрезается до 100", dd != null and is_equal_approx(dd.position.z, -99.98), str(dd.position if dd != null else null))
 	deep.free()
 	check("арка: нулевой проём пустой", TunnelPortal.make_arch(TunnelPortal.STYLE_STONE, 0.0, 6.0, 3.0).get_child_count() == 0)
 
-	check("объект: глубина зажата в 1-5", C_TunnelPortal.clamp_depth(0) == 1 and C_TunnelPortal.clamp_depth(9) == 5 and C_TunnelPortal.clamp_depth(3) == 3)
+	# H7b2: тёмная плоскость на своей глубине
+	var a2 := TunnelPortal.make_arch(TunnelPortal.STYLE_STONE, 4.0, 6.0, 10.0, 2.0)
+	var d2 := a2.get_node_or_null("Dark") as Node3D
+	check("тёмная плоскость: на глубине 2 ю при арке 10 ю (z = -1,98)", d2 != null and is_equal_approx(d2.position.z, -1.98), str(d2.position if d2 != null else null))
+	a2.free()
+	check("тёмная плоскость: глубже арки или меньше нуля это дальний конец", is_equal_approx(TunnelPortal.dark_z(5.0, 9.0), -4.98) and is_equal_approx(TunnelPortal.dark_z(5.0, -1.0), -4.98))
+	check("тёмная плоскость: на лицевой плоскости (0) z = 0,02", is_equal_approx(TunnelPortal.dark_z(5.0, 0.0), 0.02))
+	var md := TunnelPortal.make_dark(4.0, 6.0, -3.0)
+	check("make_dark: узел Dark по центру проёма", md.name == "Dark" and md.position.is_equal_approx(Vector3(0.0, 3.0, -3.0)), str(md.position))
+	md.free()
+
+	check("объект: глубина зажата в 1-100", C_TunnelPortal.clamp_depth(0) == 1 and C_TunnelPortal.clamp_depth(200) == 100 and C_TunnelPortal.clamp_depth(30) == 30)
+	check("объект: тёмная плоскость шагом 0,5 и не глубже арки", is_equal_approx(C_TunnelPortal.clamp_dark(2.3, 5), 2.5) and is_equal_approx(C_TunnelPortal.clamp_dark(9.0, 5), 5.0) and is_equal_approx(C_TunnelPortal.clamp_dark(-1.0, 5), 0.0))
 	check("объект: стили бетон, камень по кругу", C_TunnelPortal.next_style(&"concrete") == &"stone" and C_TunnelPortal.next_style(&"stone") == &"concrete" and C_TunnelPortal.next_style(&"gold") == &"concrete")
 	var cp := C_TunnelPortal.new()
-	check("объект: по умолчанию бетон и глубина 3", cp.style == &"concrete" and cp.depth == 3)
+	check("объект: по умолчанию бетон, глубина 5, тёмная плоскость 2", cp.style == &"concrete" and cp.depth == 5 and is_equal_approx(cp.dark_depth, 2.0))
+	check("объект: без паспорта точка установки на лицевой плоскости, сцены нет", is_equal_approx(cp.anchor_shift(), 0.0) and not cp.uses_scene())
 	cp.style = &"stone"
-	cp.depth = 5
+	cp.depth = 40
+	cp.dark_depth = 7.5
 	var cd := cp.save_data()
 	var cp2 := C_TunnelPortal.new()
 	cp2.load_data(cd)
-	check("объект: сейв и загрузка возвращают стиль и глубину", cp2.style == &"stone" and cp2.depth == 5, str(cd))
-	cp2.load_data({"style": "gold", "depth": 99})
-	check("объект: неизвестный стиль это бетон, глубина зажимается", cp2.style == &"concrete" and cp2.depth == 5, "%s %d" % [cp2.style, cp2.depth])
+	check("объект: сейв и загрузка возвращают стиль и обе глубины", cp2.style == &"stone" and cp2.depth == 40 and is_equal_approx(cp2.dark_depth, 7.5), str(cd))
+	cp2.load_data({"style": "gold", "depth": 999, "dark": -3.0})
+	check("объект: неизвестный стиль это бетон, глубины зажимаются", cp2.style == &"concrete" and cp2.depth == 100 and is_equal_approx(cp2.dark_depth, 0.0), "%s %d %s" % [cp2.style, cp2.depth, cp2.dark_depth])
+	cp2.load_data({"style": "stone", "depth": 4, "dark": 9.0})
+	check("объект: тёмная плоскость не глубже арки при загрузке", is_equal_approx(cp2.dark_depth, 4.0), str(cp2.dark_depth))
+	# точка установки по паспорту
+	var pc := PortalConfig.new()
+	pc.anchor = PortalConfig.Anchor.DARK
+	cp.config = pc
+	check("паспорт: точка установки на тёмной плоскости сдвигает арку на её глубину", is_equal_approx(cp.anchor_shift(), 7.5), str(cp.anchor_shift()))
+	pc.anchor = PortalConfig.Anchor.FRONT
+	check("паспорт: точка установки на лицевой плоскости без сдвига", is_equal_approx(cp.anchor_shift(), 0.0))
+	pc.width = 6.0
+	pc.height = 7.0
+	check("паспорт: габариты проёма из паспорта", is_equal_approx(cp.opening_width(), 6.0) and is_equal_approx(cp.opening_height(), 7.0))
+	pc.width = 0.0
+	pc.height = 0.0
+	check("паспорт: нули это значения по настройкам", is_equal_approx(cp.opening_width(), C_TunnelPortal.default_width()) and is_equal_approx(cp.opening_height(), C_TunnelPortal.default_height()))
+	cp.config = null
 	cp.free()
 	cp2.free()
 
