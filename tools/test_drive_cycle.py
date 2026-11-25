@@ -32,6 +32,9 @@ a = text.index("# >>> drive-cycle-math")
 b = text.index("# <<< drive-cycle-math")
 ns = {"math": math, "re": re}
 exec(compile(text[a:b], SRC + "#drive-cycle-math", "exec"), ns)
+ua = text.index("# >>> unit-math")
+ub = text.index("# <<< unit-math")
+exec(compile(text[ua:ub], SRC + "#unit-math", "exec"), ns)
 
 
 # ---- мелкая матричная арифметика (списки строк)
@@ -178,6 +181,19 @@ check("обратное колесо: замыкающий кадр равен �
 check("роль: хвост дубля убирается", ns["drive_role"]("connecting_rod.001") == "drv_connecting_rod")
 check("роль: пробелы и заглавные", ns["drive_role"]("Side Rod") == "drv_side_rod")
 check("роль: подходит под правило имён", re.match(r"^[a-z][a-z0-9_]*$", ns["drive_role"]("123 Rod!")) is not None)
+
+# ---- 5. узлы тележек
+check("узел: первый номер 1, следующий свободный", ns["next_unit_number"](["body", "wheel_1_1"]) == 1 and ns["next_unit_number"](["unit_1", "unit_3", "x"]) == 4)
+c, offs, skew = ns["unit_layout"]([6.0, 2.0, 4.0])
+check("узел: центр между крайними осями, смещения по возрастанию", abs(c - 4.0) < 1e-9 and offs == [-2.0, 0.0, 2.0] and skew < 1e-9, (c, offs))
+check("радиус по высоте оси", abs(ns["axle_radius"](-0.161, 1.061) - 0.9) < 1e-9)
+d = ns["unit_draft"](4.0, [6.0, 2.0, 4.0], 0.9)
+check("заготовка: Z Godot = -Y Blender, оси по возрастанию", abs(d["b_offset_z"] + 4.0) < 1e-9 and d["axles"] == [-2.0, 0.0, 2.0], d)
+check("заготовка: три оси требуют axle_offsets", "axle_offsets" in ns["unit_draft_text"]("unit_2", d))
+d2 = ns["unit_draft"](0.0, [-1.5, 1.5], 0.9)
+check("заготовка: две симметричные оси дают wheel_pair_position", "wheel_pair_position = Vector3(0, 0.900, 1.500)" in ns["unit_draft_text"]("unit_1", d2))
+check("роли узлов и колёс", ns["UNIT_RE"].match("unit_12") and ns["WHEEL_ROLE_RE"].match("wheel_2_3") and not ns["WHEEL_ROLE_RE"].match("wheel_2"))
+check("допуск на реборду задан", 0.02 <= ns["FLANGE_DEPTH"] <= 0.1)
 
 print()
 print("FAIL: %d" % len(fails) if fails else "Все проверки пройдены")

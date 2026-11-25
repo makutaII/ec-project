@@ -80,6 +80,9 @@ ROLE_PRESETS = [
     ("headlight_front", "headlight_front: фара передняя (белая)", ""),
     ("headlight_rear", "headlight_rear: фара задняя (красная)", ""),
     ("cab_light", "cab_light: свет кабины", ""),
+    ("unit_1", "unit_1: узел тележки (группа осей, пустышка)", ""),
+    ("wheel_1_1", "wheel_1_1: колёсная пара узла 1", ""),
+    ("frame_1", "frame_1: рама узла 1", ""),
 ]
 
 # Последний отчёт: панель, крупное окно, редактор Text и буфер обмена берут его отсюда
@@ -277,8 +280,9 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
             (length, width, height, lo[2], hi[2], length / 2.0))
         if abs(cx) > 0.05 or abs(cy) > 0.05:
             add("WARN", "Центр габарита смещён от нуля: X %.3f, Y %.3f. Origin кузова должен быть в центре по длине и ширине." % (cx, cy), body)
-        if lo[2] < -buffer_h - 0.01:
-            add("WARN", "Низ модели Z=%.3f ниже головки рельса (рельс на Z=%.3f при метке Z=0 на оси буферов)." % (lo[2], -buffer_h), body)
+        if lo[2] < -buffer_h - FLANGE_DEPTH:
+            add("WARN", "Низ модели Z=%.3f ниже головки рельса (рельс на Z=%.3f при метке Z=0 на оси буферов; реборды колёс уходят ниже головки до %.2f, это допустимо)." %
+                (lo[2], -buffer_h, FLANGE_DEPTH), body)
         if length < 3.0 or length > 40.0:
             add("WARN", "Длина %.2f вне ожидаемых 3..40: проверьте масштаб (Unit Scale 1.0, 1 единица = 1 м прототипа)." % length, body)
         if kind == "trains" and width > 4.5:
@@ -286,6 +290,51 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
         add("INFO", "Метка Z=0 это ось буферов; рельс на Z=%.3f. Нос модели смотрит в +Y. В паспорте offset_mesh_y = %.3f." % (-buffer_h, buffer_h))
         add("INFO", "Коллизия кузова (BoxShape3D): size = (%.3f, %.3f, %.3f), position = (%.3f, %.3f, %.3f) в осях Godot." %
             (width, height, length, cx, (hi[2] + lo[2]) / 2.0, -cy))
+
+    # ---- узлы тележек и колёсные пары: unit_<n> (пустышка) с детьми wheel_<n>_<k> и свойством radius ----
+    units = [o for o in objs if UNIT_RE.match(role_of(o) or "")]
+    wheels = [o for o in objs if WHEEL_ROLE_RE.match(role_of(o) or "")]
+    inv_b = body.matrix_world.inverted()
+    for w in wheels:
+        par = w.parent
+        if par is None or not UNIT_RE.match(role_of(par) or ""):
+            add("ERROR", "Колёсная пара '%s' (role %s): родителем должен быть узел unit_<n>." % (w.name, role_of(w)), w)
+        rad = w.get("radius")
+        if isinstance(rad, bool) or not isinstance(rad, (int, float)) or rad <= 0:
+            add("ERROR", "Колёсная пара '%s': нет свойства radius (число больше 0: радиус круга катания). Его ставит кнопка «Узел из выделенных колёс»." % w.name, w)
+            continue
+        if not 0.2 <= rad <= 1.5:
+            add("WARN", "Колёсная пара '%s': radius %.3f вне ожидаемых 0.2..1.5 (единицы = метры прототипа)." % (w.name, rad), w)
+        pw = (inv_b @ w.matrix_world).translation
+        if abs(pw.z - (rad - buffer_h)) > 0.02:
+            add("WARN", "Колёсная пара '%s': origin на Z=%.3f, а по радиусу %.3f центр оси должен быть на Z=%.3f (радиус минус высота буферов). Проверьте origin и положение." %
+                (w.name, pw.z, rad, rad - buffer_h), w)
+        if abs(pw.x) > 0.02:
+            add("WARN", "Колёсная пара '%s': origin смещён по X на %.3f, пара должна стоять по центру колеи." % (w.name, pw.x), w)
+    for u in units:
+        if u.type != "EMPTY":
+            add("WARN", "Узел '%s' (role %s) должен быть пустышкой." % (u.name, role_of(u)), u)
+        kids = [w for w in wheels if w.parent is u]
+        if not kids:
+            add("WARN", "Узел '%s' без колёсных пар: детьми нужны объекты с ролью wheel_<n>_<k>." % u.name, u)
+            continue
+        rs = [w.get("radius") for w in kids if isinstance(w.get("radius"), (int, float)) and not isinstance(w.get("radius"), bool)]
+        ys = [(inv_b @ w.matrix_world).translation.y for w in kids]
+        up = (inv_b @ u.matrix_world).translation
+        c, offs, _ = unit_layout(ys)
+        if rs and max(rs) - min(rs) > 0.01 * max(rs):
+            add("WARN", "Узел '%s': колёса разного радиуса (%s). Один узел это один радиус: малые и большие колёса разведите по узлам." % (u.name, ", ".join("%.3f" % r for r in rs)), u)
+        if abs(up.y - c) > 0.01:
+            add("WARN", "Узел '%s': центр на Y=%.3f, а крайние оси посередине на Y=%.3f. Origin узла ставьте между крайними осями." % (u.name, up.y, c), u)
+        if abs(up.x) > 0.02:
+            add("WARN", "Узел '%s': смещён по X на %.3f, ожидается 0 (по центру колеи)." % (u.name, up.x), u)
+        if rs:
+            r_mean = sum(rs) / len(rs)
+            if abs(up.z - (r_mean - buffer_h)) > 0.02:
+                add("WARN", "Узел '%s': Z=%.3f, а по радиусу %.3f ось должна быть на Z=%.3f." % (u.name, up.z, r_mean, r_mean - buffer_h), u)
+            add("INFO", unit_draft_text(u.name, unit_draft(c, ys, r_mean)), u)
+    if wheels and not units:
+        add("WARN", "Есть колёсные пары, но нет узлов unit_<n>: колёса должны быть детьми узлов.")
 
     # ---- буферы (NEM 303) ----
     # Ось буфера: у пустышки её положение, у меша центр габарита (origin меша не влияет). Если меш не симметричен
@@ -379,6 +428,7 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
             if role_of(o) is None:
                 add("ERROR", "Действие '%s' двигает '%s' без роли: игра найдёт часть только по роли." % (act.name, o.name), o)
             kinds = set()
+            nonlin, open_ch, cyc = 0, 0, bool(o.get("ec_cycle"))
             for fc in iter_fcurves(act):
                 path = fc.data_path
                 vals = [kp.co[1] for kp in fc.keyframe_points]
@@ -389,10 +439,17 @@ def check_model(scene, buffer_h=BUFFER_H, kind="trains", brush=False):
                     kinds.add("rot")
                 elif path == "scale" and moved:
                     add("WARN", "Действие '%s': анимация масштаба не поддерживается." % act.name, o)
-                for kp in fc.keyframe_points:
-                    if kp.interpolation != "LINEAR":
-                        add("WARN", "Действие '%s': интерполяция %s, поставьте Linear (плавность даёт игра)." % (act.name, kp.interpolation), o)
-                        break
+                if any(kp.interpolation != "LINEAR" for kp in fc.keyframe_points):
+                    nonlin += 1
+                if cyc and len(fc.keyframe_points) > 1 and abs(fc.keyframe_points[0].co[1] - fc.keyframe_points[-1].co[1]) > 1e-4:
+                    open_ch += 1
+            if nonlin:
+                add("WARN", "Действие '%s': у %d каналов интерполяция не Linear (плавность даёт игра). Кнопка «Ключи → Linear» в блоке 3." % (act.name, nonlin), o)
+            if open_ch:
+                add("WARN", "Действие '%s': цикл не замкнут у %d каналов, последний ключ должен равняться первому. Запустите «Нормализовать привод колеса» заново." % (act.name, open_ch), o)
+            if cyc:
+                fr = act.frame_range
+                add("INFO", "Цикл привода '%s': кадры %d..%d, %d кадров на оборот колеса (последний замыкающий)." % (act.name, fr[0], fr[1], int(round(fr[1] - fr[0]))), o)
             if kinds == {"move", "rot"} and not o.get("ec_cycle"):   # цикл привода (ec_cycle) двигает деталь и сдвигом и поворотом по замыслу
                 add("WARN", "Действие '%s': и сдвиг, и поворот. Один механизм это одно движение: разделите на две детали." % act.name, o)
             declared = o.get("mech_id")
@@ -693,6 +750,46 @@ def drive_role(name, prefix="drv_"):
     return prefix + (base or "part")
 # <<< drive-cycle-math
 
+# >>> unit-math
+# Узлы тележек (чистая математика, без bpy; проверяется tools/test_drive_cycle.py).
+UNIT_RE = re.compile(r"^unit_(\d+)$")
+WHEEL_ROLE_RE = re.compile(r"^wheel_(\d+)_(\d+)$")
+FLANGE_DEPTH = 0.05   # реборда колеса уходит ниже головки рельса (единицы = метры прототипа)
+
+
+def next_unit_number(roles):
+    used = [int(m.group(1)) for m in (UNIT_RE.match(r) for r in roles) if m]
+    return max(used) + 1 if used else 1
+
+
+def unit_layout(ys):
+    """ys: положения осей вдоль Y (нос +Y). Возвращает (центр между крайними осями, смещения осей от центра по возрастанию Y, перекос)"""
+    v = sorted(ys)
+    c = (v[0] + v[-1]) / 2.0
+    offs = [y - c for y in v]
+    return c, offs, abs(offs[0] + offs[-1])
+
+
+def axle_radius(axle_z, buffer_h):
+    """Радиус круга катания: ось над головкой рельса (рельс на Z = -buffer_h при метке Z=0 на оси буферов)"""
+    return axle_z + buffer_h
+
+
+def unit_draft(center_y, wheel_ys, radius):
+    """Числа для BogieConfig в осях Godot (Z Godot = -Y Blender): b_offset_z, радиус, оси по Z относительно узла по возрастанию"""
+    return {"b_offset_z": -center_y, "radius": radius, "axles": sorted(-(y - center_y) for y in wheel_ys)}
+
+
+def unit_draft_text(name, d):
+    ax = ", ".join("%.3f" % z for z in d["axles"])
+    txt = "Заготовка BogieConfig из узла '%s': b_offset_z = %.3f, радиус колеса = %.3f, оси по Z относительно узла (Godot) = [%s]." % (name, d["b_offset_z"], d["radius"], ax)
+    if len(d["axles"]) <= 2 and abs(d["axles"][0] + d["axles"][-1]) < 0.01:
+        txt += " Для 1 или 2 симметричных осей: wheel_pair_position = Vector3(0, %.3f, %.3f)." % (d["radius"], abs(d["axles"][-1]))
+    else:
+        txt += " Больше двух осей или несимметрично: нужен BogieConfig с axle_offsets (этап K2)."
+    return txt
+# <<< unit-math
+
 
 def _rows(m):
     return [[float(m[r][c]) for c in range(4)] for r in range(4)]
@@ -752,6 +849,15 @@ def _join(context, objs):
     with context.temp_override(active_object=objs[0], selected_editable_objects=list(objs), selected_objects=list(objs)):
         bpy.ops.object.join()
     return objs[0]
+
+
+def _adopt(obj, parent):
+    """Делает obj потомком parent с сохранением мирового положения, без смещения родителя в matrix_parent_inverse"""
+    bpy.context.view_layer.update()
+    mw = obj.matrix_world.copy()
+    obj.parent = parent
+    obj.matrix_parent_inverse = Matrix.Identity(4)
+    obj.matrix_world = mw
 
 
 def _world_mesh(src, world, shift=(0.0, 0.0, 0.0)):
@@ -1402,6 +1508,7 @@ class ECSettings(bpy.types.PropertyGroup):
     role: StringProperty(name="Роль", description="Custom Property role для выделенных объектов", default="")
     role_preset: EnumProperty(name="Шаблон", items=ROLE_PRESETS, default="body")
     mech_id: StringProperty(name="Id механизма", description="Имя действия станет mech_<id>", default="door_left")
+    unit_frame: BoolProperty(name="Активный это рама узла", description="При создании узла активный объект становится рамой узла (role frame_<n>), остальные выделенные колёсными парами", default=False)
     copy_center: BoolProperty(name="Origin в центр габарита", description="Для копий колёсных пар: origin в центр оси (центр габарита)", default=True)
     cycle_id: StringProperty(name="Id цикла", description="Действие цикла привода станет mech_<id>", default="drive")
     mech_frames: IntProperty(name="Кадров хода", description="Длина хода механизма в кадрах (24 кадра = 1 с при 24 к/с)", default=24, min=2, max=600)
@@ -1658,10 +1765,108 @@ class EC_OT_clean_copy(bpy.types.Operator):
         kids = ""
         if len(bodies) == 1:
             for c in copies:
-                c.parent = bodies[0]
-                c.matrix_parent_inverse = bodies[0].matrix_world.inverted()
+                _adopt(c, bodies[0])
             kids = ", дети body"
         self.report({"INFO"}, "Копий: %d%s (%s)" % (len(copies), kids, ", ".join(o.name for o in copies[:6])))
+        return {"FINISHED"}
+
+
+class EC_OT_make_unit(bpy.types.Operator):
+    bl_idname = "ec.make_unit"
+    bl_label = "Узел из выделенных колёс"
+    bl_description = ("Выделенные колёсные пары (меши, origin в центре оси, детьми body) собираются в узел тележки: создаётся пустышка unit_<n> "
+                      "посередине между крайними осями на высоте оси, колёса становятся её детьми с ролями wheel_<n>_<k> и свойством radius "
+                      "(из высоты оси). Если включена галка, активный объект это рама узла (role frame_<n>). Один узел это один радиус колёс")
+
+    def execute(self, context):
+        scene = context.scene
+        s = settings(scene)
+        bodies = find_body(scene)
+        if len(bodies) != 1:
+            self.report({"ERROR"}, "Нужен ровно один объект с role = body")
+            return {"CANCELLED"}
+        body = bodies[0]
+        sel = [o for o in context.selected_objects if o.type == "MESH" and o is not body]
+        frame = None
+        act = context.view_layer.objects.active
+        if s.unit_frame and act in sel:
+            frame = act
+            sel.remove(act)
+        if not sel:
+            self.report({"ERROR"}, "Выделите колёсные пары (меши)")
+            return {"CANCELLED"}
+        busy = [o.name for o in sel if WHEEL_ROLE_RE.match(role_of(o) or "")]
+        if busy:
+            self.report({"ERROR"}, "Уже в узле: %s. Уберите роль или удалите узел" % ", ".join(busy[:4]))
+            return {"CANCELLED"}
+        n = next_unit_number([role_of(o) or "" for o in scene.objects])
+        inv_b = body.matrix_world.inverted()
+        items = []
+        rows = []
+        for w in sel:
+            rel = inv_b @ w.matrix_world
+            a_, b_ = world_bbox(w)
+            rows.append((rel.translation.y, rel.translation, (b_[2] - a_[2]) / 2.0, w))
+        rows.sort(key=lambda t: t[0])
+        rads = []
+        for y, loc, half, w in rows:
+            r = axle_radius(loc.z, s.buffer_h)
+            rads.append(r)
+            fl = half - r
+            if fl < -0.01 or fl > FLANGE_DEPTH + 0.01:
+                items.append(("WARN", "'%s': половина высоты меша %.3f при радиусе %.3f (реборда %.3f, ожидается 0..%.2f): проверьте origin (центр оси) и положение по Z" %
+                              (w.name, half, r, fl, FLANGE_DEPTH), None))
+            if abs(loc.x) > 0.02:
+                items.append(("WARN", "'%s': origin смещён по X на %.3f, пара должна стоять по центру колеи" % (w.name, loc.x), None))
+        if max(rads) - min(rads) > 0.01 * max(rads):
+            items.append(("WARN", "Колёса разного радиуса (%s): один узел это один радиус, разделите на узлы" % ", ".join("%.3f" % r for r in rads), None))
+        r_mean = sum(rads) / len(rads)
+        c, offs, _ = unit_layout([t[0] for t in rows])
+        z_mean = sum(t[1].z for t in rows) / len(rows)
+        unit = bpy.data.objects.new("unit_%d" % n, None)
+        unit.empty_display_type = "PLAIN_AXES"
+        unit.empty_display_size = 0.5
+        coll = body.users_collection[0] if body.users_collection else scene.collection
+        coll.objects.link(unit)
+        unit.parent = body
+        unit.location = (0.0, c, z_mean)
+        unit["role"] = "unit_%d" % n
+        for k, (y, loc, half, w) in enumerate(rows):
+            _adopt(w, unit)
+            w["role"] = "wheel_%d_%d" % (n, k + 1)
+            w["radius"] = round(rads[k], 3)
+        if frame is not None:
+            _adopt(frame, unit)
+            frame["role"] = "frame_%d" % n
+        items.insert(0, ("INFO", unit_draft_text(unit.name, unit_draft(c, [t[0] for t in rows], r_mean)), None))
+        items.insert(1, ("INFO", "Узел %s: колёс %d, роли wheel_%d_1..wheel_%d_%d, radius по высоте оси%s" %
+                         (unit.name, len(rows), n, n, len(rows), ", рама %s" % frame.name if frame is not None else ""), None))
+        text = format_report(items)
+        publish_report("Узел тележки", text, REPORT_TEXT)
+        print(text)
+        e, w_, i_ = summarize(items)
+        self.report({"WARNING"} if w_ else {"INFO"}, "Узел %s создан. WARN %d" % (unit.name, w_))
+        return {"FINISHED"}
+
+
+class EC_OT_linear_keys(bpy.types.Operator):
+    bl_idname = "ec.linear_keys"
+    bl_label = "Ключи → Linear"
+    bl_description = "Ставит интерполяцию Linear всем ключам действий кузова и его потомков (плавность хода даёт игра)"
+
+    def execute(self, context):
+        bodies = find_body(context.scene)
+        if len(bodies) != 1:
+            self.report({"ERROR"}, "Нужен ровно один объект с role = body")
+            return {"CANCELLED"}
+        acts = []
+        for o in [bodies[0]] + list(bodies[0].children_recursive):
+            for a in object_actions(o):
+                if a not in acts:
+                    acts.append(a)
+        for a in acts:
+            set_linear(a)
+        self.report({"INFO"}, "Действий: %d (%s)" % (len(acts), ", ".join(a.name for a in acts[:5])))
         return {"FINISHED"}
 
 
@@ -1680,10 +1885,7 @@ class EC_OT_parent_body(bpy.types.Operator):
         for o in context.selected_objects:
             if o is body or o.parent is body:
                 continue
-            mw = o.matrix_world.copy()
-            o.parent = body
-            o.matrix_parent_inverse = body.matrix_world.inverted()
-            o.matrix_world = mw
+            _adopt(o, body)
             n += 1
         self.report({"INFO"}, "Детьми body: %d" % n)
         return {"FINISHED"}
@@ -1864,9 +2066,14 @@ class EC_PT_panel(bpy.types.Panel):
         row.prop(s, "copy_center", text="", icon="PIVOT_BOUNDBOX")
         box.operator("ec.parent_body", icon="OUTLINER_OB_GROUP_INSTANCE")
         box.separator()
+        box.label(text="Узлы тележек (колёса и рамы)")
+        box.prop(s, "unit_frame")
+        box.operator("ec.make_unit", icon="EMPTY_AXIS")
+        box.separator()
         box.label(text="Привод колеса (цикл на оборот)")
         box.prop(s, "cycle_id")
         box.operator("ec.bake_cycle", icon="ACTION")
+        box.operator("ec.linear_keys", icon="IPO_LINEAR")
 
         box = lay.box()
         box.label(text="4. Экспорт")
@@ -1892,7 +2099,7 @@ class EC_PT_panel(bpy.types.Panel):
 
 
 CLASSES = (ECSettings, EC_OT_check, EC_OT_show_report, EC_OT_copy_report, EC_OT_open_report, EC_OT_set_role, EC_OT_clear_role, EC_OT_add_buffers,
-           EC_OT_prepare, EC_OT_static_body, EC_OT_clean_copy, EC_OT_parent_body, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
+           EC_OT_prepare, EC_OT_static_body, EC_OT_clean_copy, EC_OT_parent_body, EC_OT_make_unit, EC_OT_linear_keys, EC_OT_bake_cycle, EC_OT_make_uvs, EC_OT_pack_uv2, EC_OT_trim_uvs, EC_OT_refs, EC_OT_mech_key, EC_OT_mech_id_from_action, EC_OT_export, EC_PT_panel)
 
 
 def register():

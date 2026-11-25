@@ -34,6 +34,9 @@ DEFAULT_BLENDER_NAMES = re.compile(r"^(Cube|Plane|Sphere|Cylinder|Cone|Torus|Cir
 DEBUG_NAMES = {"sphere", "frontmarker", "ax", "ay", "az", "marker"}
 DUP_SUFFIX = re.compile(r"[.]\d{3,}$")
 ROLE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+UNIT_RE = re.compile(r"^unit_(\d+)$")
+WHEEL_ROLE_RE = re.compile(r"^wheel_(\d+)_(\d+)$")
+FLANGE_DEPTH = 0.05   # реборда колеса уходит ниже головки рельса (единицы = метры прототипа)
 # Префиксы материалов (см. ATTN_24 §24.4). Остальные материалы считаются «как есть», не красятся
 MAT_PREFIXES = ("paint_", "trim_", "glass_", "emit_", "rubber_", "metal_")
 ANCHOR_PREFIXES = ("anchor_", "light_", "lamp_", "headlight", "taillight", "cab_")
@@ -710,9 +713,9 @@ def main():
         rep.add("INFO", "Габарит по осям Godot: длина (Z) %.3f, ширина (X) %.3f, высота (Y) %.3f; min Y %.3f, max Y %.3f." % (length, width, height, lo[1], hi[1]))
         rep.add("INFO", "Для паспорта: coupler_offset около %.2f (половина длины), ширина кузова %.2f." % (length / 2.0, width))
         bottom = lo[1] + abs_y
-        if bottom < -0.01:
-            rep.add("WARN", "Низ модели на %.3f ниже головки рельса (min Y %.3f, высота начала кузова %.3f). Проверьте метку Z=0 (ось буферов) и offset_mesh_y." %
-                    (-bottom, lo[1], abs_y))
+        if bottom < -FLANGE_DEPTH:
+            rep.add("WARN", "Низ модели на %.3f ниже головки рельса (min Y %.3f, высота начала кузова %.3f; реборды колёс уходят ниже головки до %.2f, это допустимо). "
+                            "Проверьте метку Z=0 (ось буферов) и offset_mesh_y." % (-bottom, lo[1], abs_y, FLANGE_DEPTH))
         rep.add("INFO", "Высота начала кузова над рельсом %.3f (%s), низ модели на высоте %.3f над рельсом, верх на %.3f." %
                 (abs_y, "offset_mesh_y из --offset-y" if offset_given else "стандартная высота буферов, новая модель", bottom, hi[1] + abs_y))
         if not offset_given:
@@ -759,6 +762,7 @@ def main():
         if not aname.startswith("mech_"):
             rep.add("WARN", "Анимация '%s': имя не mech_<id>. Для механизмов принято mech_door_left и т.п." % aname)
         by_node = {}
+        cycle_nodes = []
         for ch in a.get("channels", []):
             tgt = ch["target"]
             if "node" not in tgt:
@@ -773,6 +777,10 @@ def main():
             part_role = role_of(ni)
             if part_role is None:
                 rep.add("ERROR", "Анимация '%s' двигает узел '%s' без role: код найдёт часть только по роли." % (aname, nm))
+            ex_n = nodes[ni].get("extras")
+            if isinstance(ex_n, dict) and isinstance(ex_n.get("ec_cycle"), str):
+                cycle_nodes.append((ni, chans))   # деталь цикла привода: проверяется отдельно, сдвиг и поворот вместе допустимы
+                continue
             tr = chans.get("translation")
             ro = chans.get("rotation")
             dur = 0.0
@@ -807,6 +815,89 @@ def main():
                         (aname, part_role or "<role не задана, узел '%s'>" % nm, actuator, fmt3(axis), travel, " (градусы)" if actuator == "ROTATE" else "", dur))
             else:
                 rep.add("WARN", "Анимация '%s', узел '%s': движения между первым и последним ключом нет." % (aname, nm))
+
+        if cycle_nodes:
+            open_names, nonlin, steps = [], False, 0
+            for ni, chans in cycle_nodes:
+                for path in ("translation", "rotation"):
+                    ch = chans.get(path)
+                    if not ch:
+                        continue
+                    smp = a["samplers"][ch["sampler"]]
+                    times = [t[0] for t in read_accessor(g, binb, smp["input"])]
+                    vals = read_accessor(g, binb, smp["output"])
+                    steps = max(steps, len(times) - 1)
+                    if smp.get("interpolation", "LINEAR") != "LINEAR":
+                        nonlin = True
+                    if path == "translation":
+                        opened = max(abs(vals[-1][k] - vals[0][k]) for k in range(3)) > 1e-4
+                    else:
+                        ang = quat_to_axis_angle(quat_mul(vals[-1], quat_inv(vals[0])))[1]
+                        opened = min(ang, 360.0 - ang) > 0.01
+                    if opened and node_name(g, ni) not in open_names:
+                        open_names.append(node_name(g, ni))
+            if open_names:
+                rep.add("WARN", "Цикл привода '%s': не замкнут у узлов %s (последний ключ должен равняться первому)." % (aname, ", ".join(open_names)))
+            if nonlin:
+                rep.add("WARN", "Цикл привода '%s': интерполяция не Linear (в Blender кнопка «Ключи → Linear»)." % aname)
+            rep.add("INFO", "Цикл привода '%s': узлов %d, %d кадров на оборот колеса. Заготовка MechanismConfig: actuator = ANIM, anim_name = &\"%s\", "
+                            "источник фазы колесо (WHEEL_PHASE, этап K4). Детали: %s." %
+                    (aname, len(cycle_nodes), steps, aname, ", ".join(role_of(ni) or node_name(g, ni) for ni, _ in cycle_nodes)))
+
+    # ---- Узлы тележек и колёсные пары: unit_<n> (пустышка) с детьми wheel_<n>_<k> и extras radius ----
+    unit_ids = [i for i in range(len(nodes)) if UNIT_RE.match(role_of(i) or "")]
+    wheel_ids = [i for i in range(len(nodes)) if WHEEL_ROLE_RE.match(role_of(i) or "")]
+
+    def radius_of(i):
+        ex = nodes[i].get("extras")
+        v = ex.get("radius") if isinstance(ex, dict) else None
+        return v if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else None
+
+    for i in wheel_ids:
+        nm = node_name(g, i)
+        if parent.get(i) not in unit_ids:
+            rep.add("ERROR", "Колёсная пара '%s' (role %s): родителем должен быть узел unit_<n>." % (nm, role_of(i)))
+        rad = radius_of(i)
+        if rad is None:
+            rep.add("ERROR", "Колёсная пара '%s': нет extras radius (число больше 0: радиус круга катания)." % nm)
+            continue
+        if not 0.2 <= rad <= 1.5:
+            rep.add("WARN", "Колёсная пара '%s': radius %.3f вне ожидаемых 0.2..1.5 (единицы = метры прототипа)." % (nm, rad))
+        wx, wy, wz = world_translation(i)
+        if abs(wy - (rad - abs_y)) > 0.02:
+            rep.add("WARN", "Колёсная пара '%s': центр оси на высоте Y=%.3f, а по радиусу %.3f должен быть на Y=%.3f (радиус минус высота буферов). Проверьте origin и положение." %
+                    (nm, wy, rad, rad - abs_y))
+        if abs(wx) > 0.02:
+            rep.add("WARN", "Колёсная пара '%s': origin смещён по X на %.3f, пара должна стоять по центру колеи." % (nm, wx))
+    for u in unit_ids:
+        un = node_name(g, u)
+        kids = [i for i in wheel_ids if parent.get(i) == u]
+        if not kids:
+            rep.add("WARN", "Узел '%s' без колёсных пар: детьми нужны узлы с ролью wheel_<n>_<k>." % un)
+            continue
+        rs = [r for r in (radius_of(i) for i in kids) if r is not None]
+        ux, uy, uz = world_translation(u)
+        zs = [world_translation(i)[2] for i in kids]
+        if rs and max(rs) - min(rs) > 0.01 * max(rs):
+            rep.add("WARN", "Узел '%s': колёса разного радиуса (%s). Один узел это один радиус." % (un, ", ".join("%.3f" % r for r in rs)))
+        if abs(uz - (min(zs) + max(zs)) / 2.0) > 0.01:
+            rep.add("WARN", "Узел '%s': центр на Z=%.3f, а крайние оси посередине на Z=%.3f. Origin узла ставьте между крайними осями." % (un, uz, (min(zs) + max(zs)) / 2.0))
+        if abs(ux) > 0.02:
+            rep.add("WARN", "Узел '%s': смещён по X на %.3f, ожидается 0 (по центру колеи)." % (un, ux))
+        if rs:
+            r_mean = sum(rs) / len(rs)
+            if abs(uy - (r_mean - abs_y)) > 0.02:
+                rep.add("WARN", "Узел '%s': Y=%.3f, а по радиусу %.3f ось должна быть на Y=%.3f." % (un, uy, r_mean, r_mean - abs_y))
+            axles = sorted(z - uz for z in zs)
+            txt = ("Заготовка BogieConfig из узла '%s': b_offset_z = %.3f, радиус колеса = %.3f, оси по Z относительно узла = [%s]." %
+                   (un, uz, r_mean, ", ".join("%.3f" % z for z in axles)))
+            if len(axles) <= 2 and abs(axles[0] + axles[-1]) < 0.01:
+                txt += " Для 1 или 2 симметричных осей: wheel_pair_position = Vector3(0, %.3f, %.3f)." % (r_mean, abs(axles[-1]))
+            else:
+                txt += " Больше двух осей или несимметрично: нужен BogieConfig с axle_offsets (этап K2)."
+            rep.add("INFO", txt)
+    if wheel_ids and not unit_ids:
+        rep.add("WARN", "Есть колёсные пары, но нет узлов unit_<n>: колёса должны быть детьми узлов.")
 
     # ---- Буферы (NEM 303): ось на метке Z=0, на стандартной высоте, шаг, нижняя кромка ----
     buf_nodes = [i for i in range(len(nodes)) if (role_of(i) or "").startswith("buffer")]
