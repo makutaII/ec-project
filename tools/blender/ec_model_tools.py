@@ -893,7 +893,13 @@ def bake_drive_cycle(context, body, wheel, parts, cycle_id):
         return "Id цикла: a-z, 0-9, _, начинается с буквы", items
     if wheel is None or wheel == body or not is_animated(wheel):
         return "Активным должно быть колесо с анимацией оборота (остальное выделение это детали привода)", items
+    if wheel is not None and wheel.get("ec_cycle"):
+        return "Активное колесо это результат прежнего запуска (drv_*): возьмите колесо из исходной модели (SRC)", items
     sel = [o for o in parts if o != wheel and o != body]
+    made_before = [o.name for o in sel if o.get("ec_cycle")]
+    if made_before:
+        info("WARN", "В выделении есть результат прежнего запуска (%s): он пропущен и будет заменён. Выделяйте исходные детали из SRC" % ", ".join(made_before[:4]))
+    sel = [o for o in sel if not o.get("ec_cycle")]
     parts = [o for o in sel if is_animated(o)]
     if not parts:
         return "Выделите детали привода (шатуны, дышла, парораспределение), активным сделайте колесо", items
@@ -1139,7 +1145,7 @@ def add_buffer_empties(scene):
         e = bpy.data.objects.new("Buffer_" + role[-1], None)
         e.empty_display_type = "SPHERE"
         e.empty_display_size = 0.15
-        scene.collection.objects.link(e)
+        (body.users_collection[0] if body.users_collection else scene.collection).objects.link(e)   # в коллекции кузова: иначе в Outliner они серые
         e.parent = body
         e.matrix_parent_inverse = body.matrix_world.inverted()
         e.location = (bx, by, 0.0)
@@ -1310,7 +1316,23 @@ def set_linear(act):
             if kp.interpolation != "LINEAR":
                 kp.interpolation = "LINEAR"
                 n += 1
+        try:
+            fc.update()
+        except Exception:
+            pass
     return n
+
+
+def linear_stats(act):
+    """(каналов, ключей, ключей не Linear) в действии"""
+    fcs = keys = bad = 0
+    for fc in iter_fcurves(act):
+        fcs += 1
+        for kp in fc.keyframe_points:
+            keys += 1
+            if kp.interpolation != "LINEAR":
+                bad += 1
+    return fcs, keys, bad
 
 
 def remove_static_channels(act, eps=1e-4):
@@ -1875,8 +1897,15 @@ class EC_OT_linear_keys(bpy.types.Operator):
             for a in object_actions(o):
                 if a not in acts:
                     acts.append(a)
-        changed = sum(set_linear(a) for a in acts)
-        self.report({"INFO"}, "Действий: %d (%s), ключей изменено: %d" % (len(acts), ", ".join(a.name for a in acts[:5]), changed))
+        lines = []
+        for a in acts:
+            f0_, k0_, b0_ = linear_stats(a)
+            ch = set_linear(a)
+            f1_, k1_, b1_ = linear_stats(a)
+            lines.append("%s: каналов %d, ключей %d, не Linear было %d, изменено %d, осталось %d" % (a.name, f1_, k1_, b0_, ch, b1_))
+        print("\n".join(lines))
+        left = sum(1 for l in lines if not l.endswith("осталось 0"))
+        self.report({"WARNING"} if left else {"INFO"}, "; ".join(lines[:3]) + ("  [не удалось выставить Linear: пришлите этот текст]" if left else ""))
         return {"FINISHED"}
 
 
