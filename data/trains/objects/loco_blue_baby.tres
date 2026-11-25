@@ -81,6 +81,14 @@ color = Color(1, 0.85, 0.6, 1)
 energy = 1.5
 light_range = 8.0
 
+[sub_resource type="Resource" id="Resource_ljdfc"]
+script = ExtResource("8_70t6v")
+id = &"drive"
+actuator = 6
+part_role = &"drive"
+part_aliases = ["drv_connecting_rod", "wheel_3_3"]
+metadata/_custom_type_script = "uid://gv2lrhu17dtf"
+
 [sub_resource type="Resource" id="Resource_0p1ic"]
 script = ExtResource("11_ryaq6")
 metadata/_custom_type_script = "uid://bwaluvayi2o8k"
@@ -98,6 +106,7 @@ bogie_configs = Array[ExtResource("2_7m61j")]([SubResource("Resource_m448q"), Su
 coupler_offset = 5.5
 coupler_travel = 0.05
 coupler_strength = 120.0
+mechanisms = Array[ExtResource("8_70t6v")]([SubResource("Resource_ljdfc")])
 lights = Array[ExtResource("6_g04a0")]([SubResource("Resource_lt_front"), SubResource("Resource_lt_rear"), SubResource("Resource_lt_cab")])
 metadata/_custom_type_script = "uid://bicjny5dv1h3s"
 

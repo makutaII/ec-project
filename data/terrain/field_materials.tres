@@ -10,5 +10,3 @@ script = ExtResource("1_fm")
 albedo = Array[Texture2D]([ExtResource("2_smooth"), ExtResource("3_rocky"), ExtResource("4_rock"), null])
 tint = PackedColorArray(0.5, 0.78, 0.34, 1, 0.92, 0.86, 0.7, 1, 0.66, 0.64, 0.61, 1, 0.82, 0.74, 0.5, 1)
 tile = PackedFloat32Array(3, 2.5, 5, 3)
-edge_noise = 0.35
-edge_scale = 2.5

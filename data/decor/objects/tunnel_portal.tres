@@ -1,20 +1,20 @@
-[gd_resource type="Resource" script_class="EntitySetting" format=3]
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://b54yxtyyjoxfj"]
 
-[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
-[ext_resource type="Script" path="res://core/entity_setting.gd" id="2_es"]
-[ext_resource type="Script" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
-[ext_resource type="Script" path="res://core/components/comp_settings/tunnelportal_setting.gd" id="4_tp"]
-[ext_resource type="Script" path="res://core/components/comp_settings/portaldraggable_setting.gd" id="5_dr"]
-[ext_resource type="Script" path="res://core/components/comp_settings/hoverable_setting.gd" id="6_ho"]
-[ext_resource type="Script" path="res://core/components/comp_settings/selectable_setting.gd" id="7_se"]
-[ext_resource type="Script" path="res://setting/portal_config.gd" id="9_pc"]
-[ext_resource type="Texture2D" path="res://ui/icons/transport/gold-mine.svg" id="8_ic"]
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="2_es"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" uid="uid://bigfwuuvc8vgs" path="res://core/components/comp_settings/tunnelportal_setting.gd" id="4_tp"]
+[ext_resource type="Script" uid="uid://b5267ntna1tmd" path="res://core/components/comp_settings/portaldraggable_setting.gd" id="5_dr"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="6_ho"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="7_se"]
+[ext_resource type="Texture2D" uid="uid://d1cnfecrfv50v" path="res://ui/icons/transport/gold-mine.svg" id="8_ic"]
+[ext_resource type="Script" uid="uid://wbvy4a7eypg2" path="res://setting/portal_config.gd" id="9_pc"]
 
 [sub_resource type="Resource" id="Resource_pc"]
 script = ExtResource("9_pc")
-depth = 5
-dark_depth = 2.0
-anchor = 1
+width = 8.0
+height = 15.0
+anchor = 0
 
 [sub_resource type="Resource" id="Resource_id"]
 script = ExtResource("3_id")
@@ -35,12 +35,12 @@ script = ExtResource("7_se")
 [resource]
 script = ExtResource("2_es")
 key = &"decor.portal.tunnel_portal"
+sort_order = 10
 name = "Портал тоннеля"
 description = "Визуал входа в гору (бетон или камень), глубина арки до 100 ю, тёмная плоскость. Рельеф не меняет: рельсы с флагом U, портал задвигается в гору, R/F уровень, G стиль"
 category = &"decor"
 tag = &"portal"
 icon = ExtResource("8_ic")
-sort_order = 10
 build_behavior = 1
-pick_layers = Array[StringName]([&"ground", &"tracks", &"plaster"])
 components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_tp"), SubResource("Resource_dr"), SubResource("Resource_ho"), SubResource("Resource_se")])
+pick_layers = Array[StringName]([&"ground", &"tracks", &"plaster"])
