@@ -27,10 +27,6 @@ class_name TrackConfig extends ObjectConfig
 #@export var align_ends := false # Выравнивание торцов коллизий
 
 
-## Ширина коллизии основания, которую применяют адаптеры визуала и пути (XX claude-car CS1). У обычного трака это collision_width;
-## RoadConfig подменяет её шириной полотна (road_width), чтобы ширина дороги жила в одном поле
-func effective_collision_width() -> float:
-	return collision_width
 ## Пределы формы flex-трака из паспорта (FlexSolver.Limits). null = обычные, из GlobalSetting (flex_r_min, flex_l_*, flex_max_grade).
 ## XX claude-coaster C8: RideFlexConfig задаёт свои, у горок они шире. Спрашивает C_FlexShape
 func flex_limits() -> FlexSolver.Limits:
@@ -53,4 +49,4 @@ func shape_style(st: TrackStyle) -> TrackStyle:
 static func collision_width_of(entity: Entity) -> float:
 	var idc := entity.get_comp(C_Identity) as C_Identity
 	var cfg := idc.object_config as TrackConfig if idc else null
-	return cfg.effective_collision_width() if cfg else 0.0   # XX claude-car CS1: было cfg.collision_width
+	return cfg.collision_width if cfg else 0.0

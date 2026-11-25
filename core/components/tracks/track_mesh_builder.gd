@@ -14,8 +14,6 @@ const MESH_STEP_PREVIEW := 2.0   # пока тянем конец, меш гру
 const UV_V_SCALE := 0.1
 const COL_END_INSET := 0.2
 const COL_OVERLAP := 0.1
-## XX claude-car CS1b: полоска разметки приподнята над основанием, чтобы не мерцать (z-fighting)
-const MARKING_LIFT := 0.02
 
 class Fr extends RefCounted:
 	var p: Vector3
@@ -26,7 +24,6 @@ class Fr extends RefCounted:
 static var _mat_ballast: StandardMaterial3D
 static var _mat_rail: StandardMaterial3D
 static var _mat_sleeper: StandardMaterial3D
-static var _mat_marking: StandardMaterial3D
 
 
 ## Пустая геометрия коллизии-заглушки: C_Path генерирует свои коллизии, только если
@@ -104,9 +101,6 @@ static func ensure_materials() -> void:
 	# Меши шпал могут нести вершинный цвет (подкладки другого цвета без второго материала); у BoxMesh цвета нет, множитель 1
 	_mat_sleeper.vertex_color_use_as_albedo = true
 	_mat_sleeper.vertex_color_is_srgb = true
-	_mat_marking = StandardMaterial3D.new()   # XX claude-car CS1b
-	_mat_marking.albedo_color = Color(0.88, 0.88, 0.82)
-	_mat_marking.roughness = 0.8
 
 
 # ==========================================
@@ -215,51 +209,7 @@ static func build_mesh(style: TrackStyle, curve: Curve3D, L: float, preview: boo
 		if _has_normal_map(rmat):
 			rst.generate_tangents()
 		rst.commit(am)
-
-	# XX claude-car CS1b: светлая полоска вдоль пути, последняя поверхность (после балласта и рельсов)
-	if style.marking_width > 0.0:
-		_add_marking(am, style, curve, L, preview)
 	return am
-
-
-# XX claude-car CS1b
-## Штрихи разметки на куске длиной L: [начало, конец] вдоль пути. Сплошная линия (штрих или пробел 0) это один отрезок [0, L].
-## Штрихов n = L / (штрих + пробел), округлено, не меньше 1; длина штриха подгоняется, пробелы равны gap, на краях куска по gap / 2
-static func marking_ranges(L: float, dash: float, gap: float) -> Array[Vector2]:
-	var res: Array[Vector2] = []
-	if dash <= 0.0 or gap <= 0.0:
-		res.append(Vector2(0.0, L))
-		return res
-	var n := maxi(1, roundi(L / (dash + gap)))
-	var d := maxf(0.05, L / float(n) - gap)
-	for i in n:
-		var a := gap * 0.5 + float(i) * (d + gap)
-		res.append(Vector2(minf(a, L), minf(a + d, L)))
-	return res
-
-
-static func _add_marking(am: ArrayMesh, style: TrackStyle, curve: Curve3D, L: float, preview: bool) -> void:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	st.set_material(style.marking_material if style.marking_material else _mat_marking)
-	var y := style.marking_base_y() + MARKING_LIFT
-	var half := style.marking_width * 0.5
-	var chain: Array = [Vector2(style.marking_x - half, y), Vector2(style.marking_x + half, y)]
-	var hw := absf(style.marking_x) + half
-	var step := MESH_STEP_PREVIEW if preview else MESH_STEP
-	var made := false
-	for rg in marking_ranges(L, style.marking_dash, style.marking_gap):
-		var seg := rg.y - rg.x
-		if seg < 0.01:
-			continue
-		var n := maxi(2, ceili(seg / step) + 1)
-		var fr: Array = []
-		for i in n:
-			fr.append(frame(curve, rg.x + seg * i / float(n - 1), L))
-		sweep(st, fr, chain, seg, hw)
-		made = true
-	if made:
-		st.commit(am)
 
 
 ## Нормальной карте нужны тангенты, SurfaceTool сам их не строит

@@ -4,13 +4,15 @@ extends Node
 ## Тест сети дорог (ATTN_28, этап CS1). Запуск: открыть tests/road_network_test.tscn и нажать F6, смотреть Output.
 ## Сценарии:
 ##   1) слой roads: свой бит, не пересекается с остальными слоями
-##   2) объекты data/roads/objects: категория road, паспорт RoadConfig, ширина полотна 8, сеть road
+##   2) объекты data/roads/objects: категория road, паспорт RoadConfig, сеть road
 ##   3) сущность дороги: C_RoadPath, сеть road, основание на слое roads (не tracks)
 ##   4) стык дороги с дорогой: соседи появляются
 ##   5) стык дороги с рельсом в одной точке: соседей нет, никто не заблокирован
 ##   6) дорога поверх рельса (пересечение): C_Blocked не вешается ни на дорогу, ни на рельс
-##   7) ширина полотна одна (road_width): меш, коллизия и ложе рельефа (ballast_samples) 8 ю, у рельса прежние 3.2
-##   8) светлая полоска: отдельная поверхность меша, штрихи разметки, with_ballast_width
+##   7) ширина как у трака: коллизия из паспорта (иначе из стиля), меш и ложе рельефа (ballast_samples) следуют за ней, у рельса прежние
+##   8) разметка в материале: одна поверхность меша, ShaderMaterial с линией, with_ballast_width
+##   9) C_RoadBed: дорога сообщает рельефу о себе (TGM.terrain_changed), ложе под ней не ждёт жд трак
+## Ожидаемая ширина читается из паспорта и стиля объекта, правка road_width или collision_width в .tres тест не ломает.
 ## Красных строк E в Output быть не должно. Проверки перетаскивания (красный призрак, подсказка «Другая сеть»,
 ## магнит) руками в редакторе: см. ATTN_28 §28.7, этап CS1.
 
@@ -52,6 +54,22 @@ func _neighbors(e: Entity) -> Array[Entity]:
 	return sock.get_connected_entities()
 
 
+## Ширина полотна объекта дороги по его паспорту и стилю (как её считает игра): road_width, иначе collision_width паспорта, иначе стиля
+func _expected_width(s: EntitySetting) -> float:
+	var cfg: RoadConfig = null
+	var st: TrackStyle = null
+	for c in s.components:
+		if c is IdentitySetting:
+			cfg = (c as IdentitySetting).object_config as RoadConfig
+		elif c is StyleVisualSetting:
+			st = (c as StyleVisualSetting).style
+	if cfg != null and cfg.road_width > 0.0:
+		return cfg.road_width
+	if cfg != null and cfg.collision_width > 0.0:
+		return cfg.collision_width
+	return st.collision_width if st != null else 0.0
+
+
 func _ready() -> void:
 	print("== 1. слой roads")
 	var seen := {}
@@ -81,9 +99,8 @@ func _ready() -> void:
 			if c is IdentitySetting:
 				idc = c
 		var cfg := idc.object_config as RoadConfig if idc else null
-		check("%s: категория road, паспорт RoadConfig, сеть road, полотно 8" % s.get_key(),
-			s.category == &"road" and cfg != null and cfg.network == &"road"
-			and is_equal_approx(cfg.effective_collision_width(), 8.0))
+		check("%s: категория road, паспорт RoadConfig, сеть road" % s.get_key(),
+			s.category == &"road" and cfg != null and cfg.network == &"road")
 
 	print("== 3. сущность дороги")
 	var road_s: EntitySetting = load(ROAD_DIR + "road_s10.tres")
@@ -131,8 +148,9 @@ func _ready() -> void:
 	check("дорога поверх рельса не заблокирована", not road2.has_comp(C_Blocked))
 	check("рельс под дорогой не заблокирован", not rail2.has_comp(C_Blocked))
 
-	print("== 7. ширина полотна и ложе")
+	print("== 7. ширина как у трака")
 	await clear()
+	var want := _expected_width(road_s)
 	var wr := piece(road_s, Vector3.ZERO)
 	var wl := piece(rail_s, Vector3(0, 0, -30))
 	await frames(5)
@@ -140,35 +158,50 @@ func _ready() -> void:
 	var wlp := wl.get_comp(C_Path) as C_Path
 	var rs := wrp.ballast_samples()
 	var ls := wlp.ballast_samples()
-	check("ложе дороги: ширина образцов 8 ю", rs.size() >= 2 and is_equal_approx(((rs[0]["l"] as Vector2) - (rs[0]["r"] as Vector2)).length(), 8.0))
+	check("ложе дороги по ширине объекта (%.2f ю)" % want, rs.size() >= 2 and absf(((rs[0]["l"] as Vector2) - (rs[0]["r"] as Vector2)).length() - want) < 0.01)
 	check("ложе рельса прежнее (ширина балласта из настроек)", ls.size() >= 2
 		and is_equal_approx(((ls[0]["l"] as Vector2) - (ls[0]["r"] as Vector2)).length(), float(Global.settings.track_ballast_segment.size.x)))
-	check("bed_half_width дороги 4, рельса по настройкам", is_equal_approx(wrp.bed_half_width(), 4.0)
+	check("bed_half_width дороги половина ширины, рельса по настройкам", absf(wrp.bed_half_width() - want * 0.5) < 0.01
 		and is_equal_approx(wlp.bed_half_width(), float(Global.settings.track_ballast_segment.size.x) * 0.5))
 	var wv := wr.get_comp(C_StyleVisual) as C_StyleVisual
-	check("меш полотна шириной road_width", wv != null and wv.mesh_node != null and wv.mesh_node.mesh != null
-		and absf(wv.mesh_node.mesh.get_aabb().size.x - 8.0) < 0.05)
-	check("коллизия основания шириной road_width", wv != null and wv.style != null and is_equal_approx(wv.style.collision_width, 8.0))
+	check("меш полотна той же ширины", wv != null and wv.mesh_node != null and wv.mesh_node.mesh != null
+		and absf(wv.mesh_node.mesh.get_aabb().size.x - want) < 0.05)
+	check("коллизия основания той же ширины", wv != null and wv.style != null and absf(wv.style.collision_width - want) < 0.01)
+	# паспорт меняет только свой объект: поворот (collision_width 7 в паспорте) шире прямой, стиль общий и не изменился
+	var curve_s: EntitySetting = load(ROAD_DIR + "road_r15_30.tres")
+	var curve_want := _expected_width(curve_s)
+	var wc := piece(curve_s, Vector3(0, 0, -60))
+	await frames(5)
+	var wcv := wc.get_comp(C_StyleVisual) as C_StyleVisual
+	check("поворот: коллизия и меш по паспорту (%.2f ю)" % curve_want, wcv != null and absf(wcv.style.collision_width - curve_want) < 0.01
+		and absf(wcv.mesh_node.mesh.get_aabb().size.x - curve_want) < 0.2)
+	check("прямая осталась со стилем: паспорт поворота её не менял", wv != null and absf(wv.style.collision_width - want) < 0.01)
 
-	print("== 8. светлая полоска")
-	check("у меша дороги две поверхности: асфальт и полоска", wv != null and wv.mesh_node.mesh.get_surface_count() == 2)
-	var solid := TrackMeshBuilder.marking_ranges(10.0, 0.0, 0.0)
-	check("сплошная линия это один отрезок на весь кусок", solid.size() == 1 and is_equal_approx(solid[0].x, 0.0) and is_equal_approx(solid[0].y, 10.0))
-	var dashes := TrackMeshBuilder.marking_ranges(10.0, 1.5, 1.5)
-	var even := dashes.size() == 3
-	if even:
-		var gap01 := dashes[1].x - dashes[0].y
-		var gap12 := dashes[2].x - dashes[1].y
-		var edge := dashes[0].x + (10.0 - dashes[2].y)   # два края куска вместе дают один пробел на стыке
-		even = is_equal_approx(gap01, gap12) and is_equal_approx(edge, gap01)
-	check("штрихи 10 ю: три штриха, пробелы равны, на стыке тоже", even)
-	var narrow := TrackStyle.with_ballast_width(wv.style, 6.0)
+	print("== 8. разметка в материале")
+	check("у меша дороги одна поверхность (линия не геометрия)", wv != null and wv.mesh_node.mesh.get_surface_count() == 1)
+	var mat := wv.mesh_node.mesh.surface_get_material(0) if wv != null else null
+	check("материал полотна ShaderMaterial с шейдером линии", mat is ShaderMaterial and (mat as ShaderMaterial).shader != null)
+	var narrow := TrackStyle.with_ballast_width(wv.style, want - 2.0)
 	var nx := 0.0
 	for pt in narrow.ballast_profile:
 		nx = maxf(nx, absf(pt.x))
-	check("with_ballast_width: ширина 6 даёт полуширину 3, копия, исходный стиль цел", is_equal_approx(nx, 3.0) and narrow != wv.style)
-	check("with_ballast_width: та же ширина возвращает тот же стиль", TrackStyle.with_ballast_width(wv.style, 8.0) == wv.style)
-	check("у рельсового стиля полоски нет (marking_width 0)", TrackStyle.new().marking_width == 0.0)
+	check("with_ballast_width: уже на 2 даёт полуширину на 1 меньше, копия, исходный стиль цел", absf(nx - (want * 0.5 - 1.0)) < 0.001 and narrow != wv.style)
+	check("with_ballast_width: та же ширина возвращает тот же стиль", TrackStyle.with_ballast_width(wv.style, want) == wv.style)
+
+	print("== 9. дорога сообщает рельефу о себе")
+	await clear()
+	var hits := [0]
+	var on_terrain := func(_aabb: AABB) -> void: hits[0] += 1
+	TGM.terrain_changed.connect(on_terrain)
+	var nb := piece(road_s, Vector3.ZERO)
+	await frames(5)
+	check("у сегмента дороги есть C_RoadBed", nb.has_comp(C_RoadBed))
+	check("постановка дороги шлёт TGM.terrain_changed", hits[0] > 0)
+	var before: int = hits[0]
+	nb.free()
+	await frames(2)
+	check("удаление дороги тоже шлёт TGM.terrain_changed", hits[0] > before)
+	TGM.terrain_changed.disconnect(on_terrain)
 
 	await clear()
 	print("== Итого: %s" % ("всё прошло" if _fails == 0 else "провалено проверок: %d" % _fails))
