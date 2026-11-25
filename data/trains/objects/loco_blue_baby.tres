@@ -160,7 +160,7 @@ script = ExtResource("25_2m6ix")
 [resource]
 script = ExtResource("27_8tvvt")
 key = &"train.loco.loco.blue_baby"
-name = "loco 1"
+name = "loco blue baby"
 description = "локо 1"
 category = &"train"
 tag = &"loco"
