@@ -1,10 +1,9 @@
 extends Node
 
 # XX claude-wire W3 (новый файл)
-## ATTN_23 W3: режим «Монтаж». Запуск: открыть tests/wiring_view_test.tscn и нажать F6.
+## ATTN_23 W3, W4: вид «Монтаж» внутри Operate. Запуск: открыть tests/wiring_view_test.tscn и нажать F6.
 ## Результат в Output: во всех строках OK, в конце ИТОГ: OK.
-## Проверяет: каталог режима (CatalogMeta.mode_tags, EntityCatalogProvider: в «Монтаже» только тег wire, Operate не затронут);
-## плиту (LYM.set_plate_visible скрывает меш, коллизия ground и underside остаётся, новая секция при скрытой плите скрыта,
+## Проверяет: плиту (LYM.set_plate_visible скрывает меш, коллизия ground и underside остаётся, новая секция при скрытой плите скрыта,
 ## LYM.reset возвращает плиту); WiringView (схема прячет поезда, здания, декор, рельеф; дороги и блоки остаются;
 ## «как есть» и выход из режима возвращают всё; чужая невидимость не ломается).
 
@@ -47,16 +46,7 @@ func _tag_ids(p: EntityCatalogProvider, cat: StringName) -> Array:
 
 
 func _ready() -> void:
-	print("== 1. Каталог режима")
-	check("у «Монтажа» одна категория dc_controller", CatalogMeta.categories_for_mode(&"wiring") == [&"dc_controller"])
-	check("теги режима: wire", CatalogMeta.mode_tags(&"wiring", &"dc_controller") == [&"wire"])
-	check("у Operate ограничения нет", CatalogMeta.mode_tags(&"operate", &"dc_controller").is_empty())
-	var wiring_ids := _tag_ids(EntityCatalogProvider.new(&"wiring"), &"dc_controller")
-	check("в каталоге «Монтажа» только тег wire", wiring_ids == [&"wire"], str(wiring_ids))
-	var operate_ids := _tag_ids(EntityCatalogProvider.new(&"operate"), &"dc_controller")
-	check("Operate по-прежнему показывает все теги", operate_ids.has(&"wire") and operate_ids.has(&"switch") and operate_ids.size() > 1, str(operate_ids))
-
-	print("== 2. Плита стола")
+	print("== 1. Плита стола")
 	if Global.fast_debug:
 		print("  пропуск: Global.fast_debug = true, секции не создаются")
 	else:
@@ -78,7 +68,7 @@ func _ready() -> void:
 		LYM.reset()
 		check("LYM.reset возвращает плиту", LYM.plate_visible)
 
-	print("== 3. WiringView: схема путей")
+	print("== 2. WiringView: вид «Монтаж» внутри Operate и схема путей")
 	var root := Node3D.new()
 	add_child(root)
 	var train := _dummy(root, &"train")
@@ -93,7 +83,10 @@ func _ready() -> void:
 	wv.entities_root = root
 	add_child(wv)
 	check("по умолчанию схема", wv.paths == WiringView.Paths.SCHEME)
-	wv.on_mode_changed(&"wiring")
+	wv.on_mode_changed(&"operate")
+	check("смена режима на Operate вид не включает", not wv.active and train.visible)
+	wv.set_active(true)
+	check("вид включён: LYM.wiring_active", wv.active and LYM.wiring_active)
 	check("схема: поезд, здание, декор, рельеф скрыты", not train.visible and not house.visible and not decor.visible and not terrain.visible)
 	check("схема: дорога и блок остаются", track.visible and block.visible)
 	wv.set_paths(WiringView.Paths.ALL)
@@ -101,11 +94,12 @@ func _ready() -> void:
 	wv.set_paths(WiringView.Paths.SCHEME)
 	check("снова схема", not train.visible and not house.visible)
 	wv.on_mode_changed(&"build")
+	check("выход из Operate выключает вид", not wv.active and not LYM.wiring_active and LYM.plate_visible)
 	check("выход из режима: всё как было", train.visible and house.visible and decor.visible and terrain.visible and track.visible and block.visible)
 	check("чужая невидимость осталась", not other_hidden.visible)
 	check("метки убраны", not train.has_meta(WiringView.META_PREV))
 	wv.set_paths(WiringView.Paths.ALL)
-	wv.on_mode_changed(&"wiring")
-	check("при «как есть» вход в режим ничего не прячет", train.visible and house.visible)
-	wv.on_mode_changed(&"observe")
+	wv.set_active(true)
+	check("при «как есть» вход в вид ничего не прячет", train.visible and house.visible)
+	wv.set_active(false)
 	print("ИТОГ: ", "OK" if _bad == 0 else "ОШИБОК %d" % _bad)

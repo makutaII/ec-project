@@ -10,7 +10,7 @@ class_name ModeController extends Node
 ##   debug_open_category(index: int)  необязательно: открыть категорию по номеру (Global.active_ui_category)
 ## Build, Operate и Observe обслуживает ToolbarController (каталог режима регистрирует адаптер).
 ## У режима без обработчика показывается простая панель из _plain_panels.
-## Режим «wiring» («Монтаж», ATTN_23 §23.9): каталог проводки (категория dc_controller, тег wire), вид плиты и путей ведёт WiringView.
+## «Монтаж» (ATTN_23 §23.9) не режим, а переключатель внутри Operate: его ведёт WiringView (кнопка в полосе действий ToolDock).
 ## Режим «sections» (ящики подмакетника, ATTN_23): панель категории table (пресеты секций), ставит их TableTool.
 ## Library это экран поверх игры (ATTN_22 §22.5.2), режим HUD не меняется: см. _open_library.
 
@@ -57,13 +57,12 @@ func _ready() -> void:
 		&"observe": toolbar,
 		&"sections": toolbar,   # XX claude-table T2: каталог секций (категория table)
 		&"coaster": toolbar,   # XX claude-coaster C1: каталог траков горок (ATTN_27)
-		&"wiring": toolbar,   # XX claude-wire W3: режим «Монтаж» (ATTN_23 §23.9)
 	}
 	_plain_panels = {&"library": get_node_or_null("%LibraryPanel")}
 
 	# Режим быстрой загрузки: Observe недоступен, кнопка режима скрыта. Секций стола тоже нет (XX claude-table T1b)
 	if Global.fast_debug:
-		for btn_name in ["ObserveButton", "SectionsButton", "WiringButton"]:
+		for btn_name in ["ObserveButton", "SectionsButton"]:
 			var fast_btn := _mode_panel.get_node_or_null("VBoxContainer/" + btn_name) as Control
 			if fast_btn:
 				fast_btn.hide()

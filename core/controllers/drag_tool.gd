@@ -68,7 +68,8 @@ func enter():
 func _pick_mask() -> int:
 	var identity := target_entity.get_comp(C_Identity) as C_Identity
 	if identity and identity.setting:
-		return Global.active_layers(identity.setting.get_pick_layers())
+		# XX claude-wire W4: блоки с монтажом при виде «Монтаж» тащатся и по подстолью
+		return Mount.pick_mask(identity.setting, Global.active_layers(identity.setting.get_pick_layers()))
 	return Global.active_layers(['ground','tracks','trains'])
 
 

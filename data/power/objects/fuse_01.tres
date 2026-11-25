@@ -7,7 +7,7 @@
 [ext_resource type="Script" path="res://core/components/comp_settings/hoverable_setting.gd" id="5_hov"]
 [ext_resource type="Texture2D" path="res://ui/icons/electric/electrical-resistance.svg" id="6_ic"]
 [ext_resource type="Script" path="res://core/components/comp_settings/fuse_setting.gd" id="7_ps"]
-[ext_resource type="Script" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="8_dr"]
+[ext_resource type="Script" path="res://core/components/comp_settings/mountdraggable_setting.gd" id="8_dr"]
 
 [sub_resource type="Resource" id="Resource_id"]
 script = ExtResource("3_id")

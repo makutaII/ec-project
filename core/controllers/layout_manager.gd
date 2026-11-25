@@ -280,6 +280,8 @@ func set_aisle(v: float) -> void:
 
 # XX claude-wire W3: плита стола показана (true) или скрыта (режим «Монтаж»). В сейв не пишется
 var plate_visible := true
+# XX claude-wire W4: включён вид «Монтаж» внутри Operate (WiringView): блоки ставятся и на низ плиты, выбор только пультов, блоков, проводов
+var wiring_active := false
 
 
 func set_plate_visible(on: bool) -> void:

@@ -59,6 +59,7 @@ func on_added() -> void:
 	instance.add_child(body)
 	under_body = StaticBody3D.new()
 	under_body.name = 'Underside'
+	under_body.set_meta(Mount.META, &"UNDER")   # XX claude-wire W4: луч монтажа знает, что это низ плиты
 	instance.add_child(under_body)
 	_apply_collision_layers()
 

@@ -323,8 +323,8 @@ func _kill_entity(e: Entity) -> void:
 func _is_pickable(e: Entity) -> bool:
 	if e == null:
 		return false
-	# XX claude-wire W3: в режиме «Монтаж» выбираются только пульты, блоки и провода (см. WiringView)
-	if Global.current_mode == &'wiring':
+	# XX claude-wire W3: при виде «Монтаж» выбираются только пульты, блоки и провода (см. WiringView)
+	if LYM.wiring_active:
 		return e.has_comp(C_PowerSource) or e.has_comp(C_PowerDevice) or e.has_comp(C_Wire)
 	return e.has_comp(C_TableSection) == (Global.current_mode == &'sections')
 
@@ -393,8 +393,8 @@ func _describe_hit(h: Dictionary) -> String:
 
 
 func _pick_ray() -> Dictionary:
-	# XX claude-wire W3: в режиме «Монтаж» только слой power (пульты, блоки, провода, клеммы): плита, трак и вагон не заслоняют
-	if Global.current_mode == &'wiring':
+	# XX claude-wire W3: при виде «Монтаж» только слой power (пульты, блоки, провода, клеммы): плита, трак и вагон не заслоняют
+	if LYM.wiring_active:
 		return controller.get_mouse_ray(Global.active_layers(['power', 'ghost']))
 	# XX claude-table T1b: в режиме «Секции» смотрим только плиту (вагон или трак на ней не заслоняют её)
 	if Global.current_mode == &'sections':

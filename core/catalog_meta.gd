@@ -19,13 +19,7 @@ const MODE_CATEGORIES := {
 	&"build": [&"train", &"track", &"road", &"building", &"decor", &"terrain"],
 	&"operate": [&"dc_controller", &"dcc_controller"],
 	&"sections": [&"table"],   # XX claude-table T2: секции подмакетника, не категория Build
-	&"wiring": [&"dc_controller"],   # XX claude-wire W3: режим «Монтаж», теги режима в MODE_TAGS
 	&"coaster": [&"coaster_track", &"coaster_car"],   # XX claude-coaster C1, C3: ATTN_27, режим «горки»
-}
-
-## XX claude-wire W3. Если у режима для категории есть запись, показываются только эти теги (остальные теги категории принадлежат другому режиму)
-const MODE_TAGS := {
-	&"wiring": {&"dc_controller": [&"wire"]},   # блоки (switch) добавит W4: их надо ставить на низ плиты
 }
 
 const CATEGORIES := {
@@ -122,11 +116,6 @@ static func tag_info(cat: StringName, tag: StringName) -> Dictionary:
 
 
 ## Категории режима в порядке показа
-## Теги категории, разрешённые режимом. Пусто: ограничения нет
-static func mode_tags(mode: StringName, cat: StringName) -> Array:
-	return MODE_TAGS.get(mode, {}).get(cat, [])
-
-
 static func categories_for_mode(mode: StringName) -> Array[StringName]:
 	var out: Array[StringName] = []
 	for c in MODE_CATEGORIES.get(mode, []):

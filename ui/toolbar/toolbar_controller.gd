@@ -41,7 +41,8 @@ var _mode: StringName = &""
 var _providers := {}   # режим -> CatalogProvider
 var _receivers := {}   # режим -> Callable(setting)
 var _dup_btn: Button
-# XX claude-wire W3: режим «Монтаж»: кнопки «Плита» (показать и скрыть столешницу) и «Схема» (пути)
+# XX claude-wire W3, W4: «Монтаж» внутри Operate: переключатель вида и кнопки «Плита» (столешница) и «Схема» (пути)
+var _wiring_btn: Button
 var _plate_btn: Button
 var _scheme_btn: Button
 var _del_dc_btn: Button       # Operate: вместо «Дубль» кнопка «Удалить 2D-контроллер» (U15)
@@ -63,8 +64,6 @@ func _ready() -> void:
 	register_mode(&"sections", EntityCatalogProvider.new(&"sections"), _emit_build_selected)
 	# XX claude-coaster C1: режим «Coaster» (ATTN_27): каталог траков горок, приёмник тот же: ToolController включит BuildTool
 	register_mode(&"coaster", EntityCatalogProvider.new(&"coaster"), _emit_build_selected)
-	# XX claude-wire W3: режим «Монтаж» (ATTN_23 §23.9): категория dc_controller, теги режима в CatalogMeta.MODE_TAGS
-	register_mode(&"wiring", EntityCatalogProvider.new(&"wiring"), _emit_build_selected)
 
 	_dup_btn = Button.new()
 	_dup_btn.text = "V"   # U15: на кнопке иконка того объекта, который будет повторён, и клавиша
@@ -97,7 +96,9 @@ func _ready() -> void:
 		_del_dc_btn.disabled = not dc_host.has_panel()
 	_view.actions_strip().add_child(_del_dc_btn)
 
-	# XX claude-wire W3: «Монтаж»: плита и пути
+	# XX claude-wire W3, W4: «Монтаж» внутри Operate (ATTN_23 §23.9)
+	_wiring_btn = _make_wiring_toggle("Монтаж", "Монтаж: блоки и провода под столом. Столешницу можно скрыть, выбор только пульты, блоки и провода")
+	_wiring_btn.toggled.connect(_on_wiring_toggled)
 	_plate_btn = _make_wiring_toggle("Плита", "Показать или скрыть столешницу. Блоки и провода под ней видны, когда плиты нет")
 	_plate_btn.button_pressed = LYM.plate_visible
 	_plate_btn.toggled.connect(func(on: bool) -> void: LYM.set_plate_visible(on))
@@ -137,6 +138,30 @@ func _wiring_view() -> WiringView:
 	return tc.wiring_view if tc != null else null
 
 
+func _on_wiring_toggled(on: bool) -> void:
+	var wv := _wiring_view()
+	if wv != null:
+		wv.set_active(on)
+
+
+## Вид «Монтаж» включился или выключился (кнопкой или выходом из Operate): кнопки «Плита» и «Схема» только при включённом виде
+func _on_wiring_active_changed(on: bool) -> void:
+	_wiring_btn.set_pressed_no_signal(on)
+	_refresh_wiring_buttons()
+
+
+func _refresh_wiring_buttons() -> void:
+	var in_operate := _mode == &"operate"
+	_wiring_btn.visible = in_operate and not Global.fast_debug   # без стола монтировать нечего
+	var wv := _wiring_view()
+	var on := wv != null and wv.active
+	_plate_btn.visible = in_operate and on
+	_scheme_btn.visible = in_operate and on
+	if on:
+		_plate_btn.set_pressed_no_signal(LYM.plate_visible)
+		_scheme_btn.set_pressed_no_signal(wv.paths == WiringView.Paths.SCHEME)
+
+
 func _on_scheme_toggled(on: bool) -> void:
 	var wv := _wiring_view()
 	if wv != null:
@@ -160,6 +185,8 @@ func _connect_game() -> void:
 		push_error("ToolbarController: ToolController не найден (группа tool_controller)")
 		return
 	object_selected.connect(tc.select_build_object)
+	if tc.wiring_view != null:
+		tc.wiring_view.active_changed.connect(_on_wiring_active_changed)   # XX claude-wire W4
 	duplicate_requested.connect(tc.duplicate_last_object)
 	tc.build_tool.last_changed.connect(on_last_changed)
 	tc.selection_changed.connect(_on_selection_for_duplicate)
@@ -178,13 +205,7 @@ func show_mode_ui(mode: StringName) -> void:
 	_dup_btn.visible = mode == &"build" or mode == &"coaster"   # дубль имеет смысл в Build и в Coaster (XX claude-coaster C6.1)
 	_refresh_dup_btn()
 	_del_dc_btn.visible = mode == &"operate"
-	# XX claude-wire W3: кнопки «Плита» и «Схема» только в «Монтаже»; состояние берём из игры
-	_plate_btn.visible = mode == &"wiring"
-	_scheme_btn.visible = mode == &"wiring"
-	if mode == &"wiring":
-		_plate_btn.set_pressed_no_signal(LYM.plate_visible)
-		var wv := _wiring_view()
-		_scheme_btn.set_pressed_no_signal(wv == null or wv.paths == WiringView.Paths.SCHEME)
+	_refresh_wiring_buttons()   # XX claude-wire W4
 	_view.mode_label().text = _mode_title(mode)
 	_rebuild_category_bar()
 	_view.show()
@@ -235,7 +256,6 @@ static func _mode_title(mode: StringName) -> String:
 		&"operate": return "Operate"
 		&"observe": return "Observe"
 		&"sections": return "Секции"
-		&"wiring": return "Монтаж"   # XX claude-wire W3
 		&"coaster": return "Coaster"   # XX claude-coaster C1
 	return String(mode)
 

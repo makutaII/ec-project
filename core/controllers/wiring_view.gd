@@ -1,18 +1,22 @@
 class_name WiringView extends Node
 
-# XX claude-wire W3 (новый файл)
+# XX claude-wire W3 (новый файл), W4: вид «Монтаж» внутри Operate
 #####################
-## WiringView. Вид режима «Монтаж» (ATTN_23 §23.9)
+## WiringView. Вид «Монтаж» (ATTN_23 §23.9)
 #####################
-## Что показывает режим «Монтаж», пока он включён: плиту стола (LYM.plate_visible) и «пути»: как есть или схема.
-## Схема прячет всё, кроме путей и проводки (поезда, здания, декор, рельеф, шпатлёвка, вода), чтобы под столом и
-## над ним было видно блоки, провода и клеммы клипов. Прячет через Entity.visible: коллизии, физика и логика не меняются.
-## Выход из режима возвращает всё: плита показана, скрытые объекты видны (с прежней видимостью, если её ставил кто-то другой).
-## Состояние не сохраняется в сейв: игра открывается в обычном виде.
-## Слой питания (кнопка «Слой питания» в боковой панели) режим не трогает: его игрок включает сам.
-## Клавиша «Плита» (plate_toggle) работает только в этом режиме.
+## «Монтаж» это не отдельный режим, а переключатель внутри Operate (кнопка «Монтаж» в полосе действий ToolDock).
+## Пока он включён (LYM.wiring_active): плита стола скрывается и показывается кнопкой «Плита» (клавиша plate_toggle),
+## «пути» либо как есть, либо схема, выбор мышью ограничен пультами, блоками и проводами (SelectTool), блоки ставятся
+## на низ плиты и на раму (Mount, C_MountDraggable).
+## Схема прячет всё, кроме путей и проводки (поезда, здания, декор, рельеф, шпатлёвка, вода), чтобы были видны блоки, провода
+## и клеммы клипов. Прячет через Entity.visible: коллизии, физика и логика не меняются.
+## Выход из вида (кнопка или смена режима) возвращает всё: плита показана, скрытые объекты видны (с прежней видимостью,
+## если её ставил кто-то другой). Состояние не сохраняется в сейв: игра открывается в обычном виде.
+## Слой питания (кнопка «Слой питания» в боковой панели) вид не трогает: его игрок включает сам.
 
-## ⚡Сигнал: сменились «пути» (кнопка в панели режима)
+## ⚡Сигнал: вид включён или выключен
+signal active_changed(on: bool)
+## ⚡Сигнал: сменились «пути» (кнопка в панели)
 signal paths_changed(paths: int)
 
 enum Paths { ALL, SCHEME }
@@ -20,6 +24,8 @@ enum Paths { ALL, SCHEME }
 ## Категории, которые схема прячет. Дороги (track), блоки и пульты (dc_controller, dcc_controller), провода остаются
 const HIDDEN_CATEGORIES: Array[StringName] = [&"train", &"building", &"decor", &"terrain"]
 const META_PREV := &"_wiring_prev_visible"
+## Режим, внутри которого живёт вид
+const HOST_MODE := &"operate"
 
 var paths: int = Paths.SCHEME
 var active := false
@@ -37,17 +43,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Зовёт ToolController при смене режима
+## Зовёт ToolController при смене режима: вне Operate вид выключается
 func on_mode_changed(mode: StringName) -> void:
-	var on := mode == &"wiring"
+	if mode != HOST_MODE:
+		set_active(false)
+
+
+func set_active(on: bool) -> void:
 	if on == active:
 		return
 	active = on
+	LYM.wiring_active = on
 	if on:
 		_apply_paths()
 	else:
 		_restore()
 		LYM.set_plate_visible(true)
+	Hints.set_mode(&"wiring" if on else Global.current_mode)   # тексты подсказок "wiring/..." (HINTS)
+	active_changed.emit(on)
 
 
 func set_paths(value: int) -> void:

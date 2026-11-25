@@ -405,7 +405,8 @@ func _apply_duplicate_state() -> void:
 
 # XX claude-terra
 func _pick_mask() -> int:
-	return Global.active_layers(ghost_setting.get_pick_layers())
+	# XX claude-wire W4: блоки с монтажом при виде «Монтаж» ставятся и на подстолье
+	return Mount.pick_mask(ghost_setting, Global.active_layers(ghost_setting.get_pick_layers()))
 
 
 

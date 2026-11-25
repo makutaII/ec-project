@@ -411,6 +411,7 @@ func _build_supports() -> void:
 			config.table_leg, config, LYM.config.apron):
 		var mi := _box(table, part["name"], part["size"], part["center"], COL_TABLE_LEG, room_layer, 1, true)
 		if mi != null:
+			mi.get_parent().set_meta(Mount.META, &"FRAME")   # XX claude-wire W4: брус, ножка, кронштейн, царга: блок крепится к боковой грани
 			var b := part["basis"] as Basis
 			if not b.is_equal_approx(Basis.IDENTITY):
 				var body := mi.get_parent() as Node3D
