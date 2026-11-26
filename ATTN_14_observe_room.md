@@ -178,7 +178,7 @@ class_name QualityPreset extends Resource       # Quality
 
 ### `ObserveController` / `ObserveTool`
 
-- `ObserveController` ведёт только логику режима: вход и выход, сигнал `observe_action(category, id, pressed)`. Категории и карточки лежат в `CardCatalogProvider` (`ui/toolbar/`), кнопки рисует общий `ToolbarController` ([ATTN_17](ATTN_17_ui.md) U4). Имена нод `ObservePanel`, `ObserveObjectsContainer`, `%ObserveBtnLvl2Container` важны: `ModeController` обращается через `capitalize()`; `UIGenerator.create_btn_tags` выбирает контроллер словарём «режим → контроллер».
+- `ObserveController` ведёт только логику режима: вход и выход, сигнал `observe_action(category, id, pressed)`. Категории и карточки лежат в `CardCatalogProvider` (`ui/toolbar/`), кнопки рисует общий `ToolbarController` ([ATTN_17](ATTN_17_ui.md) §17.5). Имена нод `ObservePanel`, `ObserveObjectsContainer`, `%ObserveBtnLvl2Container` важны: `ModeController` обращается через `capitalize()`; `UIGenerator.create_btn_tags` выбирает контроллер словарём «режим → контроллер».
 - Карточки Observe это не `EntitySetting`, а `ObserveCard` (Button, создаётся кодом); `UIGenerator._collect_data` их не трогает.
 - `ObserveTool` в `%Tools`: клик по составу задаёт цель follow-камеры (через `C_CameraTarget`), ховер и выделение выключены, `Esc` выход из follow.
 - **При входе:** `InfoPanel.set_target(null)`, ховер и выделение выключены, `PGM.toggle_power_layer(false)`, ручки flex скрыты (снято выделение), `Outline.enabled = false`. **При выходе:** вернуть то, что выключали, камеру на `Gimbal`, `photo_mode = false`.

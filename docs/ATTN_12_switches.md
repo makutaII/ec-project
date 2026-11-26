@@ -442,7 +442,7 @@
 
 **Как добавить хоткей стрелке.** Действие заводится в Input Map (`key_t` там уже есть и больше нигде в проекте не используется), обработчик ставится в `C_Switch`
 (по образцу `_unhandled_key_input`), команда идет через `request(route, source)`, а не напрямую в `C_Path`. Подсказки клавиш внизу экрана хранятся в
-`core/controllers/hint_manager.gd` (константа `HINTS`, ключи `select_sel`, `operate/select_sel`). T и клик по рычагу внесены (ключи `select_switch`, `operate/select_switch`, ATTN_17 U6.3); клавиша в подсказке берётся из действия `switch_throw`.
+`core/controllers/hint_manager.gd` (константа `HINTS`, ключи `select_sel`, `operate/select_sel`). T и клик по рычагу внесены (ключи `select_switch`, `operate/select_switch`, ATTN_17 §17.7); клавиша в подсказке берётся из действия `switch_throw`.
 
 ### Составы: хоткеи и мышь
 
@@ -490,7 +490,7 @@
 
 **Управление и интерфейс**
 
-- [x] Подсказки `Hints`: внесены клавиша T и клик по рычагу (`hint_manager.gd`: `select_none`, `operate/select_none`, `select_switch`, `operate/select_switch`; ATTN_17 U6.3).
+- [x] Подсказки `Hints`: внесены клавиша T и клик по рычагу (`hint_manager.gd`: `select_none`, `operate/select_none`, `select_switch`, `operate/select_switch`; ATTN_17 §17.7).
 - [ ] Отказ команды (T на ручной стрелке, замок под вагоном) игрок видит только во вкладке «Стрелка»: нужна обратная связь в игре (подсказка, звук, мигание).
 - [ ] Игровое управление дистанционной стрелкой (пульт, провода, привод, аксессуары): пока событие `on_switch_request` и временная клавиша T (Roadmap 13).
 - [ ] Вкладка «Стрелка» только отладочная, игровой интерфейс стрелки не сделан.

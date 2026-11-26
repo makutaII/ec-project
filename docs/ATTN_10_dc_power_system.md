@@ -381,7 +381,7 @@
 - [ATTN_GDD.md](../ATTN_GDD.md) §4, §7, §9, §13
 - [ATTN_12_switches.md](ATTN_12_switches.md) E0–E3, REMOTE-стрелка
 - [ATTN_16_mechanisms.md](../ATTN_16_mechanisms.md) §16.11, C3–C8
-- [ATTN_17_ui.md](../ATTN_17_ui.md) U15, D10
+- [ATTN_17_ui.md](../ATTN_17_ui.md) §17.12, §17.2
 - [ATTN_19_game_flow.md](../ATTN_19_game_flow.md) `sandbox_setup`
 - [ATTN_22_library.md](../ATTN_22_library.md) правила режимов
 - [0_ATTN_21_dcc.md](../0_ATTN_21_dcc.md)
