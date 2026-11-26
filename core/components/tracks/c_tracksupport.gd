@@ -212,21 +212,23 @@ func _rebuild() -> void:
 			var beam := yaw
 			var beam_c := p - Vector3(0, 0.15, 0)
 			var beam_drop := 0.3                  # на сколько ниже p кончается низ ригеля по центру
-			var beam_extra := 0.0                 # просадка нижнего конца ригеля от наклона (полуширина 1.5)
+			var beam_size := path.support_beam_size()   # XX claude-car CS1c: у дороги по ширине полотна, у рельсов прежние 3.0 x 0.3 x 0.8
+			var pillar := path.support_pillar_size()
+			var beam_extra := 0.0                 # просадка нижнего конца ригеля от наклона (полуширина ригеля)
 			if roll != 0.0:
 				beam = yaw * Basis(Vector3(0, 0, -1), roll)
 				beam_c = p - beam.y * 0.15
 				beam_drop = 0.3 * beam.y.y
-				beam_extra = 1.5 * absf(sin(roll))
+				beam_extra = beam_size.x * 0.5 * absf(sin(roll))
 			var ground := _ground_y(space, p, path)
 			if is_nan(ground) or p.y - ground < gs.support_min_clearance + beam_extra:
 				continue
 			var col_h := p.y - ground - beam_drop
 			# ригель под балластом
-			_add_box(xf, bt, bs, inv, beam, Vector3(3.0, 0.3, 0.8), beam_c)
+			_add_box(xf, bt, bs, inv, beam, beam_size, beam_c)
 			# столб
 			if col_h > 0.05:
-				_add_box(xf, bt, bs, inv, yaw, Vector3(1.0, col_h, 0.8), Vector3(p.x, ground + col_h * 0.5, p.z))
+				_add_box(xf, bt, bs, inv, yaw, Vector3(pillar.x, col_h, pillar.y), Vector3(p.x, ground + col_h * 0.5, p.z))
 
 	if xf == _last_xf and not _coll_dirty:
 		return
@@ -305,7 +307,7 @@ func _apply_collision_state() -> void:
 ## выпуклого шейпа листа, и луч проходит насквозь. Аналитика не зависит от физического кадра
 func _ground_y(space: PhysicsDirectSpaceState3D, p: Vector3, path: C_Path) -> float:
 	var q := PhysicsRayQueryParameters3D.create(p - Vector3(0, 0.02, 0), p - Vector3(0, 500, 0),
-			Global.active_layers(['ground', 'tracks']))
+			Global.active_layers(['ground', 'tracks', 'roads']))   # XX claude-car CS1c: под рельсом или дорогой может быть дорога, это пролёт
 	q.collide_with_areas = true               # балласт это Area3D
 	var own: Array[RID] = []
 	if path.ballast_node:

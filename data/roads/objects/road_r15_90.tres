@@ -11,16 +11,14 @@
 [ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="10_sl"]
 [ext_resource type="Script" uid="uid://chprgtlxn3aub" path="res://core/components/comp_settings/blockable_setting.gd" id="11_bl"]
 [ext_resource type="Script" uid="uid://bv065wdiw674c" path="res://core/components/comp_settings/socked_setting.gd" id="12_sk"]
-[ext_resource type="Script" uid="uid://bj82xdgcvptyt" path="res://core/components/road/road_bed_setting.gd" id="13_rb"]
+[ext_resource type="Script" uid="uid://cs257ge2f37bu" path="res://core/components/comp_settings/tracksupport_setting.gd" id="13_su"]
 [ext_resource type="Texture2D" uid="uid://c8tndy1lksot8" path="res://ui/icons/transport/rail-road.svg" id="15_ic"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="16_es"]
 
 [sub_resource type="Resource" id="Resource_cfg"]
 script = ExtResource("2_rc")
-road_width = 5.0
 radius = 15.0
 deg = 90.0
-collision_width = 5.0
 
 [sub_resource type="Resource" id="Resource_id"]
 script = ExtResource("3_id")
@@ -48,8 +46,8 @@ script = ExtResource("11_bl")
 [sub_resource type="Resource" id="Resource_sock"]
 script = ExtResource("12_sk")
 
-[sub_resource type="Resource" id="Resource_bed"]
-script = ExtResource("13_rb")
+[sub_resource type="Resource" id="Resource_sup"]
+script = ExtResource("13_su")
 
 [resource]
 script = ExtResource("16_es")
@@ -60,6 +58,6 @@ description = "Поворот радиуса 15, 90°"
 category = &"road"
 tag = &"curve"
 icon = ExtResource("15_ic")
-components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_vis"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock"), SubResource("Resource_bed")])
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_vis"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock"), SubResource("Resource_sup")])
 pick_layers = Array[StringName]([&"ground"])
 metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

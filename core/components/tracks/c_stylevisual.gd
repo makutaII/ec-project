@@ -101,6 +101,8 @@ func _build_collision(curve: Curve3D, L: float) -> void:
 	head.get_child(0).queue_free()
 
 	var cuts := TrackMeshBuilder.collision_cuts(curve, L, false, true)   # прямая: одна коллизия
+	var own_path := get_comp(C_Path) as C_Path
+	var rails := own_path == null or own_path.has_rail_shapes()   # XX claude-car CS1c: у дороги рельсов нет
 	for i in cuts.size() - 1:
 		var bx := TrackMeshBuilder.segment_boxes(style, curve, L, cuts[i], cuts[i + 1])
 		var cb := TrackMeshBuilder.new_shape(bx.ballast_size)
@@ -110,6 +112,8 @@ func _build_collision(curve: Curve3D, L: float) -> void:
 		var hb := TrackMeshBuilder.new_shape(bx.ballast_size)
 		hb.transform = bx.ballast_xf
 		head.add_child(hb)
+		if not rails:
+			continue
 		var hl := TrackMeshBuilder.new_shape(bx.rail_size)
 		hl.transform = bx.rail_l_xf
 		head.add_child(hl)

@@ -8,7 +8,7 @@ class_name C_RoadPath extends C_Path
 ## из паспорта RoadConfig (PathSetting.apply_passport). Отличия от рельса:
 ##  - сеть &"road": сокеты дороги не стыкуются с рельсом и наоборот (C_Socket.network);
 ##  - основание лежит на физическом слое roads, а не tracks: рельсовые траки и вагоны дорогу не видят.
-## Ложе рельефа берёт ширину полотна (bed_half_width, CS1b); опоры эстакады приходят в CS1c.
+## Ложе рельефа берёт ширину полотна (bed_half_width, CS1b), опоры эстакады (C_TrackSupport) строятся по размерам из support_beam_size (CS1c).
 
 
 ## Сеть из паспорта RoadConfig; без паспорта &"road"
@@ -29,6 +29,21 @@ func bed_half_width() -> float:
 	if vis != null and vis.style != null and vis.style.collision_width > 0.0:
 		return vis.style.collision_width * 0.5
 	return super.bed_half_width()
+
+
+## Ригель по ширине полотна (CS1c): края дороги не свисают, ригель не шире полотна. Глубина 1.0 вдоль пути
+func support_beam_size() -> Vector3:
+	return Vector3(bed_half_width() * 2.0, 0.3, 1.0)
+
+
+## Столб шире рельсового: треть ширины полотна, но не меньше 1.0 и не больше 2.0
+func support_pillar_size() -> Vector2:
+	return Vector2(clampf(bed_half_width() * 2.0 * 0.3, 1.0, 2.0), 1.0)
+
+
+## Рельсов у дороги нет: шейпы рельсов в HeadStaticBody3D не строятся (остаётся один бокс основания на сегмент)
+func has_rail_shapes() -> bool:
+	return false
 
 
 ## Основание дороги на слое roads (Global.active_layers)

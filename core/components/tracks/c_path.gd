@@ -476,6 +476,25 @@ static func network_of(e: Entity) -> StringName:
 	return p.network_id() if p != null else &"rail"
 
 
+# XX claude-car CS1c (ATTN_28 Р11)
+## Размер ригеля под путём (C_TrackSupport): ширина поперёк пути, высота, глубина вдоль. У рельсов прежние 3.0 x 0.3 x 0.8,
+## C_RoadPath отдаёт ригель по ширине полотна
+func support_beam_size() -> Vector3:
+	return Vector3(3.0, 0.3, 0.8)
+
+
+# XX claude-car CS1c
+## Размер столба опоры без высоты: ширина и глубина, ю. У рельсов прежние 1.0 x 0.8
+func support_pillar_size() -> Vector2:
+	return Vector2(1.0, 0.8)
+
+
+# XX claude-car CS1c
+## Нужны ли у пути шейпы рельсов в HeadStaticBody3D (два бокса на сегмент коллизии). У дороги рельсов нет: C_RoadPath отдаёт false
+func has_rail_shapes() -> bool:
+	return true
+
+
 # XX claude-car CS1b (ATTN_28 Р10)
 ## Половина ширины ложа рельефа под путём, ю: по ней считаются образцы балласта (канава в листе, автоложе поля, насыпь).
 ## У рельсов общая ширина балласта из настроек; C_RoadPath отдаёт половину ширины полотна
