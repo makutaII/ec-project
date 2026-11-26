@@ -475,6 +475,7 @@ func wheel_rotate(delta):
 		var _angular_velocity = -wheel_speed / _r
 		# Применяем вращение к мешам колесных пар вокруг локальной оси X
 		wheel.wheel_node.rotate_object_local(Vector3.RIGHT, _angular_velocity * delta)
+		wheel['angle'] = fposmod(float(wheel.get('angle', 0.0)) + _angular_velocity * delta, TAU)   # накопленный угол: по нему идёт фаза привода
 		
 		# Считаем проскальзывание для шейдера
 		# XX claude замена
@@ -486,6 +487,37 @@ func wheel_rotate(delta):
 		var slip_normalized = clampf(slip_amount / max_expected_slip, 0.0, 1.0)
 
 		_set_wheel_slip(wheel, slip_normalized)
+
+
+## Фаза колеса 0..1 за оборот (BogieMath.wheel_phase): ход вперёд увеличивает фазу, по ней идёт цикл привода (WHEEL_PHASE).
+## role: роль колеса модели (wheel_<n>_<k>); пусто или другая роль: самое большое колесо (у паровоза ведущее). Колёс нет: 0
+func wheel_phase(role: StringName = &"") -> float:
+	var w := _phase_wheel(role)
+	if w.is_empty():
+		return 0.0
+	return BogieMath.wheel_phase(float(w.get('angle', 0.0)))
+
+
+var _phase_cache := {}   # роль -> колесо (словарь из wheel_nodes)
+
+
+func _phase_wheel(role: StringName) -> Dictionary:
+	if role != &"" and ModelRig.parse_wheel(String(role)).is_empty():
+		role = &""   # роль не похожа на колесо (в MechanismConfig part_role по умолчанию другое): берём ведущее
+	if _phase_cache.has(role):
+		return _phase_cache[role]
+	var best := {}
+	for w in wheel_nodes:
+		if role != &"":
+			if w.get('role', &"") == role:
+				best = w
+				break
+		elif best.is_empty() or float(w.radius) > float(best.radius) + 0.001:
+			best = w
+	if best.is_empty() and role != &"":
+		push_warning("[C_Bogie] %s: колесо с ролью '%s' не найдено, фаза привода не считается" % [entity.name if entity else "?", role])
+	_phase_cache[role] = best   # и пустой результат: не искать каждый кадр
+	return best
 
 
 ## Все колёса без проскальзывания (шейдер в нормальный цвет)

@@ -37,6 +37,7 @@ class Mech extends RefCounted:
 	var anim_t0 := 0.0          # только ANIM: время первого ключа = состояние 0
 	var anim_t1 := 0.0          # только ANIM: время последнего ключа = состояние 1
 	var dbg_dirty := false      # отладка: поза узлов расходится с состоянием (уже сообщено)
+	var linear := false         # только ANIM: t ведёт внешний источник (фаза колеса), время анимации линейно по t, без smoothstep
 
 	## Часть найдена: узел (SLIDE, ROTATE) или дорожки анимации (ANIM)
 	func found() -> bool:
@@ -55,7 +56,7 @@ class Mech extends RefCounted:
 		return was_moving and not is_moving()
 
 	func apply() -> void:
-		var k := smoothstep(0.0, 1.0, t)
+		var k := t if linear else smoothstep(0.0, 1.0, t)
 		if cfg.actuator == MechanismConfig.Actuator.ANIM:
 			# Состояние 0..1 это время между первым и последним ключом анимации (у экспорта из Blender первый ключ
 			# не обязан стоять в нуле). Позы ставим сами, без AnimationPlayer: нет автопроигрывания, нет конфликта плееров
@@ -86,7 +87,7 @@ class Mech extends RefCounted:
 	func pose_error() -> float:
 		if anim == null:
 			return 0.0
-		var time := lerpf(anim_t0, anim_t1, smoothstep(0.0, 1.0, t))
+		var time := lerpf(anim_t0, anim_t1, t if linear else smoothstep(0.0, 1.0, t))
 		var err := 0.0
 		for e in anim_tracks:
 			var n: Node3D = e.node
@@ -174,6 +175,8 @@ var _gizmos_on := false
 var _ghost := false
 var _debug := false                   # у какого-то механизма включён MechanismConfig.debug_log
 var _lights_built := false     # on_entity_ready создал источники (set_light_configs пересоздаёт их)
+var _phase_mechs: Array[Mech] = []   # механизмы с source = WHEEL_PHASE: позы ставит _update_phase в physics_process
+var _bogie_ref: C_Bogie
 ## Направление движения для DIRECTION: 1 носом (-Z) вперёд, -1 хвостом
 var _dir := 1
 var _has_dir := false       # есть источники с правилом DIRECTION
@@ -211,6 +214,12 @@ func on_entity_ready() -> void:
 				m.rest = m.node.transform
 		m.t = cfg.start_state
 		m.target = cfg.start_state
+		if cfg.source == MechanismConfig.Source.WHEEL_PHASE:
+			if cfg.actuator == MechanismConfig.Actuator.ANIM:
+				m.linear = true
+				_phase_mechs.append(m)
+			else:
+				push_warning("[C_Mechanisms] %s: механизм '%s': источник WHEEL_PHASE работает только с actuator = ANIM" % [entity.name, cfg.id])
 		_mechs[cfg.id] = m
 		_order.append(cfg.id)
 		_debug = _debug or cfg.debug_log
@@ -436,8 +445,8 @@ func on_mechanism_toggle(data: Dictionary) -> void:
 ## Публичный API (для InfoPanel и тестов)
 func set_state(id: StringName, state: float) -> void:
 	var m: Mech = _mechs.get(StringName(id))
-	if m == null or not m.enabled or _ghost:
-		return
+	if m == null or not m.enabled or _ghost or m.cfg.source != MechanismConfig.Source.COMMAND:
+		return   # механизмом с внешним источником (фаза колеса) команды не управляют
 	m.target = clampf(state, 0.0, 1.0)
 	m.manual = true
 	_dbg(m, "команда: цель %.2f (сейчас t=%.2f)" % [m.target, m.t])
@@ -588,7 +597,7 @@ func _setup_rules() -> void:
 			_has_power = true
 	if has_night and not GFX.time_of_day_changed.is_connected(_on_time_of_day_changed):
 		GFX.time_of_day_changed.connect(_on_time_of_day_changed)
-	set_physics_process(_has_dir or _has_power)
+	set_physics_process(_has_dir or _has_power or not _phase_mechs.is_empty())
 	_drive_all(true)
 
 
@@ -642,8 +651,29 @@ func _on_time_of_day_changed(_id: StringName) -> void:
 func _physics_process(_delta: float) -> void:
 	if _ghost:
 		return
+	_update_phase()
 	_update_power()
 	_update_direction()
+
+
+## Привод от колеса (source = WHEEL_PHASE): состояние механизма это фаза колеса за оборот, позы линейно по анимации.
+## Колёса стоят: фаза не меняется, ничего не пересчитывается
+func _update_phase() -> void:
+	if _phase_mechs.is_empty():
+		return
+	if _bogie_ref == null:
+		_bogie_ref = get_comp(C_Bogie) as C_Bogie
+		if _bogie_ref == null:
+			return
+	for m in _phase_mechs:
+		if not m.enabled or not m.found():
+			continue
+		var ph := _bogie_ref.wheel_phase(m.cfg.part_role)
+		if absf(ph - m.t) < 0.0002:
+			continue
+		m.t = ph
+		m.target = ph
+		m.apply()
 
 
 # ==========================================
@@ -990,6 +1020,8 @@ func _apply_saved() -> void:
 		var m: Mech = _mechs.get(StringName(key))
 		if m == null:
 			continue
+		if m.linear:
+			continue   # фазу ведёт колесо, из сейва её не берём
 		var s: Dictionary = _saved[key]
 		m.t = float(s.get("t", m.t))
 		m.target = m.t

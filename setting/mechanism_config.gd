@@ -3,8 +3,8 @@ class_name MechanismConfig extends Resource
 ########################
 ## Описание одного механизма вагона/локо. Массив лежит в WagonConfig.mechanisms.
 ########################
-## Сейчас реализованы: source = COMMAND, actuator = SLIDE / ROTATE / ANIM.
-## Остальное - заготовки под следующие шаги (дышла, фары, дым, вентилятор, пантограф).
+## Сейчас реализованы: source = COMMAND, actuator = SLIDE / ROTATE / ANIM; source = WHEEL_PHASE с actuator = ANIM (дышла и привод паровоза).
+## Остальное - заготовки под следующие шаги (фары, дым, вентилятор, пантограф).
 
 enum Source { COMMAND, WHEEL_PHASE, SPEED, POWERED, DIRECTION }
 ## ANIM (0_ATTN_24 §24.6): движение ведёт анимация из .glb (Blender Action), состояние 0..1 это время между первым и последним ключом.
@@ -16,10 +16,13 @@ enum Actuator { SLIDE, ROTATE, SPIN, CLIP, LIGHT, PARTICLES, ANIM }
 @export var title: String = "Дверь"
 
 @export_category("Что и как двигается")
+## WHEEL_PHASE (только с ANIM): состояние 0..1 это фаза колеса за оборот, анимация mech_<id> это один оборот (первый и последний ключ
+## одинаковы, рост кадра идёт вперёд по ходу). Команды игрока такой механизм игнорирует; он не сохраняется в сейве
 @export var source: Source = Source.COMMAND
 @export var actuator: Actuator = Actuator.SLIDE
 
-## Роль подвижной части (Custom Property "role" в Blender, либо имя узла). У ANIM не используется: узлы двигает анимация
+## Роль подвижной части (Custom Property "role" в Blender, либо имя узла). У ANIM не используется: узлы двигает анимация.
+## У source = WHEEL_PHASE: роль колеса wheel_<n>_<k>, по которому идёт фаза; пусто или другое значение: самое большое колесо (ведущее)
 @export var part_role: StringName = &"door_left"
 ## Запасные имена узла (для старых моделей)
 @export var part_aliases: PackedStringArray = []
