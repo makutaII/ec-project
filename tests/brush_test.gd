@@ -233,53 +233,100 @@ func _test_clip() -> void:
 	check("стол: мазок вне стола ничего не меняет", g.is_empty())
 
 
+## H2b: поверхность кисти для тестов (без текстуры, различается оттенком и повтором)
+func _surf(kind: int, tint: Color, tile := 3.0, weight := 1.0) -> FieldSurface:
+	var s := FieldSurface.new()
+	s.kind = kind
+	s.tint = tint
+	s.tile = tile
+	s.weight = weight
+	return s
+
+
+## H2b: палитра с различимыми служебными слотами и поверхностями кистей list
+func _palette(list: Array[FieldSurface]) -> FieldMaterials:
+	var m := FieldMaterials.new()
+	m.base = _surf(0, Color(1, 1, 1), 3.0)
+	m.cliff = _surf(2, Color(0.5, 0.5, 0.5), 5.0)
+	m.bed = _surf(1, Color(0.9, 0.8, 0.6), 2.5)
+	m.set_brush_surfaces(list)
+	return m
+
+
 func _test_types() -> void:
+	var s_rock := _surf(TerrainField.ROCK, Color(0.3, 0.9, 0.3), 4.0)
+	var s_smooth := _surf(TerrainField.SMOOTH, Color(0.6, 0.2, 0.2), 3.0)
+	var s_rocky := _surf(TerrainField.ROCKY, Color(0.2, 0.2, 0.8), 2.0)
+	var pal := _palette([s_rock, s_smooth, s_rocky])
 	var f := TerrainField.new()
 	var b := FieldBrush.new()
+	b.materials = pal
 	b.radius = 4.0
-	b.mix = Vector3(0, 0, 1)
+	b.set_surfaces([s_rock])
 	var c := Vector2(20.0, 20.0)
 	f.begin_edit()
 	b.stroke(f, c, 1.0, 1, 1.0, _big_clip())
 	f.end_edit()
 	var ci := node(c.x)
 	check("тип: скалистая кисть пишет скалистый тип", f.type_at(ci, ci) == TerrainField.ROCK and f.type_at(ci + 2, ci) == TerrainField.ROCK)
-	b.mix = Vector3(1, 0, 0)
+	check("материал: кисть пишет слот своей поверхности", f.mat_at(ci, ci) == pal.slot_of(s_rock) and f.mat_at(ci + 2, ci) == pal.slot_of(s_rock) and pal.slot_of(s_rock) >= FieldMaterials.SLOT_FIRST, str(f.mat_at(ci, ci)))
+	b.set_surfaces([s_smooth])
 	f.begin_edit()
 	b.stroke(f, c, 1.0, 0, 1.0, _big_clip())
 	f.end_edit()
 	check("тип: выравнивание гладкой кистью перекрашивает площадку", f.type_at(ci, ci) == TerrainField.SMOOTH)
+	check("материал: выравнивание перекрашивает слот площадки", f.mat_at(ci, ci) == pal.slot_of(s_smooth), str(f.mat_at(ci, ci)))
 	var g := TerrainField.new()
 	var m := FieldBrush.new()
+	m.materials = pal
 	m.radius = 6.0
-	m.mix = Vector3(0.4, 0.3, 0.3)
+	var m1 := _surf(TerrainField.SMOOTH, Color(0.6, 0.2, 0.2), 3.0, 0.4)
+	var m2 := _surf(TerrainField.ROCKY, Color(0.2, 0.2, 0.8), 2.0, 0.3)
+	var m3 := _surf(TerrainField.ROCK, Color(0.3, 0.9, 0.3), 4.0, 0.3)
+	m.set_surfaces([m1, m2, m3])
 	g.begin_edit()
 	m.stroke(g, c, 1.0, 1, 1.0, _big_clip())
 	g.end_edit()
 	var kinds := {}
+	var mats := {}
 	for j in range(ci - 8, ci + 9):
 		for i in range(ci - 8, ci + 9):
 			if g.has_layer(i, j):
 				kinds[g.type_at(i, j)] = true
+				mats[g.mat_at(i, j)] = true
 	check("тип: смешанная кисть даёт все три типа", kinds.size() == 3, str(kinds.keys()))
-	check("тип: подпись одного типа и смеси", b.type_label() == "гладкая" and m.type_label() == "смесь")
+	check("материал: смешанная кисть даёт три разных слота", mats.size() == 3, str(mats.keys()))
+	check("тип: подпись одной поверхности и смеси", b.type_label() == "гладкая" and m.type_label() == "смесь")
+	s_smooth.label = "лужайка"
+	b.set_surfaces([s_smooth])
+	check("тип: подпись поверхности из её label", b.type_label() == "лужайка")
+	check("тип: кисть без поверхностей красит базовой (слот 0, гладкая)", FieldBrush.new().mat_for(3, 3) == FieldMaterials.SLOT_BASE and FieldBrush.new().type_for(3, 3) == TerrainField.SMOOTH)
 	check("тип: тип узла стабилен", m.type_for(5, 7) == m.type_for(5, 7))
 	# H4: смесь пятнами (блок MIX_BLOCK x MIX_BLOCK узлов одного типа), а не по ячейкам
 	var blocks_ok := true
 	for bj in range(-3, 4):
 		for bi in range(-3, 4):
-			var t0 := m.type_for(bi * FieldBrush.MIX_BLOCK, bj * FieldBrush.MIX_BLOCK)
+			var t0 := m.bits_for(bi * FieldBrush.MIX_BLOCK, bj * FieldBrush.MIX_BLOCK)
 			for dj in FieldBrush.MIX_BLOCK:
 				for di in FieldBrush.MIX_BLOCK:
-					if m.type_for(bi * FieldBrush.MIX_BLOCK + di, bj * FieldBrush.MIX_BLOCK + dj) != t0:
+					if m.bits_for(bi * FieldBrush.MIX_BLOCK + di, bj * FieldBrush.MIX_BLOCK + dj) != t0:
 						blocks_ok = false
-	check("тип: смесь даёт пятна, узлы блока одного типа", blocks_ok)
+	check("тип: смесь даёт пятна, узлы блока одного типа и слота", blocks_ok)
 	var same := 0
 	for j in range(0, 40):
 		for i in range(0, 40):
-			if m.type_for(i, j) == m.type_for(i + 1, j):
+			if m.bits_for(i, j) == m.bits_for(i + 1, j):
 				same += 1
 	check("тип: соседние узлы чаще одного типа, чем разных", same > 800, str(same))
+	# слот материала переживает утолщение слоя и сейв
+	var h := TerrainField.new()
+	b.set_surfaces([s_rock])
+	h.begin_edit()
+	b.stroke(h, c, 1.0, 1, 1.0, _big_clip())
+	h.end_edit()
+	var h2 := TerrainField.new()
+	h2.load_data(h.save_data())
+	check("материал: слот и тип узла возвращаются из сейва", h2.mat_at(ci, ci) == pal.slot_of(s_rock) and h2.type_at(ci, ci) == TerrainField.ROCK, str(h2.mat_at(ci, ci)))
 
 
 func _test_floor() -> void:
@@ -317,18 +364,47 @@ func _test_floor() -> void:
 	check("пол: refresh_floor обновляет и чанки без данных", near(h.floor_at(2, 2), 1.5))
 
 
-## H4: набор материалов поверхности поля
+## H4, H2b: палитра материалов поверхности поля
 func _test_materials() -> void:
 	var m := load("res://data/terrain/field_materials.tres") as FieldMaterials
 	check("материалы: набор загружается", m != null)
 	if m == null:
 		return
-	check("материалы: три канала с текстурой, запасной без", m.texture_of(0) != null and m.texture_of(1) != null and m.texture_of(2) != null and m.texture_of(3) == null)
-	check("материалы: оттенки и размеры повтора для четырёх каналов", m.tint.size() == FieldMaterials.CHANNELS and m.tile.size() == FieldMaterials.CHANNELS)
-	check("материалы: размер повтора положительный", m.tile_of(0) > 0.0 and m.tile_of(2) > 0.0 and m.tile_of(9) > 0.0)
+	check("материалы: служебные поверхности с текстурой (плоская, склоны, ложе)", m.base != null and m.cliff != null and m.bed != null and m.base.texture != null and m.cliff.texture != null and m.bed.texture != null)
+	var sl := m.slots()
+	check("материалы: в палитре не меньше трёх слотов и не больше предела", sl.size() >= FieldMaterials.SLOT_FIRST and sl.size() <= FieldMaterials.MAX_SLOTS, str(sl.size()))
+	# карточки кистей из поставки красят слотами палитры
+	var hill := (load("res://data/terrain/objects/relief_hill.tres") as EntitySetting).components[0] as TerrainBrush
+	var gravel := (load("res://data/terrain/objects/relief_gravel.tres") as EntitySetting).components[0] as TerrainBrush
+	var rocks := (load("res://data/terrain/objects/relief_rocks.tres") as EntitySetting).components[0] as TerrainBrush
+	var fb := FieldBrush.new()
+	fb.materials = m
+	fb.set_surfaces(hill.surfaces)
+	check("материалы: кисть холма красит плоской поверхностью (слот 0)", fb.mat_for(0, 0) == FieldMaterials.SLOT_BASE and fb.type_for(0, 0) == TerrainField.SMOOTH)
+	fb.set_surfaces(gravel.surfaces)
+	check("материалы: кисть гравия красит слотом ложа и каменистым типом", fb.mat_for(0, 0) == FieldMaterials.SLOT_BED and fb.type_for(0, 0) == TerrainField.ROCKY)
+	fb.set_surfaces(rocks.surfaces)
+	check("материалы: кисть скал красит слотом склонов и скалистым типом", fb.mat_for(0, 0) == FieldMaterials.SLOT_CLIFF and fb.type_for(0, 0) == TerrainField.ROCK)
+	# одинаковые материалы делят слот, новые занимают свободный, переполнение красит базовым
+	var pal := _palette([_surf(0, Color(1, 1, 1), 3.0), _surf(1, Color(0.2, 0.7, 0.2), 3.0), _surf(2, Color(0.2, 0.7, 0.2), 3.0)])
+	check("палитра: поверхность как у базовой делит слот 0", pal.slot_of(_surf(1, Color(1, 1, 1), 3.0)) == 0)
+	check("палитра: новая поверхность занимает слот, класс рельефа в слот не входит", pal.slots().size() == 4 and pal.slot_of(_surf(2, Color(0.2, 0.7, 0.2), 3.0)) == 3)
+	var many: Array[FieldSurface] = []
+	for i in 20:
+		many.append(_surf(0, Color(0.01 * float(i + 1), 0.5, 0.5), 3.0))
+	var full := _palette(many)
+	check("палитра: слотов не больше предела", full.slots().size() == FieldMaterials.MAX_SLOTS, str(full.slots().size()))
+	check("палитра: поверхность без места красит базовым слотом", full.slot_of(many[19]) == FieldMaterials.SLOT_BASE)
+	# параметры шейдера
 	var mat := ShaderMaterial.new()
 	var sh := load("res://core/components/terrain/field_surface.gdshader") as Shader
 	check("материалы: шейдер поверхности загружается", sh != null)
 	mat.shader = sh
 	m.apply(mat)
-	check("материалы: параметры шейдера выставлены", mat.get_shader_parameter("tex0") == m.texture_of(0) and (mat.get_shader_parameter("tile") as Vector4).y == m.tile_of(1))
+	var arr = mat.get_shader_parameter("texs")
+	var tints = mat.get_shader_parameter("tints")
+	var tiles = mat.get_shader_parameter("tiles")
+	check("материалы: массив текстур по слотам палитры", arr is Texture2DArray and (arr as Texture2DArray).get_layers() == m.slots().size(), str(arr))
+	check("материалы: оттенки и повторы на все 16 слотов", tints is PackedColorArray and (tints as PackedColorArray).size() == FieldMaterials.MAX_SLOTS and tiles is PackedFloat32Array and (tiles as PackedFloat32Array).size() == FieldMaterials.MAX_SLOTS)
+	check("материалы: повтор склонов из палитры", tiles is PackedFloat32Array and is_equal_approx((tiles as PackedFloat32Array)[FieldMaterials.SLOT_CLIFF], m.cliff.tile))
+	check("материалы: слот склонов передан шейдеру", mat.get_shader_parameter("slot_cliff") == FieldMaterials.SLOT_CLIFF)

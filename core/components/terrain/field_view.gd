@@ -5,7 +5,7 @@ class_name FieldView extends Node3D
 ## Показ поля высот (ATTN_13 §13.14). Одна плоская сетка на окно стола, высоту вершин даёт шейдер field_surface.gdshader.
 ###################################
 ## Окно это прямоугольник узлов, выровненный по чанкам и покрывающий LYM.table_rect(). Данные поля копируются в два буфера
-## окна и загружаются в текстуры: fmap (RGF: пол, толщина слоя, ю) и tmap (R8: тип). Меш не пересобирается при правке,
+## окна и загружаются в текстуры: fmap (RGF: пол, толщина слоя, ю) и tmap (RG8: R тип и бит ложа, G слот материала). Меш не пересобирается при правке,
 ## меняется только текстура (замер H0: загрузка 0,1 мс при любом радиусе). Окно и меш пересоздаются, когда меняется стол.
 ## Узел окна (i, j) лежит в мире в точке ((origin.x + i) * STEP, (origin.y + j) * STEP).
 
@@ -33,7 +33,7 @@ var _tt: ImageTexture
 var _img_f: Image
 var _img_t: Image
 var _buf_f := PackedFloat32Array()   # по два числа на узел: пол, толщина
-var _buf_t := PackedByteArray()      # по байту на узел: тип
+var _buf_t := PackedByteArray()      # по два байта на узел: тип (с битом ложа), слот материала
 var _origin := Vector2i.ZERO         # узел окна (0, 0) в мировой сетке, кратен CHUNK
 var _dims := Vector2i.ZERO           # размер окна в узлах (кратен CHUNK плюс 1)
 var _dirty := false
@@ -142,9 +142,9 @@ func _build_window() -> void:
 	_buf_f = PackedFloat32Array()
 	_buf_f.resize(n * 2)
 	_buf_t = PackedByteArray()
-	_buf_t.resize(n)
+	_buf_t.resize(n * 2)
 	_img_f = Image.create_from_data(_dims.x, _dims.y, false, Image.FORMAT_RGF, _buf_f.to_byte_array())
-	_img_t = Image.create_from_data(_dims.x, _dims.y, false, Image.FORMAT_R8, _buf_t)
+	_img_t = Image.create_from_data(_dims.x, _dims.y, false, Image.FORMAT_RG8, _buf_t)
 	_tf = ImageTexture.create_from_image(_img_f)
 	_tt = ImageTexture.create_from_image(_img_t)
 	_mat.set_shader_parameter("fmap", _tf)
@@ -218,25 +218,29 @@ func _copy_chunk(key: Vector2i) -> void:
 			var f0 := 0.0
 			var th := 0.0
 			var ty := 0
+			var mt := 0
 			if have:
 				var w := words[k]
 				f0 = fl[k]
 				th = float(w & TerrainField.TH_MASK) / float(TerrainField.UNITS) * lh
 				ty = (w >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+				mt = (w >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK
 			if not bh.is_empty() and bh[k] > TerrainField.BED_NONE * 0.5:
 				if not have:
 					f0 = field.floor_at(key.x * CHUNK + rx, key.y * CHUNK + rz)
 				th = maxf(bh[k] - f0, 0.0)
 				if bt[k] != FieldBed.NO_TYPE:
 					ty = bt[k]
+					mt = FieldMaterials.SLOT_BED   # H2b: ложе трака рисуется материалом ложа
 			_buf_f[o * 2] = f0
 			_buf_f[o * 2 + 1] = th
-			_buf_t[o] = ty
+			_buf_t[o * 2] = ty
+			_buf_t[o * 2 + 1] = mt
 
 
 func _upload() -> void:
 	_dirty = false
 	_img_f.set_data(_dims.x, _dims.y, false, Image.FORMAT_RGF, _buf_f.to_byte_array())
 	_tf.update(_img_f)
-	_img_t.set_data(_dims.x, _dims.y, false, Image.FORMAT_R8, _buf_t)
+	_img_t.set_data(_dims.x, _dims.y, false, Image.FORMAT_RG8, _buf_t)
 	_tt.update(_img_t)

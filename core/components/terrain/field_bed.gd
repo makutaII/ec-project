@@ -197,9 +197,11 @@ static func bake(field: TerrainField, bed: Dictionary, polys: Array, ceil_fn: Ca
 		var nw := 0
 		if u > 0:
 			var tp := (old >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+			var mt := (old >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK
 			if v.z > 0.5 or (old & TerrainField.TH_MASK) == 0:
 				tp = TYPE_ROCKY
-			nw = (tp << TerrainField.TYPE_SHIFT) | u
+				mt = FieldMaterials.SLOT_BED   # H2b: полоса ложа рисуется материалом ложа
+			nw = (tp << TerrainField.TYPE_SHIFT) | (mt << TerrainField.MAT_SHIFT) | u
 		if nw != old:
 			w[idx] = nw
 			changed += 1

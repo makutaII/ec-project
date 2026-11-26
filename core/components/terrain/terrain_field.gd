@@ -21,10 +21,13 @@ const UNITS := 128
 const TH_MASK := 0x0FFF
 const TYPE_SHIFT := 12
 const TYPE_MASK := 0x3
+# XX claude-terra 13.14 H2b: индекс материала (текстуры) узла в слоте палитры FieldMaterials, 4 бита над типом: слово 18 бит
+const MAT_SHIFT := 14
+const MAT_MASK := 0xF
 const SMOOTH := 0
 const ROCKY := 1
 const ROCK := 2
-const FORMAT := 1
+const FORMAT := 2   # H2b: слово узла 32 бита в сейве (было 16)
 const MAX_HISTORY := 50
 ## Допуск при выборе узлов у границы полигона, ю
 const EDGE := 0.001
@@ -124,6 +127,11 @@ func has_layer(i: int, j: int) -> bool:
 
 func type_at(i: int, j: int) -> int:
 	return (word_at(i, j) >> TYPE_SHIFT) & TYPE_MASK
+
+
+## H2b: слот материала узла (0 плоская поверхность, остальные из палитры FieldMaterials)
+func mat_at(i: int, j: int) -> int:
+	return (word_at(i, j) >> MAT_SHIFT) & MAT_MASK
 
 
 func floor_at(i: int, j: int) -> float:
@@ -575,7 +583,7 @@ func row_intervals(polys: Array, j: int) -> PackedInt32Array:
 
 ## --- Сейв ---
 
-## {"v", "chunks": [[cx, cz, сжатые байты], ...]}: на узел 16 бит (слово), чанки без слоя не пишутся
+## {"v", "chunks": [[cx, cz, сжатые байты], ...]}: на узел 32 бита (слово), чанки без слоя не пишутся
 func save_data() -> Dictionary:
 	var list: Array = []
 	for key: Vector2i in _data:
@@ -583,9 +591,9 @@ func save_data() -> Dictionary:
 		if _is_zero(d):
 			continue
 		var bytes := PackedByteArray()
-		bytes.resize(CHUNK_NODES * 2)
+		bytes.resize(CHUNK_NODES * 4)
 		for k in range(CHUNK_NODES):
-			bytes.encode_u16(k * 2, d[k])
+			bytes.encode_u32(k * 4, d[k])
 		list.append([key.x, key.y, bytes.compress(FileAccess.COMPRESSION_DEFLATE)])
 	if list.is_empty():
 		return {}
@@ -603,13 +611,13 @@ func load_data(d: Dictionary) -> void:
 		var arr: Array = item
 		if arr.size() < 3:
 			continue
-		var bytes := (arr[2] as PackedByteArray).decompress(CHUNK_NODES * 2, FileAccess.COMPRESSION_DEFLATE)
-		if bytes.size() != CHUNK_NODES * 2:
+		var bytes := (arr[2] as PackedByteArray).decompress(CHUNK_NODES * 4, FileAccess.COMPRESSION_DEFLATE)
+		if bytes.size() != CHUNK_NODES * 4:
 			continue
 		var words := PackedInt32Array()
 		words.resize(CHUNK_NODES)
 		for k in range(CHUNK_NODES):
-			words[k] = bytes.decode_u16(k * 2)
+			words[k] = bytes.decode_u32(k * 4)
 		var key := Vector2i(int(arr[0]), int(arr[1]))
 		_data[key] = words
 		_make_floor(key)
@@ -678,7 +686,7 @@ func _set_node(i: int, j: int, units: int, erase: bool) -> int:
 		d.resize(CHUNK_NODES)
 		_data[key] = d
 		_make_floor(key)
-	d[idx] = (w & (TYPE_MASK << TYPE_SHIFT)) | units
+	d[idx] = (w & ~TH_MASK) | units   # тип и материал узла остаются
 	_data[key] = d
 	return 1
 

@@ -4,9 +4,21 @@
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
 [ext_resource type="Script" uid="uid://jkr2sp05vmml" path="res://core/components/terrain/terrain_brush.gd" id="2_tb"]
 [ext_resource type="Texture2D" uid="uid://b2h3d7pqg6uqv" path="res://ui/icons/tool/dig-dug.svg" id="3_ic"]
+[ext_resource type="Script" path="res://core/components/terrain/field_surface.gd" id="4_fs"]
+[ext_resource type="Texture2D" uid="uid://dx7rq5gw802uc" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_Color.webp" id="5_smooth"]
+
+[sub_resource type="Resource" id="Resource_surf0"]
+script = ExtResource("4_fs")
+texture = ExtResource("5_smooth")
+tint = Color(0.5, 0.78, 0.34, 1)
+tile = 3.0
+kind = 0
+weight = 1.0
+label = "гладкая"
 
 [sub_resource type="Resource" id="Resource_brush"]
 script = ExtResource("2_tb")
+surfaces = Array[ExtResource("4_fs")]([SubResource("Resource_surf0")])
 
 [resource]
 script = ExtResource("1_es")

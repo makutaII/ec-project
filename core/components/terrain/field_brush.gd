@@ -29,7 +29,11 @@ var notch_layers := 0.25
 var max_layers := 16.0
 var radius_min := 1.5
 var radius_max := 15.0
-var mix := Vector3(1.0, 0.0, 0.0)
+## H2b: поверхности кисти (FieldSurface) и их слова: класс рельефа и слот материала в битах узла. Пусто: плоская базовая (слот 0, гладкая)
+var surfaces: Array[FieldSurface] = []
+var materials: FieldMaterials   # палитра слотов; null: общая FieldMaterials.shared()
+var _bits := PackedInt32Array([0])       # на поверхность: (слот << MAT_SHIFT) | (класс << TYPE_SHIFT)
+var _cum := PackedFloat32Array([1.0])    # накопленные веса поверхностей
 const OBJ_IGNORE := 0
 const OBJ_BYPASS := 1
 const OBJ_LIFT := 2
@@ -64,20 +68,37 @@ func load_brush(b: TerrainBrush) -> void:
 	strength = clampf(b.strength, 0.1, 1.0)
 	notch_layers = b.notch_layers
 	max_layers = b.max_layers
-	mix = b.surface_mix
+	set_surfaces(b.surfaces)
 	objects_mode = clampi(b.objects_mode, OBJ_IGNORE, OBJ_LIFT)
 
 
-## Подпись типа поверхности кисти: «гладкая» или «смесь»
+## Поверхности кисти (H2b): считает слова узла и накопленные веса. Слот берётся у палитры materials
+func set_surfaces(list: Array[FieldSurface]) -> void:
+	surfaces = []
+	_bits = PackedInt32Array()
+	_cum = PackedFloat32Array()
+	var pal := materials if materials != null else FieldMaterials.shared()
+	var total := 0.0
+	for s in list:
+		if s == null or s.weight <= 0.0:
+			continue
+		surfaces.append(s)
+		var slot := pal.slot_of(s) if pal != null else FieldMaterials.SLOT_BASE
+		_bits.append(((s.kind & TerrainField.TYPE_MASK) << TerrainField.TYPE_SHIFT) | ((slot & TerrainField.MAT_MASK) << TerrainField.MAT_SHIFT))
+		total += s.weight
+		_cum.append(total)
+	if _bits.is_empty():
+		_bits = PackedInt32Array([0])
+		_cum = PackedFloat32Array([1.0])
+
+
+## Подпись поверхности кисти: подпись одной поверхности (или название её класса рельефа) или «смесь»
 func type_label() -> String:
-	var n := 0
-	var last := 0
-	for t in 3:
-		if mix[t] > 0.0:
-			n += 1
-			last = t
-	if n <= 1:
-		return type_names[last]
+	if surfaces.size() <= 1:
+		if surfaces.is_empty():
+			return type_names[TerrainField.SMOOTH]
+		var s := surfaces[0]
+		return s.label if s.label != "" else type_names[clampi(s.kind, 0, type_names.size() - 1)]
 	return "смесь"
 
 
@@ -93,22 +114,28 @@ func next_height(hc: float, dir_: float, whole: bool, lh: float, floor_c: float,
 	return clampf(ht, floor_c, minf(floor_c + max_layers * lh, maxf(ceil_c, floor_c)))
 
 
-## Тип поверхности узла по весам кисти и хешу узла
-func type_for(i: int, j: int) -> int:
-	var total := mix.x + mix.y + mix.z
-	if total <= 0.0 or (mix.y <= 0.0 and mix.z <= 0.0):
-		return TerrainField.SMOOTH
-	if mix.x >= total:
-		return TerrainField.SMOOTH
-	# тип выбирается по хешу блока MIX_BLOCK x MIX_BLOCK узлов: пятна материалов в 1,5 ю, а не пёстрая крошка по ячейкам
+## Биты типа и материала узла (i, j) по весам поверхностей кисти и хешу узла. Слой толщины в них не входит
+func bits_for(i: int, j: int) -> int:
+	if _bits.size() <= 1:
+		return _bits[0]
+	# поверхность выбирается по хешу блока MIX_BLOCK x MIX_BLOCK узлов: пятна материалов в 1,5 ю, а не пёстрая крошка по ячейкам
 	var bi := floori(float(i) / float(MIX_BLOCK))
 	var bj := floori(float(j) / float(MIX_BLOCK))
-	var h := fposmod(sin(float(bi) * 12.9898 + float(bj) * 78.233) * 43758.5453, 1.0) * total
-	if h < mix.x:
-		return TerrainField.SMOOTH
-	if h < mix.x + mix.y:
-		return TerrainField.ROCKY
-	return TerrainField.ROCK
+	var h := fposmod(sin(float(bi) * 12.9898 + float(bj) * 78.233) * 43758.5453, 1.0) * _cum[_cum.size() - 1]
+	for k in _cum.size():
+		if h < _cum[k]:
+			return _bits[k]
+	return _bits[_bits.size() - 1]
+
+
+## Класс рельефа узла (гладкая, каменистая, скалистая) по весам кисти и хешу узла
+func type_for(i: int, j: int) -> int:
+	return (bits_for(i, j) >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+
+
+## Слот материала узла по весам кисти и хешу узла
+func mat_for(i: int, j: int) -> int:
+	return (bits_for(i, j) >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK
 
 
 ## Узловой прямоугольник под кистью радиуса rc ячеек вокруг центра c (мир, XZ)
@@ -274,9 +301,8 @@ func _apply(c: Vector2, pl: Dictionary, mode: int, kk: float, lh: float) -> Rect
 	var minz := 1 << 30
 	var maxz := -(1 << 30)
 	var x_end := _rect.end.x - 1
-	var sh := TerrainField.TYPE_SHIFT
-	var mixed := mix.y > 0.0 or mix.z > 0.0
-	var type_fixed := type_for(0, 0)
+	var mixed := _bits.size() > 1
+	var bits_fixed := bits_for(0, 0)
 	for rj in _rect.size.y:
 		var j := _rect.position.y + rj
 		var dz := float(j) - cz
@@ -330,10 +356,10 @@ func _apply(c: Vector2, pl: Dictionary, mode: int, kk: float, lh: float) -> Rect
 					if nu == 0:
 						nw = 0
 					else:
-						nw = ((type_for(i, j) if mixed else type_fixed) << sh) | nu
+						nw = (bits_for(i, j) if mixed else bits_fixed) | nu
 				elif mode == 0 and u0 > 0:
 					# выравнивание красит тип и там, где высота уже на месте
-					nw = ((type_for(i, j) if mixed else type_fixed) << sh) | u0
+					nw = (bits_for(i, j) if mixed else bits_fixed) | u0
 				if nw != w0:
 					_w[k] = nw
 					if i < minx:

@@ -1,12 +1,41 @@
 [gd_resource type="Resource" script_class="FieldMaterials" format=3 uid="uid://2tf35edikk3c"]
 
 [ext_resource type="Script" uid="uid://b07n82swkl2i" path="res://core/components/terrain/field_materials.gd" id="1_fm"]
-[ext_resource type="Texture2D" uid="uid://dx7rq5gw802uc" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_Color.webp" id="2_smooth"]
-[ext_resource type="Texture2D" uid="uid://cqgebjundm817" path="res://data/textures/track/Gravel024_1K-WebP/Gravel024_1K-WebP_Color.webp" id="3_rocky"]
-[ext_resource type="Texture2D" uid="uid://v00iusfgv46f" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="4_rock"]
+[ext_resource type="Script" path="res://core/components/terrain/field_surface.gd" id="2_fs"]
+[ext_resource type="Texture2D" uid="uid://dx7rq5gw802uc" path="res://data/textures/track/Concrete030_1K-WebP/Concrete030_1K-WebP_Color.webp" id="3_smooth"]
+[ext_resource type="Texture2D" uid="uid://cqgebjundm817" path="res://data/textures/track/Gravel024_1K-WebP/Gravel024_1K-WebP_Color.webp" id="4_rocky"]
+[ext_resource type="Texture2D" uid="uid://v00iusfgv46f" path="res://data/textures/track/Gravel018_1K-WebP/Gravel018_1K-WebP_Color.webp" id="5_rock"]
+
+[sub_resource type="Resource" id="Resource_base"]
+script = ExtResource("2_fs")
+texture = ExtResource("3_smooth")
+tint = Color(0.5, 0.78, 0.34, 1)
+tile = 3.0
+kind = 0
+label = "гладкая"
+
+[sub_resource type="Resource" id="Resource_cliff"]
+script = ExtResource("2_fs")
+texture = ExtResource("5_rock")
+tint = Color(0.66, 0.64, 0.61, 1)
+tile = 5.0
+kind = 2
+label = "скалистая"
+
+[sub_resource type="Resource" id="Resource_bed"]
+script = ExtResource("2_fs")
+texture = ExtResource("4_rocky")
+tint = Color(0.92, 0.86, 0.7, 1)
+tile = 2.5
+kind = 1
+label = "каменистая"
 
 [resource]
 script = ExtResource("1_fm")
-albedo = Array[Texture2D]([ExtResource("2_smooth"), ExtResource("3_rocky"), ExtResource("4_rock"), null])
-tint = PackedColorArray(0.5, 0.78, 0.34, 1, 0.92, 0.86, 0.7, 1, 0.66, 0.64, 0.61, 1, 0.82, 0.74, 0.5, 1)
-tile = PackedFloat32Array(3, 2.5, 5, 3)
+base = SubResource("Resource_base")
+cliff = SubResource("Resource_cliff")
+bed = SubResource("Resource_bed")
+brush_dirs = PackedStringArray("res://data/terrain/objects/")
+edge_noise = 0.35
+edge_scale = 2.5
+layer_size = 1024

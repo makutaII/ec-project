@@ -163,7 +163,7 @@ func _test_save() -> void:
 	# размер: гладкий слой на 40x40 ю сжимается сильно
 	var big := TerrainField.new()
 	big.lay_polygon(rect(0, 0, 40, 40), 1.0)
-	var raw := big.chunk_keys().size() * TerrainField.CHUNK_NODES * 2
+	var raw := big.chunk_keys().size() * TerrainField.CHUNK_NODES * 4   # H2b: слово 32 бита
 	var packed := 0
 	for item: Array in big.save_data()["chunks"]:
 		packed += (item[2] as PackedByteArray).size()
