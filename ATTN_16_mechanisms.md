@@ -33,7 +33,7 @@
 | Что | Где | Состояние |
 |---|---|---|
 | `C_Mechanisms`: `Mech`, SLIDE и ROTATE, источник COMMAND | `core/components/trains/c_mechanisms.gd` | работает, двери `wagon_03` |
-| `MechanismConfig`: заготовки `Source { WHEEL_PHASE, SPEED, POWERED, DIRECTION }`, `Actuator { SPIN, CLIP, LIGHT, PARTICLES }` | `setting/mechanism_config.gd` | заготовки, не реализованы |
+| `MechanismConfig`: `Source.WHEEL_PHASE` (с `Actuator.ANIM`: привод паровоза по фазе колеса, [ATTN_24](docs/ATTN_24_model_pipeline.md) §24.13); заготовки `Source { SPEED, POWERED, DIRECTION }`, `Actuator { SPIN, CLIP, LIGHT, PARTICLES }` | `setting/mechanism_config.gd` | `WHEEL_PHASE` реализован, остальное не реализовано |
 | `LightConfig` и `Lamp` (SPOT, OMNI, EMISSIVE; правила COMMAND, NIGHT, DIRECTION, ALWAYS; бюджет; свечение) | `setting/light_config.gd`, `setting/glow_rect.gd`, `C_Mechanisms`, `core/graphics/light_budget.gd` | **L0–L6** |
 | Вкладка «Механизмы» в InfoPanel (слайдер, «Открыто», «вкл», статус) | `ui/panels/info_panel.gd` | работает, добавлен раздел «Свет» |
 | `GFX.time_of_day_changed(id)`, лампа стола | `core/graphics/graphics_manager.gd` | есть; подписан `C_Mechanisms` (правило `NIGHT`, шаг L3) |
@@ -242,7 +242,7 @@ Entity
 Порядок после света, по мере надобности моделей.
 
 - [ ] **M1.** `Actuator.SPIN` (вентилятор, вращающийся маяк), `Source.SPEED`.
-- [ ] **M2.** `Source.WHEEL_PHASE`: дышла, привязка к фазе колеса.
+- [ ] **M2.** `Source.WHEEL_PHASE`: дышла, привязка к фазе колеса (реализовано для `ANIM`, проверить в редакторе на паровозе).
 - [ ] **M3.** `Actuator.PARTICLES`: дым локо (`GPUParticles3D`, на Low выкл), связь с S10 ATTN_14.
 - [ ] **M4.** `Actuator.CLIP`: пантограф и другие упоры.
 - [ ] **M5.** Чистка: убрать `Actuator.LIGHT` из `MechanismConfig`, единый список «механизмы + свет» в InfoPanel.
