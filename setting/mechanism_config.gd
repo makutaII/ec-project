@@ -19,6 +19,10 @@ enum Actuator { SLIDE, ROTATE, SPIN, CLIP, LIGHT, PARTICLES, ANIM }
 ## WHEEL_PHASE (только с ANIM): состояние 0..1 это фаза колеса за оборот, анимация mech_<id> это один оборот (первый и последний ключ
 ## одинаковы, рост кадра идёт вперёд по ходу). Команды игрока такой механизм игнорирует; он не сохраняется в сейве
 @export var source: Source = Source.COMMAND
+
+## Только WHEEL_PHASE: обратить фазу, дышла идут по циклу в другую сторону. Нужно, если направление анимации в модели не совпало
+## с вращением колеса в игре (в покое поза та же, цикл идёт назад)
+@export var phase_reverse: bool = false
 @export var actuator: Actuator = Actuator.SLIDE
 
 ## Роль подвижной части (Custom Property "role" в Blender, либо имя узла). У ANIM не используется: узлы двигает анимация.

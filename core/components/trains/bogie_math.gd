@@ -32,6 +32,11 @@ static func collision_length(half_base: float, radius: float) -> float:
 	return (half_base + radius) * 2.0
 
 
+## Фаза в обратную сторону: поза покоя (0) остаётся на месте, цикл идёт назад
+static func reverse_phase(phase: float) -> float:
+	return fposmod(1.0 - phase, 1.0)
+
+
 ## Фаза колеса 0..1 за оборот по накопленному углу вращения (радианы вокруг +X узла колеса).
 ## При ходе вперёд угол уменьшается (качение вперёд это отрицательный поворот вокруг +X), фаза при этом растёт
 static func wheel_phase(angle: float) -> float:

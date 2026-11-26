@@ -669,6 +669,8 @@ func _update_phase() -> void:
 		if not m.enabled or not m.found():
 			continue
 		var ph := _bogie_ref.wheel_phase(m.cfg.part_role)
+		if m.cfg.phase_reverse:
+			ph = BogieMath.reverse_phase(ph)
 		if absf(ph - m.t) < 0.0002:
 			continue
 		m.t = ph
