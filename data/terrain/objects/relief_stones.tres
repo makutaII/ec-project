@@ -17,7 +17,8 @@ label = "камни"
 [sub_resource type="Resource" id="Resource_brush"]
 script = ExtResource("2_tb")
 surfaces = Array[ExtResource("4_fs")]([SubResource("Resource_surf0")])
-angle_deg = 45.0
+angle_deg = 90.0
+radius_default = 0.1
 radius_min = 0.1
 plateau_min = 0.1
 tolerance_frac = 0.1

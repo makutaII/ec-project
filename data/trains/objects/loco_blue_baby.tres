@@ -2,11 +2,7 @@
 
 [ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_aodhn"]
 [ext_resource type="Script" uid="uid://7vuxuiiysiji" path="res://setting/bogie_config.gd" id="2_7m61j"]
-[ext_resource type="PackedScene" uid="uid://cl6t7b6265rj" path="res://data/trains/default_bogie.tscn" id="3_u4bn7"]
-[ext_resource type="PackedScene" uid="uid://dv6rw0lglxdei" path="res://data/trains/wheel_pair_p01.tscn" id="4_2o8dr"]
-[ext_resource type="PackedScene" uid="uid://be7il350r4fss" path="res://data/trains/wheel_pair_01.tscn" id="5_u6i14"]
 [ext_resource type="Script" uid="uid://daeylhso0elsx" path="res://setting/light_config.gd" id="6_g04a0"]
-[ext_resource type="Script" uid="uid://cteud8ws67l53" path="res://setting/glow_rect.gd" id="7_4iepu"]
 [ext_resource type="Script" uid="uid://gv2lrhu17dtf" path="res://setting/mechanism_config.gd" id="8_70t6v"]
 [ext_resource type="PackedScene" uid="uid://f08rax813uk5" path="res://data/models/loco_blue_baby/loco_blue_baby.tscn" id="9_aodhn"]
 [ext_resource type="Script" uid="uid://bicjny5dv1h3s" path="res://setting/wagon_config.gd" id="10_ua0d2"]
@@ -28,65 +24,12 @@
 [ext_resource type="Texture2D" uid="uid://ccglkaaxdcb5b" path="res://ui/icons/transport/steam-locomotive.svg" id="26_ek0p6"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="27_8tvvt"]
 
-[sub_resource type="Resource" id="Resource_m448q"]
-script = ExtResource("2_7m61j")
-b_offset_z = -2.5599999999999987
-wheel_pair_scene = ExtResource("4_2o8dr")
-wheel_pair_position = Vector3(0, 0.82, 1.5)
-metadata/_custom_type_script = "uid://7vuxuiiysiji"
-
-[sub_resource type="Resource" id="Resource_ibl0p"]
-script = ExtResource("2_7m61j")
-b_offset_z = 2.5600000000000023
-wheel_pair_position = Vector3(0, 0.715, 1.5)
-metadata/_custom_type_script = "uid://7vuxuiiysiji"
-
-[sub_resource type="Resource" id="Resource_lt_front"]
-script = ExtResource("6_g04a0")
-title = "Фара передняя"
-kind = 1
-rule = 2
-position = Vector3(0, 3, -4.8)
-rotation_deg = Vector3(-6, 0, 0)
-light_range = 40.0
-spot_angle = 30.0
-glow_shape = 1
-glow_size = 1.0
-glow_offset = Vector3(0, 0, -0.15)
-glow_energy = 4.0
-
-[sub_resource type="Resource" id="Resource_lt_rear"]
-script = ExtResource("6_g04a0")
-id = &"headlight_rear"
-title = "Фара задняя"
-kind = 1
-rule = 2
-dir_end = 1
-position = Vector3(0, 3, 4.4)
-rotation_deg = Vector3(-6, 180, 0)
-color = Color(1, 0.15, 0.1, 1)
-light_range = 25.0
-glow_shape = 1
-glow_size = 0.8
-glow_offset = Vector3(0, 0, 0.15)
-
-[sub_resource type="Resource" id="Resource_lt_cab"]
-script = ExtResource("6_g04a0")
-id = &"cab_light"
-title = "Кабина"
-kind = 1
-rule = 1
-position = Vector3(0, 4, 1.5)
-color = Color(1, 0.85, 0.6, 1)
-energy = 1.5
-light_range = 8.0
-
 [sub_resource type="Resource" id="Resource_ljdfc"]
 script = ExtResource("8_70t6v")
 id = &"drive"
+source = 1
 actuator = 6
-part_role = &"drive"
-part_aliases = ["drv_connecting_rod", "wheel_3_3"]
+part_role = &""
 metadata/_custom_type_script = "uid://gv2lrhu17dtf"
 
 [sub_resource type="Resource" id="Resource_0p1ic"]
@@ -101,13 +44,10 @@ suspension = SubResource("Resource_0p1ic")
 has_engine = true
 max_theoretical_speed = 50.0
 scene = ExtResource("9_aodhn")
-offset_mesh_y = 1.815
-bogie_configs = Array[ExtResource("2_7m61j")]([SubResource("Resource_m448q"), SubResource("Resource_ibl0p")])
-coupler_offset = 5.5
+coupler_offset = 8.04
 coupler_travel = 0.05
 coupler_strength = 120.0
 mechanisms = Array[ExtResource("8_70t6v")]([SubResource("Resource_ljdfc")])
-lights = Array[ExtResource("6_g04a0")]([SubResource("Resource_lt_front"), SubResource("Resource_lt_rear"), SubResource("Resource_lt_cab")])
 metadata/_custom_type_script = "uid://bicjny5dv1h3s"
 
 [sub_resource type="Resource" id="Resource_ldqha"]

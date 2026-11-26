@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="EntitySetting" format=3]
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://b700pfrbie1x2"]
 
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_t4ras"]
 [ext_resource type="Texture2D" uid="uid://3pym2gl0ejh4" path="res://ui/icons/tool/anvil.svg" id="2_ic"]
 
 [resource]
