@@ -223,7 +223,7 @@ func on_train_snapped(track_data: Dictionary) -> void:
 	var rear_calc_pos = b_calc_pos.rear
 
 	if front_calc_pos != Vector3.ZERO and rear_calc_pos != Vector3.ZERO:
-		entity.global_position = (front_calc_pos + rear_calc_pos) / 2.0
+		entity.global_position = front_calc_pos.lerp(rear_calc_pos, bogie_comp.body_anchor_w)   # у симметричных тележек середина хорды
 
 	if rb:
 		_assist_rb_to_entity()
@@ -528,8 +528,8 @@ func _physics_process(delta: float) -> void:
 	# Запоминаем позицию до перемещения
 	var previous_pos = entity.global_position
 
-	# 3. Позиционируем вагон как хорду (по центру между тележками)
-	entity.global_position = (front_calc_pos + rear_calc_pos) / 2.0
+	# 3. Позиционируем вагон на хорде между тележками: начало вагона на весе body_anchor_w (0.5 у симметричных тележек)
+	entity.global_position = front_calc_pos.lerp(rear_calc_pos, bogie_comp.body_anchor_w)
 
 	# Вычисляем фактический вектор 3D-скорости
 	if delta > 0.0:

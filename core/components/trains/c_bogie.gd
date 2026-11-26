@@ -33,6 +33,10 @@ var bogie_configs: Array[BogieConfig] = []
 # все колеса {'wheel_node', 'radius'}
 var wheel_nodes: Array[Dictionary] = [] 
 
+## Вес точки кузова на хорде от первой тележки к последней (BogieMath.anchor_weight): начало вагона лежит там.
+## 0.5 у симметричных тележек. Считается один раз по положению узлов в модели
+var body_anchor_w := 0.5
+
 ## Номера тележек, у которых своя копия конфига (правили в DebugPanel), паспорт типа не затронут
 var _own_configs: Dictionary = {}
 
@@ -54,6 +58,10 @@ func on_added() -> void:
 	
 	# Сортировка от первой тележки к последней
 	bogies_data.sort_custom(func(a, b): return a.pivot.position.z < b.pivot.position.z)
+	if bogies_data.size() > 1:
+		body_anchor_w = BogieMath.anchor_weight(bogies_data.front().pivot.position.z, bogies_data.back().pivot.position.z)
+		if body_anchor_w < -0.25 or body_anchor_w > 1.25:
+			push_warning("[C_Bogie] %s: начало вагона далеко за крайними тележками (вес %.2f): проверьте b_offset_z и модель" % [entity.name, body_anchor_w])
 
 
 
@@ -340,7 +348,7 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 	var path_comp = bogie.current_track.get_comp(C_Path)
 	var curve_len = path_comp.curve_of(bogie.route).get_baked_length()   # XX claude-switch
 	var track_h = path_comp.head_height()
-	var wp_z = bogie.config.wheel_pair_position.z  if bogie.config else 0.0
+	var wp_z = bogie.config.half_base() if bogie.config else 0.0   # полубаза: у узла из 3 и больше осей это расстояние до крайней
 	# XX claude-coaster C5.3: «верх» поверхности под тележкой. Без крена ровно Vector3.UP: подъём на head_height по Y и
 	# Basis.looking_at(…, UP) остаются прежними; с креном подъём и поворот идут вдоль повёрнутого «верха»
 	var up: Vector3 = path_comp.surface_up_at(bogie.track_distance, bogie.route)
