@@ -36,7 +36,7 @@ func generate_track_curve(_radius: float, _deg: float) -> Curve3D:
 ## Крен (градусы, + правый край ниже) на расстоянии offset от начала кривой. Линейно по длине, как в RideShape.roll_at
 func roll_deg_at(offset: float) -> float:
 	var total := curve.get_baked_length() if curve else 0.0
-	return RideShape.roll_at(offset, total, _roll_start, _roll_end)
+	return rad_to_deg(TrackMeshBuilder.roll_at(curve, offset, total)) if curve else 0.0   # C8.2: из наклона точек, годится и flex
 
 
 ## Ровный (оба угла 0, без крена) ведёт себя, как обычный плоский трак. С уклоном или креном: не подгоняется под листы рельефа
@@ -69,7 +69,7 @@ func ground_anchor() -> float:
 ## Глубина под землёй: к проверке оси добавлены оба нижних края основания у трака с креном (край ниже оси)
 func underground_depth(xf: Transform3D) -> float:
 	var worst := super(xf)
-	if (_roll_start == 0.0 and _roll_end == 0.0) or not curve or not path_node or not entity.is_inside_tree():
+	if not curve or not path_node or not entity.is_inside_tree() or not TrackMeshBuilder.has_roll(curve):
 		return worst
 	var hw := _half_width()
 	var space := entity.get_world_3d().direct_space_state

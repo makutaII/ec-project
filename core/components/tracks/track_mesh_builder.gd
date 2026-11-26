@@ -133,6 +133,24 @@ static func surface_up_local(curve: Curve3D, s: float, L: float) -> Vector3:
 	return frame(curve, s, L).u
 
 
+## Записывает крен в наклон контрольных точек кривой: линейно по индексу точки от roll_start_deg до roll_end_deg (градусы,
+## + правый край ниже). Точки flex и траков горок стоят почти через равные длины, поэтому это линейно по длине, и roll_at
+## читает то же самое. XX claude-coaster C8.2
+static func apply_roll(curve: Curve3D, roll_start_deg: float, roll_end_deg: float) -> void:
+	var n := curve.get_point_count()
+	for i in n:
+		var k := float(i) / float(maxi(n - 1, 1))
+		curve.set_point_tilt(i, deg_to_rad(lerpf(roll_start_deg, roll_end_deg, k)))
+
+
+## У кривой есть крен: хотя бы у одной точки ненулевой наклон
+static func has_roll(curve: Curve3D) -> bool:
+	for i in curve.get_point_count():
+		if curve.get_point_tilt(i) != 0.0:
+			return true
+	return false
+
+
 ## Крен меняется вдоль кривой (начало и конец различаются больше чем на 0.6°): прямая с таким креном «скручивается»
 static func is_twisted(curve: Curve3D, L: float) -> bool:
 	return absf(roll_at(curve, 0.0, L) - roll_at(curve, L, L)) > 0.01

@@ -36,6 +36,11 @@ var end_tan := Vector2(0.0, 1.0)   # направление ДВИЖЕНИЯ в 
 var end_dy := 0.0                  # высота конца у сокета относительно начала
 var end_slope := 0.0               # dy/ds движения в конце у сокета
 var start_slope := 0.0             # dy/ds движения в начале (уклон соседа начала)
+## XX claude-coaster C8.2: крен, градусы, + правый край ниже (RideShape, TrackMeshBuilder.frame). У рельсового flex остаётся 0:
+## соседи без крена дают 0, наклон точек кривой не пишется, поведение прежнее
+var start_roll := 0.0              # крен в начале: берётся у соседа начала (_neighbor_roll)
+var end_roll := 0.0                # крен у привязанного конца: берётся у соседа конца (_snap_to)
+var roll_twist := 0.0              # скручивание свободного конца: end = start + twist (задаёт игрок)
 
 # --- производные ---
 var length := 10.0
@@ -97,6 +102,9 @@ func on_stretch_started(_d: Dictionary) -> void:
 	_snap_id = 0
 	end_levels = 0
 	start_slope = _neighbor_slope()
+	start_roll = _neighbor_roll()   # XX claude-coaster C8.2
+	roll_twist = 0.0
+	end_roll = 0.0
 	entity.send_event("on_socket_enabled", {"index": -1, "enabled": false})
 	if _label:
 		_label.visible = true
@@ -190,8 +198,10 @@ func _tick_preshaped() -> void:
 		return
 	_ground_ms = now
 	var s := _neighbor_slope()
-	if not is_equal_approx(s, start_slope):
+	var sr := _neighbor_roll()   # XX claude-coaster C8.2
+	if not is_equal_approx(s, start_slope) or not is_equal_approx(sr, start_roll):
 		start_slope = s
+		start_roll = sr
 		_apply(true)
 		entity.send_event("on_flex_final", {})   # после _apply меш и коллизии грубые, нужен финал
 	var path := get_comp(C_Path) as C_Path
@@ -234,7 +244,7 @@ func _limits(real := false) -> FlexSolver.Limits:
 func _apply(force := false) -> void:
 	if entity == null:
 		return
-	var key := [snapped_end, _snap_id, end_pos, target.snapped(Vector2(0.05, 0.05)), end_levels, start_slope, relaxed, bends.duplicate()]
+	var key := [snapped_end, _snap_id, end_pos, target.snapped(Vector2(0.05, 0.05)), end_levels, start_slope, relaxed, bends.duplicate(), start_roll, end_roll, roll_twist]
 	#var key := [snapped_end, _snap_id, end_pos, target.snapped(Vector2(0.05, 0.05)), end_levels, start_slope, relaxed]
 	if not force and key == _last_key:
 		return
@@ -274,6 +284,11 @@ func _apply(force := false) -> void:
 	var pts: PackedVector2Array = res.points
 	radius = res.radius
 	var cv: Dictionary = FlexSolver.to_curve3d(pts, 0.0, y1, start_slope, m1)
+	# XX claude-coaster C8.2: крен концов в наклон точек кривой (меш, коллизия, вагон и опоры читают его оттуда)
+	var roll_a := start_roll
+	var roll_b := end_roll if snapped_end else start_roll + roll_twist
+	if roll_a != 0.0 or roll_b != 0.0:
+		TrackMeshBuilder.apply_roll(cv.curve, roll_a, roll_b)
 	path.set_curve(cv.curve)   # шлет on_curve_changed: сокеты, опоры, меш
 	length = cv.length
 	grade = cv.max_grade
@@ -349,6 +364,9 @@ func _update_label() -> void:
 		reasons.append("ground")
 	if not reasons.is_empty():
 		txt += "  ✗ " + ", ".join(PackedStringArray(reasons))
+	var roll_b := end_roll if snapped_end else start_roll + roll_twist   # XX claude-coaster C8.2
+	if start_roll != 0.0 or roll_b != 0.0:
+		txt += "  · крен %+.0f° → %+.0f°" % [start_roll, roll_b]
 	if relaxed:
 		txt += "  [лимиты выкл, L]"
 	_label.text = txt
@@ -417,7 +435,7 @@ func _find_end_socket(world: Vector3) -> Dictionary:
 			if not oc.is_socket_free(a):
 				continue
 			best_d = d
-			best = {"area": a, "pos": sp, "out": -a.global_basis.z}
+			best = {"area": a, "pos": sp, "out": -a.global_basis.z, "up": oc._joint_up_world(a)}   # XX claude-coaster C8.2: «верх» сокета для крена
 	return best
 
 
@@ -436,10 +454,13 @@ func _snap_to(sock: Dictionary) -> void:
 	#end_dy = local.y
 	end_dy = local.y - _head_h()   # кривая у основания, сокет соседа на поверхности катания
 	end_slope = -o.y / oh.length()
+	# XX claude-coaster C8.2: крен у соседа конца. Мой ход в конце направлен к соседу (−o), «верх» сокета соседа в мире
+	end_roll = _clean_roll(JointMath.roll_about(-o, sock.up)) if sock.has("up") else 0.0
 
 
-## Уклон соседа в моем начале (dy/ds движения от соседа ко мне). Нет соседа - 0
-func _neighbor_slope() -> float:
+## Сосед в моём начале: {o: направление «наружу» его сокета (в мою сторону), up: «верх» сокета в мире}. Пусто, если соседа нет.
+## XX claude-coaster C8.2: общий поиск для уклона и крена
+func _neighbor_start() -> Dictionary:
 	#var start_w := entity.global_position
 	var start_w := entity.global_position + Vector3(0.0, _head_h(), 0.0)
 	var fwd := -entity.global_basis.z
@@ -457,8 +478,30 @@ func _neighbor_slope() -> float:
 			var o := -a.global_basis.z
 			var h := Vector2(o.x, o.z).length()
 			if h > 0.001 and o.dot(fwd) > 0.0:
-				return o.y / h
-	return 0.0
+				return {"o": o, "up": oc._joint_up_world(a)}
+	return {}
+
+
+## Уклон соседа в моем начале (dy/ds движения от соседа ко мне). Нет соседа - 0
+func _neighbor_slope() -> float:
+	var n := _neighbor_start()
+	if n.is_empty():
+		return 0.0
+	var o: Vector3 = n.o
+	return o.y / Vector2(o.x, o.z).length()
+
+
+## XX claude-coaster C8.2: крен соседа в моём начале, градусы (+ правый край ниже). Нет соседа или крена нет: 0
+func _neighbor_roll() -> float:
+	var n := _neighbor_start()
+	if n.is_empty():
+		return 0.0
+	return _clean_roll(JointMath.roll_about(n.o, n.up))
+
+
+## Шум вычислений (меньше 0.05°) не крен: у соседей без крена наклон точек кривой не пишется
+static func _clean_roll(r: float) -> float:
+	return 0.0 if absf(r) < 0.05 else snappedf(r, 0.01)
 
 
 # ==========================================
@@ -655,6 +698,9 @@ func _state() -> Dictionary:
 		"end_dy": end_dy,
 		"end_slope": end_slope,
 		"start_slope": start_slope,
+		"start_roll": start_roll,
+		"end_roll": end_roll,
+		"roll_twist": roll_twist,
 		"relaxed": relaxed,
 		"bends": bends.duplicate(),
 	}
@@ -669,6 +715,9 @@ func _set_state(d: Dictionary) -> void:
 	if d.has("end_dy"): end_dy = d.end_dy
 	if d.has("end_slope"): end_slope = d.end_slope
 	if d.has("start_slope"): start_slope = d.start_slope
+	if d.has("start_roll"): start_roll = d.start_roll
+	if d.has("end_roll"): end_roll = d.end_roll
+	if d.has("roll_twist"): roll_twist = d.roll_twist
 	if d.has("relaxed"): relaxed = d.relaxed
 	if d.has("bends"):
 		bends.clear()

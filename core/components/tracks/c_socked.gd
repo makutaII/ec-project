@@ -533,7 +533,8 @@ func _snap_transform(s_socket: Area3D, d_socket: Area3D) -> Variant:
 	var b := Basis(Vector3.UP, yaw)
 	# XX claude-coaster C5.4: крен на стыке. Мировые «верха» сокетов, разница вокруг оси стыка (излом по вертикали в неё не входит)
 	var bank := JointMath.bank_diff_deg(t_dir, _joint_up_world(s_socket), b * _joint_up_local(d_socket))
-	if bank > Global.settings.joint_bank_max_deg:
+	# flex сам берёт крен соседа в начале (C_FlexShape._neighbor_roll), поэтому для него разница крена не причина отказа
+	if bank > Global.settings.joint_bank_max_deg and not entity.has_comp(C_FlexShape):
 		snap_reject_reason = "bank"
 		return null
 	var xf := Transform3D(b, s_socket.global_position - b * d_socket.position)

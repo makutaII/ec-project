@@ -42,3 +42,15 @@ static func can_enter(gpos: Vector3, end_a: Vector3, end_b: Vector3, tan_a: Vect
 	if minf(da, db) > gap_max:
 		return false
 	return axis_aligned(travel_dir, tan_a if da <= db else tan_b, max_deg)
+
+
+## Крен «верха» up у трака, идущего по направлению forward (градусы, + правый край ниже, как RideShape и TrackMeshBuilder.frame).
+## Базовый «верх» берётся как у репера без крена: Vector3.UP без составляющей вдоль хода. Крен это угол от базового «верха»
+## к up вокруг хода по правой тройке (так репер поворачивает right и up). Нужен flex: он берёт крен соседа у стыка (ATTN_27 §27.15)
+static func roll_about(forward: Vector3, up: Vector3) -> float:
+	var f := forward.normalized()
+	var base := Vector3.UP - f * f.dot(Vector3.UP)
+	var u := up - f * f.dot(up)
+	if base.length_squared() < 0.000001 or u.length_squared() < 0.000001:
+		return 0.0
+	return rad_to_deg(base.normalized().signed_angle_to(u.normalized(), f))
