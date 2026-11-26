@@ -15,8 +15,8 @@ class_name CatalogMeta extends RefCounted
 
 ## Категории по режимам, в порядке показа кнопок
 const MODE_CATEGORIES := {
-	# XX claude-car CS1: road (ATTN_28). Категория car появится в build вместе с первой машиной (CS2), пока объектов нет
-	&"build": [&"train", &"track", &"road", &"building", &"decor", &"terrain"],
+	# XX claude-car CS1: road, CS2: car (ATTN_28)
+	&"build": [&"train", &"track", &"road", &"car", &"building", &"decor", &"terrain"],
 	&"operate": [&"dc_controller", &"dcc_controller"],
 	&"sections": [&"table"],   # XX claude-table T2: секции подмакетника, не категория Build
 	&"coaster": [&"coaster_track", &"coaster_car"],   # XX claude-coaster C1, C3: ATTN_27, режим «горки»
@@ -46,6 +46,7 @@ const TAGS := {
 	&"train": [&"loco", &"boxcar", &"parts", &"consist"],
 	&"track": [&"straight", &"curve", &"junction", &"special"],
 	&"road": [&"straight", &"curve", &"ramp"],   # XX claude-car CS1, ramp: CS1c
+	&"car": [&"passenger"],   # XX claude-car CS2
 	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"field", &"relief", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14: field (H1b), relief (H2)
 	&"decor": [&"portal"],   # XX claude-terra 13.14 H7b
@@ -85,6 +86,9 @@ const TAG_META := {
 		&"straight": {"name": "Прямые"},
 		&"curve": {"name": "Повороты"},
 		&"ramp": {"name": "Пандусы"},   # XX claude-car CS1c
+	},
+	&"car": {   # XX claude-car CS2
+		&"passenger": {"name": "Легковые"},
 	},
 	&"track": {
 		&"straight": {"name": "Прямые"},

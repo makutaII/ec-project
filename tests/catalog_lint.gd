@@ -21,6 +21,7 @@ const DIRS := [
 	"res://data/power/objects/",
 	"res://data/coaster/objects/",   # XX claude-coaster C0
 	"res://data/roads/objects/",   # XX claude-car CS1
+	"res://data/cars/objects/",   # XX claude-car CS2
 	"res://data/decor/objects/",   # XX claude-terra 13.14 H7b
 ]
 

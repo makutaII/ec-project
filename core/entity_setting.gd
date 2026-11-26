@@ -72,6 +72,8 @@ func get_pick_layers() -> Array:
 func _base_pick_layers() -> Array:
 	if not pick_layers.is_empty():
 		return pick_layers
+	if category == &'car':   # XX claude-car CS2: машина садится на землю и на дорогу
+		return [&'ground', &'roads']
 	if category == &'track' or category == &'road':   # XX claude-car CS1: дорога ставится как трак
 		return [&'ground']   # трак ставится на уровень над землей, а не на другие траки
 	if category == &'terrain':

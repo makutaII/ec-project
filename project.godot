@@ -37,6 +37,7 @@ LYM="*res://core/controllers/layout_manager.gd"
 TSM="*res://core/controllers/track_style_manager.gd"
 SND="*res://core/controllers/sound_manager.gd"
 InfoTips="*res://core/controllers/info_tips.gd"
+CSM="*res://core/controllers/car_system_manager.gd"
 
 [debug]
 
@@ -514,6 +515,7 @@ debug_vsync_toggle={
 3d_physics/layer_14="power"
 3d_physics/layer_15="underside"
 3d_physics/layer_16="roads"
+3d_physics/layer_17="cars"
 
 [physics]
 

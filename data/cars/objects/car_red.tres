@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" path="res://setting/car_config.gd" id="2_cc"]
+[ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" path="res://core/car/car_visual_setting.gd" id="4_cv"]
+[ext_resource type="Script" path="res://core/car/car_draggable_setting.gd" id="5_cd"]
+[ext_resource type="Script" path="res://core/car/road_vehicle_setting.gd" id="6_rv"]
+[ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="7_hv"]
+[ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="8_sl"]
+[ext_resource type="Texture2D" path="res://ui/icons/transport/mine-truck.svg" id="9_ic"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="10_es"]
+
+[sub_resource type="Resource" id="Resource_cfg"]
+script = ExtResource("2_cc")
+body_color = Color(0.75, 0.15, 0.12, 1)
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_id")
+object_config = SubResource("Resource_cfg")
+
+[sub_resource type="Resource" id="Resource_vis"]
+script = ExtResource("4_cv")
+
+[sub_resource type="Resource" id="Resource_drag"]
+script = ExtResource("5_cd")
+
+[sub_resource type="Resource" id="Resource_veh"]
+script = ExtResource("6_rv")
+
+[sub_resource type="Resource" id="Resource_hov"]
+script = ExtResource("7_hv")
+
+[sub_resource type="Resource" id="Resource_sel"]
+script = ExtResource("8_sl")
+
+[resource]
+script = ExtResource("10_es")
+key = &"car.passenger.car_red"
+sort_order = 10
+name = "Легковая красная"
+description = "Легковая машина, красная"
+category = &"car"
+tag = &"passenger"
+icon = ExtResource("9_ic")
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_vis"), SubResource("Resource_drag"), SubResource("Resource_veh"), SubResource("Resource_hov"), SubResource("Resource_sel")])
+pick_layers = Array[StringName]([&"ground", &"roads"])
+metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

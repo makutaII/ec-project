@@ -399,11 +399,11 @@ func _pick_ray() -> Dictionary:
 	# XX claude-table T1b: в режиме «Секции» смотрим только плиту (вагон или трак на ней не заслоняют её)
 	if Global.current_mode == &'sections':
 		return controller.get_mouse_ray(Global.active_layers(['ground', 'ghost']))
-	var hit: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','roads','trains','ghost','power']))   # XX claude-car CS1: roads
+	var hit: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','roads','cars','trains','ghost','power']))   # XX claude-car CS1: roads, CS2: cars
 	if hit.is_empty():
 		# get_mouse_ray отбрасывает боковые грани слоя ground (бок стола не поверхность для трека). Для выбора и ховера бок
 		# пенопластового блока (C_TerrainLayer) годится: без этого блок наводился только по верхней грани
-		var raw: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','roads','trains','ghost','power']), true)
+		var raw: Dictionary = controller.get_mouse_ray(Global.active_layers(['ground','tracks','roads','cars','trains','ghost','power']), true)
 		if not raw.is_empty() and raw.collider is Node:
 			var raw_entity = _find_entity(raw.collider)
 			if raw_entity != null and raw_entity.has_comp(C_TerrainLayer):

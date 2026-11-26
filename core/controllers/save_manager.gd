@@ -384,6 +384,26 @@ func load_game(slot_name: String  ='savegame', dir: String = SAVE_DIR, style_ove
 				if _k and is_instance_valid(_k.rb):
 					_k.rb.freeze = false
 
+		# 5а. XX claude-car CS2: машины находят полосу под собой (дорога уже расставлена, коллизии могут быть готовы не с первого кадра)
+		var cars: Array[C_RoadVehicle] = []
+		for _entity in root_node.get_children():
+			if _entity is Entity:
+				var _cv := _entity.get_comp(C_RoadVehicle) as C_RoadVehicle
+				if _cv:
+					cars.append(_cv)
+		var cars_pending := cars.duplicate()
+		var cars_attempt := 0
+		while not cars_pending.is_empty():
+			var cars_still: Array = []
+			for _c in cars_pending:
+				if is_instance_valid(_c) and not _c.restore_after_load():
+					cars_still.append(_c)
+			cars_pending = cars_still
+			cars_attempt += 1
+			if cars_pending.is_empty() or cars_attempt > SNAP_RETRY_FRAMES:
+				break
+			await get_tree().physics_frame
+
 		# 5б. Сцепки восстанавливаем вторым проходом: нужны финальные позиции ВСЕХ вагонов. После посадки шасси
 		# выставляет transform в первом физкадре, поэтому ждем кадр и повторяем, пока все сцепки не найдут пару
 		var couplers: Array[C_Coupler] = []
