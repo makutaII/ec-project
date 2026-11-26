@@ -1,24 +1,29 @@
-[gd_resource type="Resource" script_class="TrackStyle" format=3]
+[gd_resource type="Resource" script_class="TrackStyle" format=3 uid="uid://dtc2lk77k3o2p"]
 
-[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="1_ts"]
-[ext_resource type="Shader" path="res://data/roads/shaders/road_surface.gdshader" id="2_sh"]
+[ext_resource type="Script" uid="uid://cfpx56q1cgoy5" path="res://core/components/tracks/track_style.gd" id="1_ts"]
+[ext_resource type="Shader" uid="uid://rhbsjgsh4xd7" path="res://data/roads/shaders/road_surface.gdshader" id="2_sh"]
 
 [sub_resource type="ShaderMaterial" id="Material_asphalt"]
+render_priority = 0
 shader = ExtResource("2_sh")
 shader_parameter/asphalt_color = Color(0.17, 0.17, 0.18, 1)
+shader_parameter/asphalt_roughness = 0.95
+shader_parameter/use_asphalt_texture = false
+shader_parameter/asphalt_tiling = Vector2(0.1, 4)
 shader_parameter/line_color = Color(0.9, 0.9, 0.84, 1)
 shader_parameter/line_pos = 0.5
 shader_parameter/line_width = 0.04
 shader_parameter/dash_length = 2.5
 shader_parameter/gap_length = 2.5
+shader_parameter/line_enabled = true
 
 [resource]
 script = ExtResource("1_ts")
 id = &"asphalt"
 rail_enabled = false
+rail_profile = null
 sleeper_enabled = false
 ballast_profile = PackedVector2Array(-2.5, 0, -2.5, 0.3, 2.5, 0.3, 2.5, 0)
 ballast_material = SubResource("Material_asphalt")
 ballast_uv_tile = Vector2(1, 0)
-collision_width = 5.0
-surface_height = 0.3
+collision_width = 4.0
