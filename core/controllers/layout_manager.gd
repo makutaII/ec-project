@@ -289,6 +289,22 @@ func set_plate_visible(on: bool) -> void:
 		return
 	plate_visible = on
 	plate_visible_changed.emit(on)
+	if not on and wiring_active and shelf_polygons().is_empty():
+		notice.emit("Нижней полки нет: включите «Подрамник» при ножках во вкладке «Стол», блоки и провода под столом ставятся на неё")
+
+
+## XX claude-wire W4: контуры нижней полки (вторая столешница под основной, размер по подрамнику). Пусто: подрамник выключен,
+## опоры не ножки или под плитой нет места
+func shelf_polygons() -> Array[PackedVector2Array]:
+	var leg_h := config.height - plate_thickness()
+	if not config.apron or int(config.support) != LayoutConfig.Support.LEGS or leg_h <= 2.0 * TableSupports.SHELF_T:
+		return []
+	return TableSupports.shelf_polygons(footprint())
+
+
+## Высота верха нижней полки (y), стол сверху в y = 0
+func shelf_top() -> float:
+	return TableSupports.shelf_levels(plate_thickness(), config.height - plate_thickness()).x
 
 
 # XX claude-wire W2: подрамник под плитой (виден при ножках)

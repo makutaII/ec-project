@@ -26,6 +26,9 @@ const BRK_BRACE_MAX := 18.0
 const APRON_H := 6.0
 const APRON_W := 2.0
 
+## XX claude-wire W4: нижняя полка (вторая столешница под основной): толщина, u. Низ полки на уровне низа подрамника
+const SHELF_T := 1.0
+
 ## Зазор от края плиты до ножки, u
 const EDGE_INSET := 3.0
 ## Наибольший пролёт между ножками на длинном ребре, u (стол v1 200 u обходится углами)
@@ -140,6 +143,70 @@ static func _legs(res: Array[Dictionary], footprint: Array[PackedVector2Array], 
 	for p in leg_positions(footprint, leg):
 		res.append({"name": "Leg", "size": Vector3(leg, leg_h, leg), "center": Vector3(p.x, -height + leg_h * 0.5, p.y),
 				"basis": Basis.IDENTITY})
+
+
+## XX claude-wire W4: контуры нижней полки: внешние контуры футпринта, сжатые на EDGE_INSET (размер по внешней грани подрамника).
+## Дыры футпринта (контуры по часовой) пропускаются. Что вышло после сжатия, берём как есть: у простого контура это только внешние контуры
+static func shelf_polygons(footprint: Array[PackedVector2Array]) -> Array[PackedVector2Array]:
+	var res: Array[PackedVector2Array] = []
+	for raw in footprint:
+		if Geometry2D.is_polygon_clockwise(raw):
+			continue
+		for poly in Geometry2D.offset_polygon(_cleaned(raw), -EDGE_INSET, Geometry2D.JOIN_MITER):
+			if poly.size() >= 3:
+				res.append(poly)
+	return res
+
+
+## Верх (x) и низ (y) нижней полки по y: низ на уровне низа подрамника (его высота как у царг), толщина SHELF_T
+static func shelf_levels(th: float, leg_h: float) -> Vector2:
+	var h := minf(APRON_H, leg_h)
+	return Vector2(-th - h + SHELF_T, -th - h)
+
+
+## Призма контура между y_top и y_bot одним мешем (верх, низ и бока). Вершины без индексов, нормали наружу, порядок обхода под Godot
+static func prism_mesh(poly: PackedVector2Array, y_top: float, y_bot: float) -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	var tris := Geometry2D.triangulate_polygon(poly)
+	if tris.is_empty():
+		return mesh
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(0, tris.size(), 3):
+		var a := poly[tris[i]]
+		var b := poly[tris[i + 1]]
+		var c := poly[tris[i + 2]]
+		_tri(st, Vector3(a.x, y_top, a.y), Vector3(b.x, y_top, b.y), Vector3(c.x, y_top, c.y), Vector3.UP)
+		_tri(st, Vector3(a.x, y_bot, a.y), Vector3(b.x, y_bot, b.y), Vector3(c.x, y_bot, c.y), Vector3.DOWN)
+	var n := poly.size()
+	for i in n:
+		var a := poly[i]
+		var b := poly[(i + 1) % n]
+		if a.distance_to(b) < 0.001:
+			continue
+		var d := (b - a).normalized()
+		var out := Vector2(d.y, -d.x)
+		if Geometry2D.is_point_in_polygon((a + b) * 0.5 + out * 0.01, poly):
+			out = -out
+		var nrm := Vector3(out.x, 0.0, out.y)
+		var at := Vector3(a.x, y_top, a.y)
+		var bt := Vector3(b.x, y_top, b.y)
+		var ab := Vector3(a.x, y_bot, a.y)
+		var bb := Vector3(b.x, y_bot, b.y)
+		_tri(st, at, bt, bb, nrm)
+		_tri(st, at, bb, ab, nrm)
+	return st.commit()
+
+
+## Треугольник с нормалью наружу. Лицевая сторона в Godot это обход по часовой, поэтому порядок вершин подбираем по нормали
+static func _tri(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: Vector3, n_out: Vector3) -> void:
+	if (v1 - v0).cross(v2 - v0).dot(n_out) > 0.0:
+		var t := v1
+		v1 = v2
+		v2 = t
+	for v in [v0, v1, v2]:
+		st.set_normal(n_out)
+		st.add_vertex(v)
 
 
 ## XX claude-wire W2: подрамник. Брус вдоль каждого ребра контура сразу под плитой (верх бруса на низе плиты), отступ внутрь как у ножек.

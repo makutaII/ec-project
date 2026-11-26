@@ -16,7 +16,8 @@ var _hover: PowerTerminal
 var _preview: MeshInstance3D
 var _rmb_start := Vector2.ZERO
 
-const LIFT := 1.0
+## Провод лежит на поверхности под курсором (на столе, на нижней полке), не висит над ней: высота оси кабеля над поверхностью, u
+const LIFT := 0.2   # XX claude-wire W4: было 1.0
 
 
 func enter() -> void:
@@ -81,7 +82,7 @@ func handle_input(event: InputEvent) -> void:
 		points = PackedVector3Array()
 		Hints.set_context(&"wire_started", false)
 		return
-	var hit := controller.get_mouse_ray(Global.active_layers(["ground", "tracks", "plaster"]))
+	var hit := controller.get_mouse_ray(Mount.wire_mask(Global.active_layers(["ground", "tracks", "plaster"])))   # XX claude-wire W4: полка
 	if not hit.is_empty():
 		points.append(hit.position + Vector3.UP * LIFT)
 
@@ -127,7 +128,7 @@ func _update_preview(t: PowerTerminal) -> void:
 			ok = false
 			InfoTips.show_lines(self, [InfoTips.danger(why)])
 	else:
-		var hit := controller.get_mouse_ray(Global.active_layers(["ground", "tracks", "plaster"]))
+		var hit := controller.get_mouse_ray(Mount.wire_mask(Global.active_layers(["ground", "tracks", "plaster"])))   # XX claude-wire W4: полка
 		if hit.is_empty():
 			return
 		end = hit.position + Vector3.UP * LIFT

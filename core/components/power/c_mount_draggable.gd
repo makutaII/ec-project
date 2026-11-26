@@ -4,52 +4,36 @@ class_name C_MountDraggable extends IDraggable
 #####################
 ## Драг блока с монтажом (ATTN_23 §23.9, W4)
 #####################
-## Блок ставится на поверхность под курсором: плита сверху (как у C_TrackDraggable: уровень R/F, поле высот),
-## низ плиты (UNDER, блок висит вниз головой) или боковая грань бруса (FRAME). Ось Y блока идёт по нормали поверхности,
-## Q/E крутят вокруг неё. Поза хранится в global_transform сущности (сейв её пишет), поверхность и поворот берутся из позы.
-## Невозможное место (за краем рамы, не та грань, поверхность не из allowed) метит C_Invalid: красный призрак, не ставится,
-## при драге блок возвращается на старое место.
+## Блок всегда стоит горизонтально, как раньше (C_TrackDraggable): на плите сверху с уровнем R/F и полем высот, либо на нижней
+## полке (вторая столешница под основной): там высота это верх полки под курсором. Q/E крутят вокруг вертикали.
+## Невозможное место (близко к краю полки) метит C_Invalid: красный призрак, не ставится, при драге блок возвращается назад.
 
-## Где крепится (Mount.Surface), из паспорта
-var allowed: Array = []
-
-var spin := 0.0                  # поворот вокруг нормали, рад
-var elevation := 0               # уровней над поверхностью, только на плите сверху
-var drag_offset := Vector3.ZERO  # смещение хвата, только на плите сверху
+var spin := 0.0                  # поворот вокруг вертикали, рад
+var elevation := 0               # уровней над плитой, только на плите сверху
+var drag_offset := Vector3.ZERO  # смещение хвата
 var initial_transform: Transform3D
-var _normal := Vector3.UP
 
 
 func on_drag_started(data: Dictionary) -> void:
 	initial_transform = entity.global_transform
-	_normal = entity.global_basis.y.normalized()
-	spin = Mount.spin_of(entity.global_basis, _normal)
-	if Mount.surface_of_basis(entity.global_basis) == Mount.Surface.TOP:
-		var raw: Vector3 = entity.global_position - data.position
-		drag_offset = Vector3(raw.x, 0.0, raw.z)
-		var T: float = Global.settings.layer_height
-		elevation = maxi(0, roundi((entity.global_position.y - data.position.y) / T))
-	else:
-		drag_offset = Vector3.ZERO
-		elevation = 0
+	var raw: Vector3 = entity.global_position - data.position
+	drag_offset = Vector3(raw.x, 0.0, raw.z)
+	spin = entity.global_basis.get_euler().y
+	var T: float = Global.settings.layer_height
+	elevation = maxi(0, roundi((entity.global_position.y - data.position.y) / T))
 
 
 func on_drag_moved(data: Dictionary) -> void:
-	var surface := Mount.surface_of_collider(data.get("collider", null))
-	var pos: Vector3 = data.position
-	var n := Vector3.UP
-	match surface:
-		Mount.Surface.UNDER:
-			n = Vector3.DOWN
-		Mount.Surface.FRAME:
-			n = data.get("normal", Vector3.UP)
-		_:
-			var T: float = Global.settings.layer_height
-			var target := pos + drag_offset
-			pos = Vector3(target.x, TGM.field_track_level(target.x, target.z, target.y) + elevation * T, target.z)
-	_normal = n
-	entity.global_transform = Transform3D(Mount.basis_for(n, spin), pos)
-	_mark(Mount.reason(surface, pos, n, allowed))
+	var shelf := Mount.on_shelf(data.get("collider", null))
+	var target: Vector3 = (data.position as Vector3) + drag_offset
+	var pos := target
+	if shelf:
+		pos.y = (data.position as Vector3).y   # верх полки под курсором
+	else:
+		var T: float = Global.settings.layer_height
+		pos = Vector3(target.x, TGM.field_track_level(target.x, target.z, target.y) + elevation * T, target.z)
+	entity.global_transform = Transform3D(Basis(Vector3.UP, spin), pos)
+	_mark(Mount.reason(pos, shelf))
 
 
 func on_drag_ended(_data: Dictionary) -> void:
@@ -96,4 +80,4 @@ func on_drag_reset(_data: Dictionary) -> void:
 	spin = 0.0
 	elevation = 0
 	drag_offset = Vector3.ZERO
-	entity.global_basis = Mount.basis_for(_normal, 0.0)
+	entity.global_basis = Basis.IDENTITY

@@ -123,6 +123,32 @@ func _ready() -> void:
 	check("LayoutConfig: подрамник пишется и читается", cs2.apron)
 	cs2.set_state({"version": 1, "height": 60.0})
 	check("старый сейв без ключа: подрамника нет", not cs2.apron)
+	# XX claude-wire W4: нижняя полка (вторая столешница по размеру подрамника)
+	var shelf := TableSupports.shelf_polygons(fp_v1)
+	var smin := Vector2(INF, INF)
+	var smax := Vector2(-INF, -INF)
+	for sp in shelf:
+		for pt in sp:
+			smin = Vector2(minf(smin.x, pt.x), minf(smin.y, pt.y))
+			smax = Vector2(maxf(smax.x, pt.x), maxf(smax.y, pt.y))
+	check("полка: один контур, 194 x 94 (стол сжат на отступ ножек)", shelf.size() == 1 and smin.distance_to(Vector2(-97, -47)) < 0.01 and smax.distance_to(Vector2(97, 47)) < 0.01, "%s %s" % [smin, smax])
+	var fp_l: Array[PackedVector2Array] = [PackedVector2Array([Vector2(0, 0), Vector2(200, 0), Vector2(200, 50), Vector2(100, 50), Vector2(100, 100), Vector2(0, 100)])]
+	var shelf_l := TableSupports.shelf_polygons(fp_l)
+	var in_l := not shelf_l.is_empty()
+	for sp in shelf_l:
+		for pt in sp:
+			in_l = in_l and Geometry2D.is_point_in_polygon(pt, fp_l[0])
+	check("полка у Г-образного стола: внутри футпринта", in_l, str(shelf_l.size()))
+	var lv := TableSupports.shelf_levels(th, 45.0)
+	check("уровни полки: низ на уровне низа царг, толщина SHELF_T", is_equal_approx(lv.y, -th - TableSupports.APRON_H) and is_equal_approx(lv.x - lv.y, TableSupports.SHELF_T), str(lv))
+	var lv_low := TableSupports.shelf_levels(th, 3.0)
+	check("низкий стол: полка не глубже ножки", is_equal_approx(lv_low.y, -th - 3.0), str(lv_low))
+	var pm := TableSupports.prism_mesh(shelf[0], lv.x, lv.y)
+	var pverts: PackedVector3Array = pm.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var bb := pm.get_aabb()
+	check("призма: 12 треугольников (верх, низ, 4 боковые грани)", pm.get_surface_count() == 1 and pverts.size() == 36, str(pverts.size()))
+	check("призма: габариты 194 x толщина x 94", absf(bb.size.x - 194.0) < 0.01 and is_equal_approx(bb.size.y, TableSupports.SHELF_T) and absf(bb.size.z - 94.0) < 0.01 and is_equal_approx(bb.position.y, lv.y), str(bb))
+	check("призма: вырожденный контур даёт пустой меш", TableSupports.prism_mesh(PackedVector2Array([Vector2.ZERO, Vector2(1, 0)]), 0.0, -1.0).get_surface_count() == 0)
 	var fp_wall: Array[PackedVector2Array] = [_poly(Rect2(-240, -50, 140, 100))]
 	var p_wall := TableSupports.parts(wall, fp_wall, 50.0, th, 6.0, cfg)
 	check("кронштейны: 3 штуки по 3 детали на западном ребре 100 u", p_wall.size() == 9 and _count(p_wall, "BracketArm") == 3, str(p_wall.size()))
@@ -242,27 +268,40 @@ func _ready() -> void:
 		if ch.name.begins_with("Leg"):
 			legs_back += 1
 	check("ножек у стола 340 x 100: 4 угла и по одной на длинных рёбрах", legs_back == 6, str(legs_back))
-	# XX claude-wire W2: подрамник в комнате и слой underside
+	# XX claude-wire W2, W4: подрамник и нижняя полка в комнате
+	var under_l := Global.active_layers(['underside'])
 	LYM.set_apron(true)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	var aprons := 0
-	var under_ok := true
+	var shelves := 0
+	var shelf_ok := true
 	for ch in rb.table.get_children():
 		if ch.name.begins_with("Apron"):
 			aprons += 1
-		if ch is StaticBody3D:
-			under_ok = under_ok and ((ch as StaticBody3D).collision_layer & Global.active_layers(['underside'])) != 0
+		if ch.name.begins_with("Shelf"):
+			shelves += 1
+			var sb := ch as StaticBody3D
+			shelf_ok = shelf_ok and sb != null and (sb.collision_layer & under_l) != 0 \
+					and (sb.collision_layer & (Global.active_layers(['ground']) | Global.active_layers(['room']))) == 0 and Mount.on_shelf(sb)
 	check("RoomBuilder построил подрамник", aprons == 4 or aprons == 6, str(aprons))
-	check("ножки и царги на слое underside", under_ok)
+	check("нижняя полка построена, тело только на слое underside", shelves >= 1 and shelf_ok, str(shelves))
+	var c := LYM.section_rects()[0].get_center()
+	var ray := PhysicsRayQueryParameters3D.create(Vector3(c.x, 50.0, c.y), Vector3(c.x, -200.0, c.y), under_l)
+	var hit := rb.get_viewport().world_3d.direct_space_state.intersect_ray(ray)
+	check("луч по слою underside бьёт в верх полки", not hit.is_empty() and absf(hit.position.y - (rb.table.global_position.y + LYM.shelf_top())) < 0.01 and Mount.on_shelf(hit.collider), str(hit))
 	LYM.set_apron(false)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	aprons = 0
+	shelves = 0
 	for ch in rb.table.get_children():
 		if ch.name.begins_with("Apron"):
 			aprons += 1
-	check("подрамник выключен: царг нет", aprons == 0, str(aprons))
+		if ch.name.begins_with("Shelf"):
+			shelves += 1
+	hit = rb.get_viewport().world_3d.direct_space_state.intersect_ray(ray)
+	check("подрамник выключен: ни царг, ни полки", aprons == 0 and shelves == 0 and hit.is_empty(), "%d %d" % [aprons, shelves])
 	rb.queue_free()
 	s1.free()
 	s2.free()

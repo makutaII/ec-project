@@ -35,8 +35,8 @@ func _setup() -> void:
 	_support_option.item_selected.connect(_on_support_selected)
 	box.add_child(_support_option)
 	_apron_check = CheckBox.new()
-	_apron_check.text = "Подрамник под плитой"
-	_apron_check.tooltip_text = "Царги по контуру под плитой (при ножках). За них крепят блоки и провода под столом"
+	_apron_check.text = "Подрамник и нижняя полка"
+	_apron_check.tooltip_text = "Царги по контуру под плитой и вторая столешница (полка) по размеру подрамника, при ножках. На полку ставят блоки и кладут провода в режиме «Монтаж»"
 	_apron_check.toggled.connect(_on_apron_toggled)
 	box.add_child(_apron_check)
 	var row := HBoxContainer.new()

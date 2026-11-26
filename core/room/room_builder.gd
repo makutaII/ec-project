@@ -405,19 +405,57 @@ func _build_supports() -> void:
 		table.remove_child(c)
 		c.queue_free()
 	# XX claude-table T4: вид опор из LayoutConfig (ножки, рама, кронштейны), детали строит план TableSupports.parts
-	# XX claude-wire W2: опоры ещё и на слое underside (лучи монтажа под столом), подрамник из LayoutConfig.apron
-	var room_layer := Global.active_layers(['room', 'underside'])
+	# XX claude-wire W2: подрамник из LayoutConfig.apron
+	var room_layer := Global.active_layers(['room'])
 	for part in TableSupports.parts(int(LYM.config.support), LYM.footprint(), LYM.config.height, LYM.plate_thickness(),
 			config.table_leg, config, LYM.config.apron):
 		var mi := _box(table, part["name"], part["size"], part["center"], COL_TABLE_LEG, room_layer, 1, true)
 		if mi != null:
-			mi.get_parent().set_meta(Mount.META, &"FRAME")   # XX claude-wire W4: брус, ножка, кронштейн, царга: блок крепится к боковой грани
 			var b := part["basis"] as Basis
 			if not b.is_equal_approx(Basis.IDENTITY):
 				var body := mi.get_parent() as Node3D
 				var tf := body.transform
 				tf.basis = b
 				body.transform = tf
+	# XX claude-wire W4: нижняя полка (вторая столешница по размеру подрамника), если включён подрамник
+	var levels := TableSupports.shelf_levels(LYM.plate_thickness(), LYM.config.height - LYM.plate_thickness())
+	for poly in LYM.shelf_polygons():
+		_build_shelf(poly, levels.x, levels.y)
+
+
+## Нижняя полка: тело на слое underside (по нему бьют лучи монтажа блоков и проводов при виде «Монтаж»), мета mount = SHELF.
+## Верх полки горизонтален: блоки и провода лежат на ней как на столе. Вагоны и трак слоя underside не видят
+func _build_shelf(poly: PackedVector2Array, y_top: float, y_bot: float) -> void:
+	var body := StaticBody3D.new()
+	body.name = "Shelf"
+	body.collision_layer = Global.active_layers(['underside'])
+	body.collision_mask = 0
+	body.set_meta(Mount.META, &"SHELF")
+	var pieces: Array = Geometry2D.decompose_polygon_in_convex(poly)
+	if pieces.is_empty():
+		pieces = [poly]
+	for piece: PackedVector2Array in pieces:
+		var v := PackedVector3Array()
+		for p: Vector2 in piece:
+			v.append(Vector3(p.x, y_bot, p.y))
+			v.append(Vector3(p.x, y_top, p.y))
+		var shape := ConvexPolygonShape3D.new()
+		shape.points = v
+		var cs := CollisionShape3D.new()
+		cs.shape = shape
+		body.add_child(cs)
+	var mi := MeshInstance3D.new()
+	mi.name = "Mesh"
+	mi.mesh = TableSupports.prism_mesh(poly, y_top, y_bot)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = COL_TABLE_LEG
+	mat.roughness = 0.9
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	mi.layers = 1
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	body.add_child(mi)
+	table.add_child(body)
 
 
 ## Свет предыдущей комнаты (лежит рядом с Room, а не внутри: кнопка «Комната» прячет стены, но не гасит свет над макетом)

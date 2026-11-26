@@ -3,7 +3,7 @@ extends Node
 # XX claude-wire W3 (новый файл)
 ## ATTN_23 W3, W4: вид «Монтаж» внутри Operate. Запуск: открыть tests/wiring_view_test.tscn и нажать F6.
 ## Результат в Output: во всех строках OK, в конце ИТОГ: OK.
-## Проверяет: плиту (LYM.set_plate_visible скрывает меш, коллизия ground и underside остаётся, новая секция при скрытой плите скрыта,
+## Проверяет: плиту (LYM.set_plate_visible скрывает меш, коллизия ground остаётся, новая секция при скрытой плите скрыта,
 ## LYM.reset возвращает плиту); WiringView (схема прячет поезда, здания, декор, рельеф; дороги и блоки остаются;
 ## «как есть» и выход из режима возвращают всё; чужая невидимость не ломается).
 
@@ -58,7 +58,6 @@ func _ready() -> void:
 		LYM.set_plate_visible(false)
 		check("плита скрыта: меш не виден", not ca.mesh_node.visible)
 		check("коллизия ground осталась", (ca.body.collision_layer & Global.active_layers(['ground'])) != 0 and ca.body.get_child_count() > 0)
-		check("тело underside осталось", (ca.under_body.collision_layer & Global.active_layers(['underside'])) != 0)
 		var b := _section(Vector2(100, 0))
 		await get_tree().physics_frame
 		check("новая секция при скрытой плите тоже скрыта", not (b.get_comp(C_TableSection) as C_TableSection).mesh_node.visible)
