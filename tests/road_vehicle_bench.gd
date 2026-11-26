@@ -31,7 +31,7 @@ func _ready() -> void:
 		var per_piece := int(20.0 / GAP)
 		var placed := 0
 		for i in n:
-			var k := i / per_piece
+			var k = i / per_piece
 			if k >= PIECES:
 				break
 			var car: Entity = EntityFactory.new().create_from_setting(car_s)
