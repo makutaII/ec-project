@@ -408,7 +408,7 @@ func _build_supports() -> void:
 	# XX claude-wire W2: подрамник из LayoutConfig.apron
 	var room_layer := Global.active_layers(['room'])
 	for part in TableSupports.parts(int(LYM.config.support), LYM.footprint(), LYM.config.height, LYM.plate_thickness(),
-			config.table_leg, config, LYM.config.apron):
+			config.table_leg, config, LYM.config.apron, LYM.apron_depth()):
 		var mi := _box(table, part["name"], part["size"], part["center"], COL_TABLE_LEG, room_layer, 1, true)
 		if mi != null:
 			var b := part["basis"] as Basis
@@ -418,7 +418,7 @@ func _build_supports() -> void:
 				tf.basis = b
 				body.transform = tf
 	# XX claude-wire W4: нижняя полка (вторая столешница по размеру подрамника), если включён подрамник
-	var levels := TableSupports.shelf_levels(LYM.plate_thickness(), LYM.config.height - LYM.plate_thickness())
+	var levels := TableSupports.shelf_levels(LYM.plate_thickness(), LYM.config.height - LYM.plate_thickness(), LYM.apron_depth())
 	for poly in LYM.shelf_polygons():
 		_build_shelf(poly, levels.x, levels.y)
 

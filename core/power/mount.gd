@@ -39,6 +39,24 @@ static func reason(pos: Vector3, on_shelf_surface: bool) -> String:
 	return ""
 
 
+## Выше ли узел провода плоскости столешницы. y < 0: провод лежит под плитой (на нижней полке), y >= 0: на плите и над ней
+static func under_plate(y: float) -> bool:
+	return y < 0.0
+
+
+## Ввод провода через столешницу (отверстие) не ближе этого к краю плиты, u
+const HOLE_MARGIN := 3.0
+
+
+## Причина, по которой через плиту в точке p (план x, z) провод не пройдёт, или пусто: у края стола и вне стола отверстия нет
+static func hole_reason(p: Vector3) -> String:
+	var m := HOLE_MARGIN
+	for off in [Vector2.ZERO, Vector2(m, 0), Vector2(-m, 0), Vector2(0, m), Vector2(0, -m)]:
+		if not LYM.contains(p.x + off.x, p.z + off.y):
+			return "Ввод через столешницу не ближе %d u к краю стола" % int(m)
+	return ""
+
+
 ## Блок ли это с монтажом (в паспорте есть MountDraggableSettings)
 static func has_mount(setting: EntitySetting) -> bool:
 	if setting == null:

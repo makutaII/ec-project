@@ -88,6 +88,8 @@ func refresh() -> void:
 		if is_instance_valid(t) and t.role == PowerTerminal.Role.SRC:
 			lines2.append("От вывода %d" % t.output_label)
 		lines2.append("Скрутка: %s" % ("да" if w.twist else "нет"))
+		if not w.is_valid_wire():
+			lines2.append("Не подключён: свободный конец, тока нет")   # XX claude-wire W5
 		_wire_info.text = "\n".join(lines2)
 		_twist.set_pressed_no_signal(w.twist)
 	_syncing = false

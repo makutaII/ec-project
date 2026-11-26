@@ -97,6 +97,8 @@ func _register_defaults() -> void:
 	register(&"plate_toggle", "action.plate_toggle", &"wiring", [G_WIRING], _key(KEY_P))
 	# Провода: Esc отменяет провод, повторно выходит. Не переназначается: Esc займёт стек окон (U10), как observe_cancel
 	register(&"wire_cancel", "action.wire_cancel", &"wire", [G_WIRE], _key(KEY_ESCAPE), false)
+	# XX claude-wire W5: закончить провод здесь свободным концом (так же короткий ПКМ)
+	register(&"wire_finish", "action.wire_finish", &"wire", [G_WIRE], _key(KEY_ENTER))
 	# Общая отмена (U10): Esc закрывает верхнее окно, иначе снимает выбор и группу в SelectTool.
 	# Не переназначается: Esc у окон, провода и Observe (wire_cancel, observe_cancel) тоже фиксирован
 	register(&"cancel", "action.cancel", &"system", [G_SELECT], _key(KEY_ESCAPE), false)

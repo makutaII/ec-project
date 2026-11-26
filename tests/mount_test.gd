@@ -69,6 +69,13 @@ func _ready() -> void:
 	LYM.set_plate_visible(true)
 	LYM.wiring_active = false
 
+	print("== 3б. Mount: плоскость столешницы и ввод")
+	check("под плитой: y < 0", Mount.under_plate(-9.0) and not Mount.under_plate(0.2) and not Mount.under_plate(0.0))
+	check("ввод в середине стола можно", Mount.hole_reason(Vector3(0, 0, 0)) == "")
+	check("ввод у края (1 u) нельзя", Mount.hole_reason(Vector3(-99, 0, 0)) != "")
+	check("ввод в запасе от края можно", Mount.hole_reason(Vector3(-100 + Mount.HOLE_MARGIN + 1.0, 0, 0)) == "")
+	check("ввод вне стола нельзя", Mount.hole_reason(Vector3(500, 0, 0)) != "")
+
 	print("== 4. Mount.reason: край полки")
 	check("плита сверху: ограничений нет", Mount.reason(Vector3(500, 0, 500), false) == "")
 	check("полки нет (подрамник выключен): на полку нельзя", Mount.reason(Vector3(0, -10, 0), true) != "")

@@ -143,6 +143,19 @@ func _ready() -> void:
 	check("уровни полки: низ на уровне низа царг, толщина SHELF_T", is_equal_approx(lv.y, -th - TableSupports.APRON_H) and is_equal_approx(lv.x - lv.y, TableSupports.SHELF_T), str(lv))
 	var lv_low := TableSupports.shelf_levels(th, 3.0)
 	check("низкий стол: полка не глубже ножки", is_equal_approx(lv_low.y, -th - 3.0), str(lv_low))
+	# XX claude-wire W5: глубина подрамника из настройки
+	var deep := TableSupports.parts(legs, fp_v1, 50.0, th, 6.0, cfg, true, 12.0)
+	var deep_h := 0.0
+	var deep_top := 0.0
+	for p in deep:
+		if String(p["name"]) == "Apron":
+			deep_h = (p["size"] as Vector3).y
+			deep_top = (p["center"] as Vector3).y + deep_h * 0.5
+	check("глубина подрамника 12: царги 12 u, верх по-прежнему на низе плиты", is_equal_approx(deep_h, 12.0) and is_equal_approx(deep_top, -th), "%s %s" % [deep_h, deep_top])
+	var lv12 := TableSupports.shelf_levels(th, 45.0, 12.0)
+	check("глубина 12: низ полки на 12 u под плитой", is_equal_approx(lv12.y, -th - 12.0) and is_equal_approx(lv12.x - lv12.y, TableSupports.SHELF_T), str(lv12))
+	check("глубина больше ножки: полка не глубже ножки", is_equal_approx(TableSupports.shelf_levels(th, 10.0, 30.0).y, -th - 10.0))
+	check("настройка глубины по умолчанию равна TableSupports.APRON_H", is_equal_approx(Global.settings.apron_depth, TableSupports.APRON_H) and is_equal_approx(LYM.apron_depth(), TableSupports.APRON_H))
 	var pm := TableSupports.prism_mesh(shelf[0], lv.x, lv.y)
 	var pverts: PackedVector3Array = pm.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var bb := pm.get_aabb()

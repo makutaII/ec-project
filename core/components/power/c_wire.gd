@@ -3,7 +3,10 @@ class_name C_Wire extends Component
 #####################
 ## Провод (ATTN_10 §10.5.7, D4; ATTN_23 §23.9, W1)
 #####################
-## Сущность-провод: два конца (клеммы PowerTerminal), точки излома между ними, «скрутка» (меняет полярность).
+## Сущность-провод: два конца, точки трассы между ними, «скрутка» (меняет полярность). Конец это клемма PowerTerminal или
+## свободный конец (W5): провод, который игрок уложил, а подключить решил потом. Свободный конец это первая (a) или последняя (b)
+## точка points, лежит на поверхности, виден ручкой WireEnd (инструмент «Провод» берёт её и продолжает провод).
+## В граф сети попадает только провод с двумя клеммами (is_valid_wire); провод со свободным концом занимает клемму, но тока не несёт.
 ## Вид: двужильный кабель одним мешем (WireMesh) по трассе со скруглёнными углами (WireRoute), одна область выбора на провод.
 ## Узел `_vis` лежит в сущности, но не наследует её позу (top_level). Выбор и ховер обводят кабель контуром (next_pass, раздутая оболочка), цвет жил не меняют.
 ## Концы следуют за клеммами: двигаешь пульт или трак, провод перерисовывается. Клемма исчезла (трак удалён,
@@ -21,6 +24,13 @@ const COLOR_HOVER := Color(1.0, 0.6, 0.35)
 const OUTLINE_GROW := 0.035
 ## Радиус поиска клеммы при восстановлении из сейва, ю
 const RESTORE_RADIUS := 1.0
+## Ручка свободного конца: радиус зоны клика и видимого наконечника, u
+const END_HIT_RADIUS := 0.55
+const END_TIP_RADIUS := 0.2
+const COLOR_COPPER := Color(0.85, 0.52, 0.25)
+## Втулка (кольцо) в плите, где провод уходит под стол: внутренний и внешний радиус, u
+const GROMMET_INNER := 0.2
+const GROMMET_OUTER := 0.42
 
 var a: PowerTerminal
 var b: PowerTerminal
@@ -35,17 +45,27 @@ var _area: Area3D
 var _mats: Array[StandardMaterial3D] = []
 var _outline_selected: StandardMaterial3D
 var _outline_hover: StandardMaterial3D
+## Ручки свободных концов и втулки: узлы на _vis, пересоздаются при каждой перестройке
+var _extras: Array[Node] = []
 var _sig := Vector3.ZERO
 var _loaded: Dictionary = {}
 var _attached := false
+## К каким концам провод был подключён клеммой (чтобы пропавшая клемма удалила провод, а свободный конец нет)
+var _had_a := false
+var _had_b := false
 var _restore_tries := 0
 ## Сколько физкадров ждать клеммы после загрузки
 const RESTORE_FRAMES := 180
 
 
-## Создает сущность-провод из паспорта wire_01.tres и подключает её. parent: куда положить сущность (EntitiesRoot)
+## Создает сущность-провод из паспорта wire_01.tres и подключает её. parent: куда положить сущность (EntitiesRoot).
+## Конец без клеммы (null) свободный: его место это первая (term_a = null) или последняя (term_b = null) точка mid_points.
+## Нужно не меньше двух точек в ломаной (клеммы и точки вместе), иначе провода нет и вернётся null
 static func create_wire(parent: Node, term_a: PowerTerminal, term_b: PowerTerminal, mid_points: PackedVector3Array = PackedVector3Array(), with_twist := false) -> Entity:
-	if not PowerTerminal.can_connect(term_a, term_b):
+	if term_a != null and term_b != null and not PowerTerminal.can_connect(term_a, term_b):
+		return null
+	var count := mid_points.size() + (1 if term_a != null else 0) + (1 if term_b != null else 0)
+	if count < 2:
 		return null
 	var setting := load(WIRE_SETTING_PATH) as EntitySetting
 	if setting == null:
@@ -72,19 +92,28 @@ func on_added() -> void:
 
 
 func _attach() -> void:
-	if _attached or a == null or b == null:
+	if _attached or polyline().size() < 2:
 		return
 	_attached = true
-	a.add_wire(self)
-	b.add_wire(self)
+	_had_a = is_instance_valid(a)
+	_had_b = is_instance_valid(b)
+	if is_instance_valid(a):
+		a.add_wire(self)
+	if is_instance_valid(b):
+		b.add_wire(self)
 	_ensure_visual()
 	_rebuild()
 	PGM.request_recalculate()
 
 
+## Провод с двумя клеммами: только он идёт в граф сети
 func is_valid_wire() -> bool:
-	return _attached and is_instance_valid(a) and is_instance_valid(b) and not is_queued_for_deletion() \
-		and (entity == null or not entity.is_queued_for_deletion())
+	return is_alive() and is_instance_valid(a) and is_instance_valid(b)
+
+
+## Провод существует (подключён хотя бы с одной стороны или лежит со свободными концами) и не удаляется
+func is_alive() -> bool:
+	return _attached and not is_queued_for_deletion() and (entity == null or not entity.is_queued_for_deletion())
 
 
 func toggle_twist() -> void:
@@ -115,14 +144,25 @@ func _physics_process(_delta: float) -> void:
 				_loaded = {}
 				entity.kill_me()
 		return
-	if not is_instance_valid(a) or not is_instance_valid(b):
-		entity.kill_me()   # клемма исчезла: провод не висит в воздухе
+	# клемма, к которой провод был подключён, исчезла: провод не висит в воздухе
+	if (_had_a and not is_instance_valid(a)) or (_had_b and not is_instance_valid(b)):
+		entity.kill_me()
 		return
-	if not a.is_inside_tree() or not b.is_inside_tree():
+	if (is_instance_valid(a) and not a.is_inside_tree()) or (is_instance_valid(b) and not b.is_inside_tree()):
 		return
-	var sig := a.global_position + b.global_position * 3.0
+	var sig := _terminals_sig()
 	if not sig.is_equal_approx(_sig):
 		_rebuild()
+
+
+## Подпись положения клемм: сменилась, значит концы переехали и провод надо перерисовать
+func _terminals_sig() -> Vector3:
+	var s := Vector3.ZERO
+	if is_instance_valid(a):
+		s += a.global_position
+	if is_instance_valid(b):
+		s += b.global_position * 3.0
+	return s
 
 
 func on_component_added(type: Script) -> void:
@@ -212,17 +252,17 @@ func _rebuild() -> void:
 	if not is_instance_valid(_vis) or not _vis.is_inside_tree():
 		return
 	_clear_hit()
-	if is_instance_valid(a) and is_instance_valid(b):
-		_sig = a.global_position + b.global_position * 3.0
+	_sig = _terminals_sig()
 	var route := WireRoute.from_polyline(polyline())
 	if route.points.size() < 2:
 		_mi.mesh = null
 		return
-	var mesh := WireMesh.build(route.smooth(), twist)
+	var mesh := WireMesh.build(route.smooth(Global.settings.wire_bend_radius), twist)   # XX claude-wire W5: радиус в настройках
 	for k in mesh.get_surface_count():
 		mesh.surface_set_material(k, _mats[k])
 	_mi.mesh = mesh
 	_add_hit(route.points)
+	_add_extras(route.points)
 	_apply_highlight()
 
 
@@ -230,6 +270,116 @@ func _clear_hit() -> void:
 	for c in _area.get_children():
 		_area.remove_child(c)
 		c.queue_free()
+	for n in _extras:
+		if is_instance_valid(n):
+			n.queue_free()
+	_extras.clear()
+
+
+## Ручки свободных концов и втулки в плите (где провод уходит вертикально через плоскость столешницы)
+func _add_extras(line: PackedVector3Array) -> void:
+	if line.size() < 2:
+		return
+	if not is_instance_valid(a):
+		_add_end_handle(&"a", line[0])
+	if not is_instance_valid(b):
+		_add_end_handle(&"b", line[line.size() - 1])
+	for i in line.size() - 1:
+		var p := line[i]
+		var q := line[i + 1]
+		if absf(p.x - q.x) < 0.01 and absf(p.z - q.z) < 0.01 and p.y * q.y < 0.0:
+			var ring := MeshInstance3D.new()
+			var torus := TorusMesh.new()
+			torus.inner_radius = GROMMET_INNER
+			torus.outer_radius = GROMMET_OUTER
+			ring.mesh = torus
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.12, 0.12, 0.14)
+			ring.material_override = mat
+			ring.position = Vector3(p.x, 0.02, p.z)
+			_vis.add_child(ring)
+			_extras.append(ring)
+
+
+func _add_end_handle(which: StringName, pos: Vector3) -> void:
+	var h := WireEnd.new()
+	h.name = "End_" + String(which)
+	h.wire = self
+	h.which = which
+	h.collision_layer = Global.active_layers(["power"])
+	h.collision_mask = 0
+	h.monitoring = false
+	h.position = pos
+	var cs := CollisionShape3D.new()
+	var shape := SphereShape3D.new()
+	shape.radius = END_HIT_RADIUS
+	cs.shape = shape
+	h.add_child(cs)
+	var mi := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = END_TIP_RADIUS
+	sphere.height = END_TIP_RADIUS * 2.0
+	mi.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = COLOR_COPPER
+	mat.metallic = 0.6
+	mat.roughness = 0.35
+	mi.material_override = mat
+	h.add_child(mi)
+	_vis.add_child(h)
+	_extras.append(h)
+
+
+## Ручки свободных концов (WireEnd)
+func end_handles() -> Array[WireEnd]:
+	var res: Array[WireEnd] = []
+	for n in _extras:
+		if n is WireEnd and is_instance_valid(n):
+			res.append(n)
+	return res
+
+
+## Свободен ли конец: &"a" это начало ломаной, &"b" её конец
+func end_is_free(which: StringName) -> bool:
+	return not is_instance_valid(a) if which == &"a" else not is_instance_valid(b)
+
+
+## Положение свободного конца (его точка в points)
+func free_end_pos(which: StringName) -> Vector3:
+	if points.is_empty():
+		return Vector3.ZERO
+	return points[0] if which == &"a" else points[points.size() - 1]
+
+
+## Причина, по которой свободный конец which нельзя подключить к клемме t, или пусто. Проверка как у обычного провода,
+## другой конец при этом считается без этого провода (иначе занятая им клемма отказала бы)
+func end_refuse_reason(which: StringName, t: PowerTerminal) -> String:
+	if not is_instance_valid(t):
+		return "нужна клемма"
+	if not end_is_free(which):
+		return "конец уже подключён"
+	var other := b if which == &"a" else a
+	if not is_instance_valid(other):
+		return "" if t.is_free() else "на клемме уже есть провод"
+	other.remove_wire(self)
+	var why := PowerTerminal.refuse_reason(other, t)
+	other.add_wire(self)
+	return why
+
+
+## Новая трасса провода (в порядке от a к b). Если задана клемма t, ею подключается конец which
+func reroute(new_points: PackedVector3Array, which: StringName, t: PowerTerminal) -> void:
+	points = new_points
+	if is_instance_valid(t):
+		if which == &"a":
+			a = t
+			_had_a = true
+		else:
+			b = t
+			_had_b = true
+		t.add_wire(self)
+	_rebuild()
+	PGM.request_recalculate()
 
 
 ## Область выбора: цилиндр на каждый отрезок исходной ломаной (углы без скругления)
@@ -252,14 +402,15 @@ func _add_hit(line: PackedVector3Array) -> void:
 # ------ СЕЙВ ------
 
 func save_data() -> Dictionary:
-	if not is_valid_wire():
+	if not is_alive():
 		return {}
-	return {
-		"a": _term_data(a),
-		"b": _term_data(b),
-		"points": points,
-		"twist": twist,
-	}
+	var d := {"points": points, "twist": twist}
+	# свободный конец без записи о клемме (старые сейвы с двумя клеммами читаются как раньше)
+	if is_instance_valid(a):
+		d["a"] = _term_data(a)
+	if is_instance_valid(b):
+		d["b"] = _term_data(b)
+	return d
 
 
 func _term_data(t: PowerTerminal) -> Dictionary:
@@ -278,7 +429,10 @@ func restore_after_load() -> bool:
 		return _attached
 	var ta := _find_terminal(_loaded.get("a", {}))
 	var tb := _find_terminal(_loaded.get("b", {}))
-	if ta == null or tb == null or not PowerTerminal.can_connect(ta, tb):
+	# свободный конец записи о клемме не имеет; записанную клемму надо найти
+	if (_loaded.has("a") and ta == null) or (_loaded.has("b") and tb == null):
+		return false
+	if ta != null and tb != null and not PowerTerminal.can_connect(ta, tb):
 		return false
 	_loaded = {}
 	a = ta

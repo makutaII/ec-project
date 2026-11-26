@@ -104,9 +104,10 @@ static func _add_unique(list: PackedVector2Array, p: Vector2) -> void:
 ## {"name", "size": Vector3, "center": Vector3, "basis": Basis}, координаты мира (верх плиты y = 0, пол y = -height).
 ## Ножки: leg_positions. Рама: брус вдоль каждого ребра футпринта от пола до низа плиты, отступ внутрь.
 ## Кронштейны: вдоль рёбер, лежащих на стене, через каждые BRK_STEP; контур без стенового ребра (комнату сменили) встаёт на ножки.
-## XX claude-wire W2: apron добавляет подрамник под плитой к ножкам (у рамы и кронштейнов свои брусья, им он не нужен)
+## XX claude-wire W2: apron добавляет подрамник под плитой к ножкам (у рамы и кронштейнов свои брусья, им он не нужен).
+## W5: apron_depth это высота царг (настройка GlobalSetting.apron_depth), не больше высоты ножек
 static func parts(support: int, footprint: Array[PackedVector2Array], height: float, th: float, leg: float,
-		cfg: RoomConfig, apron := false) -> Array[Dictionary]:
+		cfg: RoomConfig, apron := false, apron_depth := APRON_H) -> Array[Dictionary]:
 	var res: Array[Dictionary] = []
 	var leg_h := height - th
 	match support:
@@ -133,7 +134,7 @@ static func parts(support: int, footprint: Array[PackedVector2Array], height: fl
 				for raw in footprint:
 					if Geometry2D.is_polygon_clockwise(raw):
 						continue
-					_apron_beams(res, _cleaned(raw), th, leg_h)
+					_apron_beams(res, _cleaned(raw), th, leg_h, apron_depth)
 	return res
 
 
@@ -158,9 +159,9 @@ static func shelf_polygons(footprint: Array[PackedVector2Array]) -> Array[Packed
 	return res
 
 
-## Верх (x) и низ (y) нижней полки по y: низ на уровне низа подрамника (его высота как у царг), толщина SHELF_T
-static func shelf_levels(th: float, leg_h: float) -> Vector2:
-	var h := minf(APRON_H, leg_h)
+## Верх (x) и низ (y) нижней полки по y: низ на уровне низа подрамника (его глубина depth, не больше ножки), толщина SHELF_T
+static func shelf_levels(th: float, leg_h: float, depth := APRON_H) -> Vector2:
+	var h := minf(depth, leg_h)
 	return Vector2(-th - h + SHELF_T, -th - h)
 
 
@@ -211,10 +212,10 @@ static func _tri(st: SurfaceTool, v0: Vector3, v1: Vector3, v2: Vector3, n_out: 
 
 ## XX claude-wire W2: подрамник. Брус вдоль каждого ребра контура сразу под плитой (верх бруса на низе плиты), отступ внутрь как у ножек.
 ## Дыры (контуры по часовой) пропускаются, как у ножек. Нет места под плитой (leg_h <= 0): брусьев нет, высота бруса не больше ножки
-static func _apron_beams(res: Array[Dictionary], poly: PackedVector2Array, th: float, leg_h: float) -> void:
+static func _apron_beams(res: Array[Dictionary], poly: PackedVector2Array, th: float, leg_h: float, depth: float) -> void:
 	if leg_h <= 0.0:
 		return
-	var h := minf(APRON_H, leg_h)
+	var h := minf(depth, leg_h)
 	var n := poly.size()
 	for i in n:
 		var a := poly[i]

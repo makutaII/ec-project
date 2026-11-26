@@ -50,7 +50,13 @@ func enter():
 	target_entity.add_component(C_Drag.new())
 	
 	# Драг начался вот в этой точке
-	var hit = controller.get_mouse_ray(Global.active_layers(['ground']))
+	# XX claude-wire W5: блок с монтажом (нижняя полка) берёт стартовую точку по своей маске: по слою ground луч бьёт в плиту над полкой,
+	# смещение хвата получается на глубину полки, и блок «уезжает» от курсора
+	var start_mask := Global.active_layers(['ground'])
+	var start_id := target_entity.get_comp(C_Identity) as C_Identity
+	if start_id and Mount.has_mount(start_id.setting):
+		start_mask = _pick_mask()
+	var hit = controller.get_mouse_ray(start_mask)
 	# Драг проверит, если евент из билд моде, то смещения мыши не будет
 	#hit['build'] = false
 	if hit.is_empty():

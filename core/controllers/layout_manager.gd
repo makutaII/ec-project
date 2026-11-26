@@ -297,14 +297,19 @@ func set_plate_visible(on: bool) -> void:
 ## опоры не ножки или под плитой нет места
 func shelf_polygons() -> Array[PackedVector2Array]:
 	var leg_h := config.height - plate_thickness()
-	if not config.apron or int(config.support) != LayoutConfig.Support.LEGS or leg_h <= 2.0 * TableSupports.SHELF_T:
+	if not config.apron or int(config.support) != LayoutConfig.Support.LEGS or minf(apron_depth(), leg_h) <= 2.0 * TableSupports.SHELF_T:
 		return []
 	return TableSupports.shelf_polygons(footprint())
 
 
+## Глубина подрамника, ю (настройка GlobalSetting.apron_depth)
+func apron_depth() -> float:
+	return Global.settings.apron_depth
+
+
 ## Высота верха нижней полки (y), стол сверху в y = 0
 func shelf_top() -> float:
-	return TableSupports.shelf_levels(plate_thickness(), config.height - plate_thickness()).x
+	return TableSupports.shelf_levels(plate_thickness(), config.height - plate_thickness(), apron_depth()).x
 
 
 # XX claude-wire W2: подрамник под плитой (виден при ножках)
