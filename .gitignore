@@ -10,6 +10,8 @@
 *.blend1
 *.blend@
 
+*.webp
+
 *.wav
 *.mp3
 *.ogg

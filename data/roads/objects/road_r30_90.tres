@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="EntitySetting" format=3]
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://b08oka2yiu2ok"]
 
-[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
-[ext_resource type="Script" path="res://core/road/road_config.gd" id="2_rc"]
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" uid="uid://wi02cu3hgsbm" path="res://core/road/road_config.gd" id="2_rc"]
 [ext_resource type="Script" uid="uid://mpakwrr6lum8" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
 [ext_resource type="Script" uid="uid://1xmvhthiwc64" path="res://core/components/comp_settings/stylevisual_setting.gd" id="4_sv"]
-[ext_resource type="Resource" path="res://data/roads/styles/asphalt.tres" id="5_st"]
+[ext_resource type="Resource" uid="uid://dtc2lk77k3o2p" path="res://data/roads/styles/asphalt.tres" id="5_st"]
 [ext_resource type="Script" uid="uid://b1jwuxb32so7e" path="res://core/components/comp_settings/trackdraggable_setting.gd" id="7_dr"]
 [ext_resource type="Script" uid="uid://djbifkyei01t7" path="res://core/components/comp_settings/pivot_setting.gd" id="8_pv"]
 [ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="9_hv"]
@@ -17,8 +17,10 @@
 
 [sub_resource type="Resource" id="Resource_cfg"]
 script = ExtResource("2_rc")
+road_width = 4.0
 radius = 30.0
 deg = 90.0
+collision_width = 3.0
 
 [sub_resource type="Resource" id="Resource_id"]
 script = ExtResource("3_id")

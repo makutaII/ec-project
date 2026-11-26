@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="TrackStyle" format=3]
+
+[ext_resource type="Material" path="res://data/tracks/materials/ballast_wood023.tres" id="1_ntg7a"]
+[ext_resource type="Script" path="res://core/components/tracks/track_style.gd" id="2_3tpxk"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_Color.webp" id="3_cf2mk"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_ORM.webp" id="4_1bpc4"]
+[ext_resource type="Texture2D" path="res://data/textures/track/Wood062_1K-WebP/Wood062_1K-WebP_NormalGL.webp" id="5_can1i"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uv7ai"]
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+albedo_color = Color(0.734375, 0.73150635, 0.73150635, 1)
+albedo_texture = ExtResource("3_cf2mk")
+metallic = 1.0
+metallic_texture = ExtResource("4_1bpc4")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("4_1bpc4")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("5_can1i")
+ao_enabled = true
+ao_texture = ExtResource("4_1bpc4")
+uv1_scale = Vector3(0.30769232, 0.4, 0.30769232)
+uv1_triplanar = true
+texture_filter = 5
+metadata/track_role = "sleeper"
+metadata/track_source = "res://data/textures/track/Wood062_1K-WebP"
+metadata/track_params = {
+"ao_light_affect": 0.0,
+"height_scale": 0.0,
+"mesh_uv_units": false,
+"metallic": -1.0,
+"normal_scale": 1.0,
+"roughness": 1.0,
+"tile": Vector2(3.25, 2.5),
+"tint": Color(0.734375, 0.73150635, 0.73150635, 1),
+"triplanar": true,
+"use_ao": true,
+"use_height": false,
+"vertex_color": true
+}
+
+[resource]
+script = ExtResource("2_3tpxk")
+id = &"road"
+rail_enabled = false
+rail_x = 1.4500000000000002
+rail_profile = PackedVector2Array(-0.1, 0, -0.0175, 0.048, -0.06, 0.194, -0.06, 0.2325, -0.04, 0.25, 0.04, 0.25, 0.06, 0.2325, 0.06, 0.194, 0.0175, 0.048, 0.1, 0)
+rail_uv_tile = Vector2(10, 10)
+sleeper_enabled = false
+sleeper_size = Vector3(3, 0.05, 0.3)
+sleeper_embed = 0.85
+sleeper_material = SubResource("StandardMaterial3D_uv7ai")
+ballast_profile = PackedVector2Array(-1.6, 0, -1.6, 0.8, -1.3, 0.8, -1.3, 0.3, 1.3, 0.3, 1.3, 0.8, 1.6, 0.8, 1.6, 0)
+ballast_material = ExtResource("1_ntg7a")
+ballast_uv_tile = Vector2(5, 5)
+surface_height = 0.3
+trough = true

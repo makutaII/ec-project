@@ -26,4 +26,3 @@ sleeper_enabled = false
 ballast_profile = PackedVector2Array(-2.5, 0, -2.5, 0.3, 2.5, 0.3, 2.5, 0)
 ballast_material = SubResource("Material_asphalt")
 ballast_uv_tile = Vector2(1, 0)
-collision_width = 4.0
