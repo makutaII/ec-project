@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3 uid="uid://b070nf68lxops"]
+
+[ext_resource type="Script" uid="uid://m4g5jbfwmaa0" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="1_es"]
+[ext_resource type="Script" uid="uid://jkr2sp05vmml" path="res://core/components/terrain/terrain_brush.gd" id="2_tb"]
+[ext_resource type="Texture2D" uid="uid://dyfn8n6bafh6u" path="res://ui/icons/tool/pencil-brush.svg" id="3_ic"]
+[ext_resource type="Texture2D" uid="uid://doskuy41qp2mx" path="res://data/textures/track/PavingStones153_1K-WebP/PavingStones153_1K-WebP_Color.webp" id="4_atnhx"]
+[ext_resource type="Script" uid="uid://dt5sot3e4uw8m" path="res://core/components/terrain/field_surface.gd" id="4_fs"]
+
+[sub_resource type="Resource" id="Resource_surf0"]
+script = ExtResource("4_fs")
+texture = ExtResource("4_atnhx")
+tile = 2.5
+kind = 1
+label = "камни"
+
+[sub_resource type="Resource" id="Resource_brush"]
+script = ExtResource("2_tb")
+surfaces = Array[ExtResource("4_fs")]([SubResource("Resource_surf0")])
+angle_deg = 45.0
+
+[resource]
+script = ExtResource("1_es")
+key = &"terrain.relief.stones"
+sort_order = 1
+name = "Кисть рельефа: камни"
+description = "Дорожные камни поверхность: крутизна средняя, шероховатый рельеф. Ctrl+колесо подъём и яма, Alt+колесо радиус, ЛКМ выравнивание"
+category = &"terrain"
+tag = &"relief"
+icon = ExtResource("3_ic")
+build_behavior = 11
+components = Array[ExtResource("1_cs")]([SubResource("Resource_brush")])
