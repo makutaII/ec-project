@@ -21,7 +21,12 @@ var offset_mesh_y := 1.061
 
 var bogie_nodes: Array[Node3D] = []
 
-var wheel_nodes: Array[Dictionary] = [] # все колеса {'wheel_node', 'radius', 'bogie': номер тележки, 'sign': +1/-1 по Z, 'axle': номер оси в узле}
+## Тележки и колёса из модели (узлы unit_<n>, ModelRig). null: модель без таких узлов, тележки по паспорту (bogie_configs)
+var rig: ModelRig = null
+## Из паспорта (WagonConfig.use_model_rig): искать в модели узлы unit_<n> и строить тележки по ним
+var use_model_rig := true
+
+var wheel_nodes: Array[Dictionary] = [] # все колеса {'wheel_node', 'radius', 'bogie': номер тележки, 'sign': +1/-1 по Z, 'axle': номер оси в узле, 'meshes': меши колеса (под шейдер), 'role': роль колеса из модели}
 ## Коллизии тележек по номеру тележки в паспорте (нужны для правки раскладки в DebugPanel)
 var bogie_collisions: Array[CollisionShape3D] = []
 
@@ -43,8 +48,41 @@ func _on_instance_ready() -> void:
 ## уже создаёт instance, собирает меши и вызывает _on_instance_ready().
 
 
+## Вынимаем из модели узлы тележек unit_<n> (если они есть) до сбора мешей и реестра частей. Хук C_Visual
+func _prepare_instance() -> void:
+	if not use_model_rig:
+		return
+	rig = ModelRig.extract(instance, str(entity.name))
+	if rig != null and not bogie_configs.is_empty():
+		push_warning("[C_TrainVisual] %s: в модели есть узлы unit_*, bogie_configs паспорта не используются" % entity.name)
+
+
 # XX claude функция вместо скрипта в on_added()
 func _build_bogies():
+	if rig != null:
+		_build_bogies_from_rig()
+	else:
+		_build_bogies_from_configs()
+
+	#INFO  Шейдер на колеса
+	for wheel in wheel_nodes:
+		for _mesh in wheel.meshes:
+			# Свой экземпляр материала на каждое колесо: C_Bogie пишет в него slip_blend,
+			# общий ресурс на все колёса всех вагонов даёт чужое значение и мерцание цвета
+			(_mesh as MeshInstance3D).set_material_overlay(WHEEL_SHADER.duplicate())
+
+	#поднимаем кузов
+	# Коллизия кузова в сцене уже подогнана под меш (обнимает его). Поэтому не пересчитываем её высоту
+	# по размеру коробки, а сдвигаем на столько же, на сколько поднимаем меш: взаимная посадка остаётся как в редакторе.
+	# Раньше высота считалась от позиции меша ДО подъема, и коллизия оставалась у пола, а меш уезжал вверх.
+	var wagon_collision = instance.get_node('WagonCollisionShape3D')
+	var lift_y: float = offset_mesh_y - mesh_nodes[0].position.y
+	mesh_nodes[0].position.y = offset_mesh_y # из вагон-конфига
+	wagon_collision.position.y += lift_y
+
+
+## Тележки по паспорту: сцена тележки и сцены колёсных пар из BogieConfig (старые модели)
+func _build_bogies_from_configs() -> void:
 	# достраиваем боги (bogie_configs и offset_mesh_y пришли из паспорта через TrainVisualSettings)
 	for bogie_index in bogie_configs.size():
 		var bogie: BogieConfig = bogie_configs[bogie_index]
@@ -61,44 +99,52 @@ func _build_bogies():
 			b_scene.add_child(wp_scene)
 			wp_scene.position.z = axles[axle_i] # Смещение вперед\назад
 			wheel_nodes.append({'wheel_node': wp_scene, 'radius': bogie.wheel_pair_position.y, 'bogie': bogie_index,
-					'sign': 1.0 if axle_i == 0 else -1.0, 'axle': axle_i})
+					'sign': 1.0 if axle_i == 0 else -1.0, 'axle': axle_i, 'meshes': [wp_scene.get_node('WheelPairMesh')]})
 
-		# 3. Перестраиваем коллизию боги c колесами к вагону
-		var bg_collision = CollisionShape3D.new()
-		var sh = BoxShape3D.new()
-		# установка размеров коллизии боги
-		sh.size = Vector3( 2.02, 
-						bogie.wheel_pair_position.y * 2.0, # Диаметр колеса без реборды
-						BogieMath.collision_length(bogie.half_base(), bogie.wheel_pair_position.y) # расстояние между крайними осями + радиусы обоих колес
-						)
-		bg_collision.shape = sh
-		bg_collision.position = b_scene.position # коллизию в точку боги
-		instance.add_child(bg_collision)
-		bogie_collisions.append(bg_collision)
-		bg_collision.name = 'BogieCollisionShape3D_01'
+		# 3. Коллизия боги с колесами
+		_add_bogie_collision(bogie, b_scene)
 
 		instance.add_child(b_scene) # боги и колеса
 		b_scene.name = 'Bogie_01'
 
 		# Ноду добавляем в массив. Дальше им занимается C_Bogie 
 		bogie_nodes.append(b_scene)
-		
-	#INFO  Шейдер на колеса
-	for wheel in wheel_nodes:
-			var _mesh = wheel.wheel_node.get_node('WheelPairMesh')
-			# Свой экземпляр материала на каждое колесо: C_Bogie пишет в него slip_blend,
-			# общий ресурс на все колёса всех вагонов даёт чужое значение и мерцание цвета
-			_mesh.set_material_overlay(WHEEL_SHADER.duplicate())
-			
-	#поднимаем кузов
-	# Коллизия кузова в сцене уже подогнана под меш (обнимает его). Поэтому не пересчитываем её высоту
-	# по размеру коробки, а сдвигаем на столько же, на сколько поднимаем меш: взаимная посадка остаётся как в редакторе.
-	# Раньше высота считалась от позиции меша ДО подъема, и коллизия оставалась у пола, а меш уезжал вверх.
-	var wagon_collision = instance.get_node('WagonCollisionShape3D')
-	var lift_y: float = offset_mesh_y - mesh_nodes[0].position.y
-	mesh_nodes[0].position.y = offset_mesh_y # из вагон-конфига
-	wagon_collision.position.y += lift_y
 
+
+## Тележки из модели (узлы unit_<n>, ModelRig): узел и колёса уже в модели, здесь их ставят в корень вагона на высоту оси,
+## добавляют датчик рельса и коллизию. Конфиги тележек берутся из модели и заменяют паспортные
+func _build_bogies_from_rig() -> void:
+	bogie_configs = rig.bogie_configs
+	for i in rig.units.size():
+		var u: ModelRig.Unit = rig.units[i]
+		var cfg: BogieConfig = u.config
+		var node := u.node
+		node.basis = Basis.IDENTITY
+		node.position = Vector3(0.0, cfg.wheel_pair_position.y, cfg.b_offset_z)   # ось на высоте радиуса над рельсом
+		node.add_child(ModelRig.make_ray())
+		for axle_i in u.wheels.size():
+			var w: ModelRig.Wheel = u.wheels[axle_i]
+			wheel_nodes.append({'wheel_node': w.node, 'radius': w.radius, 'bogie': i, 'sign': 1.0 if axle_i == 0 else -1.0,
+					'axle': axle_i, 'meshes': w.meshes, 'role': w.role})
+		_add_bogie_collision(cfg, node)
+		instance.add_child(node)
+		bogie_nodes.append(node)
+
+
+## Коробка коллизии узла тележки (нужна и для тележек из паспорта, и из модели)
+func _add_bogie_collision(bogie: BogieConfig, bogie_node: Node3D) -> void:
+	var bg_collision = CollisionShape3D.new()
+	var sh = BoxShape3D.new()
+	# установка размеров коллизии боги
+	sh.size = Vector3( 2.02, 
+					bogie.wheel_pair_position.y * 2.0, # Диаметр колеса без реборды
+					BogieMath.collision_length(bogie.half_base(), bogie.wheel_pair_position.y) # расстояние между крайними осями + радиусы обоих колес
+					)
+	bg_collision.shape = sh
+	bg_collision.position = bogie_node.position # коллизию в точку боги
+	instance.add_child(bg_collision)
+	bogie_collisions.append(bg_collision)
+	bg_collision.name = 'BogieCollisionShape3D_01'
 
 
 # XX claude замена

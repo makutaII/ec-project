@@ -18,12 +18,18 @@ var _outline_state := -1
 func on_added() -> void:
 	instance = scene.instantiate() as Node3D
 	entity.add_child(instance)
+	_prepare_instance()   # хук: наследник вынимает из модели узлы, которые не должны попасть ни в реестр частей, ни в mesh_nodes
 	parts = PartRegistry.build(instance)   # новое
 	_collect_meshes()
 	# XX claude-library L4: исполнение модели на меши кузова. Тележки и колёса строятся в хуке ниже и не красятся
 	if not entity.variant.is_empty():
 		VariantApplier.apply(mesh_nodes, entity.variant)
 	_on_instance_ready()   # хук для наследников
+
+
+## Переопределяется в наследниках. Вызывается сразу после создания инстанса, до PartRegistry.build и сбора мешей
+func _prepare_instance() -> void:
+	pass
 
 
 ## Переопределяется в наследниках

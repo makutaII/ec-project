@@ -66,6 +66,9 @@ const BUFFER_HEIGHT := 1.061
 ## новые: BUFFER_HEIGHT
 @export var offset_mesh_y: float = 1.061 # Смещение меша от пола (меньше диаметра колеса на ~0.2)
 @export var bogie_configs: Array[BogieConfig] = []
+## true: если в модели есть узлы unit_<n> с колёсными парами wheel_<n>_<k> (радиус в extras), тележки строятся по модели (ModelRig),
+## bogie_configs не нужны и игнорируются. false: всегда по bogie_configs. Модели без узлов unit_* на это не реагируют
+@export var use_model_rig: bool = true
 
 
 @export_category("Coupler (Сцепка)")

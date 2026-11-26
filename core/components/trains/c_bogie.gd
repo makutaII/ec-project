@@ -50,6 +50,8 @@ func on_added() -> void:
 	var bogie_nodes = comp.bogie_nodes
 	
 	wheel_nodes = comp.wheel_nodes
+	if comp.rig != null:
+		bogie_configs = comp.bogie_configs   # тележки собраны из модели (ModelRig): конфиги оттуда, паспортные не используются
 	
 	# Формируем массив данных боги 
 	for i in range(bogie_nodes.size()):
@@ -497,8 +499,10 @@ func _set_wheel_slip(wheel: Dictionary, value: float) -> void:
 	if absf(float(wheel.get('slip', -1.0)) - value) < 0.002:
 		return
 	wheel['slip'] = value
-	var _mesh = wheel.wheel_node.get_node('WheelPairMesh')
-	_mesh.material_overlay.set_shader_parameter("slip_blend", value)
+	for _mesh in wheel.meshes:
+		var mat := (_mesh as MeshInstance3D).material_overlay as ShaderMaterial
+		if mat != null:
+			mat.set_shader_parameter("slip_blend", value)
 
 
 
