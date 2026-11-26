@@ -24,10 +24,15 @@ const TYPE_MASK := 0x3
 # XX claude-terra 13.14 H2b: индекс материала (текстуры) узла в слоте палитры FieldMaterials, 4 бита над типом: слово 18 бит
 const MAT_SHIFT := 14
 const MAT_MASK := 0xF
+# XX claude-terra 13.14 H2c: нижний материал узла, прозрачность верхнего и ширина перехода: по 4 бита над материалом (слово 30 бит)
+const UNDER_SHIFT := 18
+const TRANS_SHIFT := 22
+const BLEND_SHIFT := 26
+const NIB_MASK := 0xF
 const SMOOTH := 0
 const ROCKY := 1
 const ROCK := 2
-const FORMAT := 2   # H2b: слово узла 32 бита в сейве (было 16)
+const FORMAT := 3   # H2b: слово узла 32 бита в сейве (было 16). H2c: в слове ещё нижний материал, прозрачность и ширина перехода
 const MAX_HISTORY := 50
 ## Допуск при выборе узлов у границы полигона, ю
 const EDGE := 0.001
@@ -132,6 +137,21 @@ func type_at(i: int, j: int) -> int:
 ## H2b: слот материала узла (0 плоская поверхность, остальные из палитры FieldMaterials)
 func mat_at(i: int, j: int) -> int:
 	return (word_at(i, j) >> MAT_SHIFT) & MAT_MASK
+
+
+## H2c: слот нижнего материала узла (виден там, где верхний прозрачен)
+func under_at(i: int, j: int) -> int:
+	return (word_at(i, j) >> UNDER_SHIFT) & NIB_MASK
+
+
+## H2c: прозрачность верхнего материала узла, 0 (непрозрачный) .. 15 (виден только нижний)
+func trans_at(i: int, j: int) -> int:
+	return (word_at(i, j) >> TRANS_SHIFT) & NIB_MASK
+
+
+## H2c: ширина перехода материала узла, 0 .. 15 (15 это FieldSurface.BLEND_MAX ю)
+func blend_at(i: int, j: int) -> int:
+	return (word_at(i, j) >> BLEND_SHIFT) & NIB_MASK
 
 
 func floor_at(i: int, j: int) -> float:

@@ -196,12 +196,11 @@ static func bake(field: TerrainField, bed: Dictionary, polys: Array, ceil_fn: Ca
 		u = clampi(u, 0, TerrainField.TH_MASK)
 		var nw := 0
 		if u > 0:
-			var tp := (old >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
-			var mt := (old >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK
+			nw = (old & ~TerrainField.TH_MASK) | u   # тип, материалы, прозрачность и переход узла остаются
 			if v.z > 0.5 or (old & TerrainField.TH_MASK) == 0:
-				tp = TYPE_ROCKY
-				mt = FieldMaterials.SLOT_BED   # H2b: полоса ложа рисуется материалом ложа
-			nw = (tp << TerrainField.TYPE_SHIFT) | (mt << TerrainField.MAT_SHIFT) | u
+				# H2b, H2c: полоса ложа рисуется материалом ложа, непрозрачно и без размытия перехода
+				nw = (TYPE_ROCKY << TerrainField.TYPE_SHIFT) | (FieldMaterials.SLOT_BED << TerrainField.MAT_SHIFT) \
+						| (FieldMaterials.SLOT_BED << TerrainField.UNDER_SHIFT) | u
 		if nw != old:
 			w[idx] = nw
 			changed += 1

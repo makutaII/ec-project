@@ -34,6 +34,10 @@ var surfaces: Array[FieldSurface] = []
 var materials: FieldMaterials   # палитра слотов; null: общая FieldMaterials.shared()
 var _bits := PackedInt32Array([0])       # на поверхность: (слот << MAT_SHIFT) | (класс << TYPE_SHIFT)
 var _cum := PackedFloat32Array([1.0])    # накопленные веса поверхностей
+# H2c: на поверхность непрозрачность 0..1, мягкий край в ячейках и ширина перехода 0..15 (в слове узла)
+var _opac := PackedFloat32Array([1.0])
+var _feath := PackedFloat32Array([0.0])
+var _blend := PackedInt32Array([0])
 const OBJ_IGNORE := 0
 const OBJ_BYPASS := 1
 const OBJ_LIFT := 2
@@ -77,6 +81,9 @@ func set_surfaces(list: Array[FieldSurface]) -> void:
 	surfaces = []
 	_bits = PackedInt32Array()
 	_cum = PackedFloat32Array()
+	_opac = PackedFloat32Array()
+	_feath = PackedFloat32Array()
+	_blend = PackedInt32Array()
 	var pal := materials if materials != null else FieldMaterials.shared()
 	var total := 0.0
 	for s in list:
@@ -87,9 +94,15 @@ func set_surfaces(list: Array[FieldSurface]) -> void:
 		_bits.append(((s.kind & TerrainField.TYPE_MASK) << TerrainField.TYPE_SHIFT) | ((slot & TerrainField.MAT_MASK) << TerrainField.MAT_SHIFT))
 		total += s.weight
 		_cum.append(total)
+		_opac.append(clampf(s.opacity, 0.0, 1.0))
+		_feath.append(maxf(s.feather, 0.0) / STEP)
+		_blend.append(s.blend_nibble())
 	if _bits.is_empty():
 		_bits = PackedInt32Array([0])
 		_cum = PackedFloat32Array([1.0])
+		_opac = PackedFloat32Array([1.0])
+		_feath = PackedFloat32Array([0.0])
+		_blend = PackedInt32Array([0])
 
 
 ## Подпись поверхности кисти: подпись одной поверхности (или название её класса рельефа) или «смесь»
@@ -114,18 +127,55 @@ func next_height(hc: float, dir_: float, whole: bool, lh: float, floor_c: float,
 	return clampf(ht, floor_c, minf(floor_c + max_layers * lh, maxf(ceil_c, floor_c)))
 
 
-## Биты типа и материала узла (i, j) по весам поверхностей кисти и хешу узла. Слой толщины в них не входит
-func bits_for(i: int, j: int) -> int:
+## Индекс поверхности кисти для узла (i, j) по весам и хешу узла
+func _pick(i: int, j: int) -> int:
 	if _bits.size() <= 1:
-		return _bits[0]
+		return 0
 	# поверхность выбирается по хешу блока MIX_BLOCK x MIX_BLOCK узлов: пятна материалов в 1,5 ю, а не пёстрая крошка по ячейкам
 	var bi := floori(float(i) / float(MIX_BLOCK))
 	var bj := floori(float(j) / float(MIX_BLOCK))
 	var h := fposmod(sin(float(bi) * 12.9898 + float(bj) * 78.233) * 43758.5453, 1.0) * _cum[_cum.size() - 1]
 	for k in _cum.size():
 		if h < _cum[k]:
-			return _bits[k]
-	return _bits[_bits.size() - 1]
+			return k
+	return _bits.size() - 1
+
+
+## Биты типа и верхнего материала узла (i, j) по весам поверхностей кисти и хешу узла. Слой толщины и прозрачность в них не входят
+func bits_for(i: int, j: int) -> int:
+	return _bits[_pick(i, j)]
+
+
+## H2c: биты узла (тип, верхний и нижний материал, прозрачность, ширина перехода) для мазка в узел (i, j) на расстоянии d ячеек от центра
+## при крае кисти на e_cells ячеек. w0 прежнее слово узла (толщина в нём не нужна, слой нового слова ставит вызывающий).
+## Непрозрачность: opacity поверхности, у края мазка спадает на feather ячеек. Прежний материал уходит вниз и просвечивает;
+## тот же верхний материал долю не наращивает (opacity потолок), нет прежнего слоя: внизу базовый слот. Класс рельефа меняется,
+## когда верхний материал виден хотя бы наполовину
+func paint_bits(w0: int, i: int, j: int, d: float, e_cells: float) -> int:
+	var k := _pick(i, j)
+	var bits := _bits[k]
+	var top := (bits >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK
+	var kind := (bits >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+	var an := _opac[k]
+	if _feath[k] > 0.0:
+		an *= clampf((e_cells - d) / _feath[k], 0.0, 1.0)
+	var old_has := (w0 & TerrainField.TH_MASK) > 0
+	var old_top := (w0 >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK
+	var old_under := (w0 >> TerrainField.UNDER_SHIFT) & TerrainField.NIB_MASK
+	var old_alpha := 1.0 - float((w0 >> TerrainField.TRANS_SHIFT) & TerrainField.NIB_MASK) / 15.0
+	var under := FieldMaterials.SLOT_BASE
+	var alpha := an
+	if old_has:
+		if old_top == top:
+			under = old_under
+			alpha = maxf(old_alpha, an)
+		else:
+			under = old_top if old_alpha >= 0.5 else old_under
+		if alpha < 0.5 and old_top != top:
+			kind = (w0 >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
+	var tr := clampi(roundi((1.0 - alpha) * 15.0), 0, 15)
+	return (kind << TerrainField.TYPE_SHIFT) | (top << TerrainField.MAT_SHIFT) | (under << TerrainField.UNDER_SHIFT) \
+			| (tr << TerrainField.TRANS_SHIFT) | (_blend[k] << TerrainField.BLEND_SHIFT)
 
 
 ## Класс рельефа узла (гладкая, каменистая, скалистая) по весам кисти и хешу узла
@@ -301,8 +351,6 @@ func _apply(c: Vector2, pl: Dictionary, mode: int, kk: float, lh: float) -> Rect
 	var minz := 1 << 30
 	var maxz := -(1 << 30)
 	var x_end := _rect.end.x - 1
-	var mixed := _bits.size() > 1
-	var bits_fixed := bits_for(0, 0)
 	for rj in _rect.size.y:
 		var j := _rect.position.y + rj
 		var dz := float(j) - cz
@@ -356,10 +404,10 @@ func _apply(c: Vector2, pl: Dictionary, mode: int, kk: float, lh: float) -> Rect
 					if nu == 0:
 						nw = 0
 					else:
-						nw = (bits_for(i, j) if mixed else bits_fixed) | nu
+						nw = paint_bits(w0, i, j, d, e_cells) | nu
 				elif mode == 0 and u0 > 0:
 					# выравнивание красит тип и там, где высота уже на месте
-					nw = (bits_for(i, j) if mixed else bits_fixed) | u0
+					nw = paint_bits(w0, i, j, d, e_cells) | u0
 				if nw != w0:
 					_w[k] = nw
 					if i < minx:

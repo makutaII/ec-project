@@ -1,11 +1,14 @@
 // XX claude-terra 13.14 H1 (новый файл)
 // Поверхность поля высот шпатлёвки (ATTN_13 §13.14). Сетка плоская: высоту вершины, нормаль и цвет считает шейдер.
-// fmap: R пол, G толщина слоя, ю (по узлам окна). tmap: R тип поверхности (и бит 4 ложа трака) / 255, G слот материала / 255. Узел окна = узел мировой сетки минус origin.
+// fmap: R пол, G толщина слоя, ю (по узлам окна). tmap (RGBA8): R тип поверхности (и бит 4 ложа трака), G слот верхнего (младшие 4 бита) и нижнего (старшие) материала, B прозрачность верхнего (младшие 4 бита, 0 непрозрачный) и ширина перехода (старшие), A есть слой (255) или нет. Узел окна = узел мировой сетки минус origin.
 // Где толщины нет, вершины остаются на полу, а фрагмент отбрасывается. Шум высоты считается по мировому индексу узла,
 // поэтому не зависит от окна. Те же формулы высоты, что в tests/field_spike (режим GPU).
 // H4, H2b: цвет это материалы по слоту узла (texs: массив текстур, tints, tiles на слот): материалы четырёх ближайших узлов с весами
 // билинейно (одинаковые сливаются), граница рвётся шумом и заостряется, на крутых склонах цвет уходит в материал слота slot_cliff,
 // текстуры мировые (сверху по XZ, на крутом боковые). Класс рельефа узла (шум высоты) от материала не зависит.
+// H2c: каждый узел это два материала (верхний с долей 1 - прозрачность и нижний) и своя ширина перехода. Вес узла в точке это
+// треугольное окно радиуса 1 ячейка + ширина перехода узла (до KR - 1 ячеек), поэтому узкий переход остаётся как раньше (около одной
+// ячейки), а широкий размывается на 1 ю. Окно (2 * KR)^2 узлов, из 16 слотов берутся четыре самых весомых.
 shader_type spatial;
 render_mode cull_disabled;
 
@@ -23,6 +26,10 @@ uniform vec4 tints[16] : source_color;
 uniform float tiles[16];
 // Слот материала крутых склонов
 uniform int slot_cliff = 1;
+// Ширина перехода, которой соответствует значение 15 в узле, ю (FieldSurface.BLEND_MAX)
+uniform float blend_max = 1.0;
+// Радиус окна выборки узлов вокруг точки, узлов: окно (2 * KR)^2. Предел ширины перехода (KR - 1) ячеек
+const int KR = 3;
 // Рваность границы материалов и частота её шума, 1/ю
 uniform float edge_noise = 0.35;
 uniform float edge_scale = 2.5;
@@ -110,56 +117,77 @@ void vertex() {
 	v_slope = smoothstep(rock0, rock1, ang);
 }
 
-// Слот материала узла g (индекс в окне)
-int mat_slot(ivec2 g) {
-	return int(texelFetch(tmap, g, 0).g * 255.0 + 0.5) & 15;
-}
-
-// Материалы четырёх ближайших узлов m и их веса w в точке мира: билинейно, узлы без слоя не считаются (иначе их материал натекал бы
-// на кромку слоя). Одинаковые материалы сливаются в первый из них
-void node_mats(vec2 wxz, out ivec4 m, out vec4 w) {
+// Четыре самых весомых материала точки m и их веса w (сумма 1), средняя ширина перехода bl (0..1) вокруг точки.
+// Каждый узел окна даёт два вклада: верхний материал с долей 1 - прозрачность и нижний с остальным; узлы без слоя почти не считаются
+// (иначе их материал натекал бы на кромку слоя)
+void node_mats(vec2 wxz, out ivec4 m, out vec4 w, out float bl) {
 	vec2 p = wxz / step_len - vec2(origin);
-	vec2 fp = floor(p);
-	vec2 f = p - fp;
-	ivec2 g0 = ivec2(fp);
-	vec4 w_all = vec4(0.0);
-	vec4 w_th = vec4(0.0);
+	ivec2 g0 = ivec2(floor(p));
+	float acc[16];
+	for (int i = 0; i < 16; i++) {
+		acc[i] = 0.0;
+	}
+	float bsum = 0.0;
+	float tsum = 0.0;
+	for (int oy = -KR + 1; oy <= KR; oy++) {
+		for (int ox = -KR + 1; ox <= KR; ox++) {
+			ivec2 g = g0 + ivec2(ox, oy);
+			if (g.x < 0 || g.y < 0 || g.x >= dims.x || g.y >= dims.y) {
+				continue;
+			}
+			vec4 t = texelFetch(tmap, g, 0) * 255.0 + 0.5;
+			int mats = int(t.g);
+			int nib = int(t.b);
+			int top = mats & 15;
+			int und = (mats >> 4) & 15;
+			float tr = float(nib & 15) / 15.0;
+			float bn = float((nib >> 4) & 15) / 15.0;
+			float reach = 1.0 + min(bn * blend_max / step_len, float(KR) - 1.0);
+			float d = length(p - vec2(g));
+			float tw = max(1.0 - d / reach, 0.0);
+			if (t.a < 128.0) {
+				tw *= 0.0001;
+			}
+			acc[top] += tw * (1.0 - tr);
+			acc[und] += tw * tr;
+			bsum += tw * bn;
+			tsum += tw;
+		}
+	}
 	float tot = 0.0;
 	m = ivec4(0);
-	for (int k = 0; k < 4; k++) {
-		int ox = k % 2;
-		int oy = k / 2;
-		ivec2 g = clamp(g0 + ivec2(ox, oy), ivec2(0), dims - ivec2(1));
-		float bw = (ox == 1 ? f.x : 1.0 - f.x) * (oy == 1 ? f.y : 1.0 - f.y);
-		m[k] = mat_slot(g);
-		w_all[k] = bw;
-		if (texelFetch(fmap, g, 0).g >= thin_eps) {
-			w_th[k] = bw;
-			tot += bw;
-		}
-	}
-	w = tot < 0.0001 ? w_all : w_th / tot;
-	for (int k = 1; k < 4; k++) {
-		for (int j = 0; j < 3; j++) {
-			if (j < k && m[j] == m[k] && w[k] > 0.0) {
-				w[j] += w[k];
-				w[k] = 0.0;
-				break;
+	w = vec4(0.0);
+	for (int s = 0; s < 4; s++) {
+		float best = -1.0;
+		int bi = 0;
+		for (int i = 0; i < 16; i++) {
+			if (acc[i] > best) {
+				best = acc[i];
+				bi = i;
 			}
 		}
+		m[s] = bi;
+		w[s] = max(best, 0.0);
+		tot += w[s];
+		acc[bi] = -1.0;
 	}
+	w = tot > 0.000001 ? w / tot : vec4(1.0, 0.0, 0.0, 0.0);
+	bl = tsum > 0.000001 ? bsum / tsum : 0.0;
 }
 
-// Граница рвётся шумом (только там, где вес между 0 и 1) и заостряется: вместо клетчатого градиента неровный край.
-// Шум зависит от материала, а не от места узла среди четырёх, поэтому край непрерывен на границах ячеек
-vec4 sharpen(vec4 w, ivec4 m, vec2 wxz) {
+// Граница рвётся шумом (только там, где вес между 0 и 1) и заостряется: вместо клетчатого градиента неровный край. Чем шире
+// переход bl, тем меньше заострение (при 1 полностью плавный). Шум зависит от материала, а не от места узла среди окна,
+// поэтому край непрерывен на границах ячеек
+vec4 sharpen(vec4 w, ivec4 m, vec2 wxz, float bl) {
+	float lo = 0.3 * (1.0 - bl);
+	float hi = 1.0 - lo;
 	vec4 r = w;
 	for (int c = 0; c < 4; c++) {
 		float fm = float(m[c]);
 		float n = vnoise(wxz * edge_scale + vec2(fm * 13.1, fm * 7.7));
 		float v = w[c];
 		v = clamp(v + edge_noise * n * 4.0 * v * (1.0 - v), 0.0, 1.0);
-		r[c] = smoothstep(0.3, 0.7, v);
+		r[c] = smoothstep(lo, hi, v);
 	}
 	float s = r.x + r.y + r.z + r.w;
 	if (s < 0.0001) {
@@ -188,8 +216,9 @@ void fragment() {
 	vec3 n = normalize(v_nrm);
 	ivec4 m;
 	vec4 w;
-	node_mats(v_pos.xz, m, w);
-	w = sharpen(w, m, v_pos.xz);
+	float bl;
+	node_mats(v_pos.xz, m, w, bl);
+	w = sharpen(w, m, v_pos.xz, bl);
 	vec3 col = vec3(0.0);
 	for (int c = 0; c < 4; c++) {
 		col += w[c] * mat_color(m[c], v_pos, n);

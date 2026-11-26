@@ -41,6 +41,7 @@ func _ready() -> void:
 	_test_level()
 	_test_clip()
 	_test_types()
+	_test_paint()
 	_test_floor()
 	_test_materials()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
@@ -327,6 +328,98 @@ func _test_types() -> void:
 	var h2 := TerrainField.new()
 	h2.load_data(h.save_data())
 	check("материал: слот и тип узла возвращаются из сейва", h2.mat_at(ci, ci) == pal.slot_of(s_rock) and h2.type_at(ci, ci) == TerrainField.ROCK, str(h2.mat_at(ci, ci)))
+
+
+## H2c: прозрачность, мягкий край и ширина перехода поверхности в слове узла
+func _test_paint() -> void:
+	var sa := _surf(TerrainField.ROCKY, Color(0.8, 0.2, 0.2), 3.0)
+	sa.opacity = 0.4
+	sa.blend = 0.5
+	var sb := _surf(TerrainField.ROCK, Color(0.2, 0.8, 0.2), 3.0)
+	sb.opacity = 0.5
+	var sc := _surf(TerrainField.SMOOTH, Color(0.2, 0.2, 0.8), 3.0)
+	var pal := _palette([sa, sb, sc])
+	check("поверхность: прозрачность и ширина перехода в слове (0 непрозрачный, 15 предел)",
+			_surf(0, Color.WHITE).trans_nibble() == 0 and sa.trans_nibble() == 9 and sb.trans_nibble() == 8
+			and sa.blend_nibble() == 8 and _surf(0, Color.WHITE).blend_nibble() == 0)
+	var big := _surf(0, Color.WHITE)
+	big.opacity = 0.0
+	big.blend = 5.0
+	check("поверхность: значения за пределами зажимаются", big.trans_nibble() == 15 and big.blend_nibble() == 15)
+	var c := Vector2(20.0, 20.0)
+	var ci := node(c.x)
+	var f := TerrainField.new()
+	var b := FieldBrush.new()
+	b.materials = pal
+	b.radius = 4.0
+	b.set_surfaces([sa])
+	f.begin_edit()
+	b.stroke(f, c, 1.0, 1, 1.0, _big_clip())
+	f.end_edit()
+	check("прозрачность: мазок на пустом месте, внизу базовый слот, верх с долей opacity",
+			f.mat_at(ci, ci) == pal.slot_of(sa) and f.under_at(ci, ci) == FieldMaterials.SLOT_BASE and f.trans_at(ci, ci) == 9,
+			"%d %d %d" % [f.mat_at(ci, ci), f.under_at(ci, ci), f.trans_at(ci, ci)])
+	check("переход: ширина поверхности записана в узел", f.blend_at(ci, ci) == sa.blend_nibble(), str(f.blend_at(ci, ci)))
+	f.begin_edit()
+	b.stroke(f, c, 1.0, 0, 1.0, _big_clip())
+	f.end_edit()
+	check("прозрачность: повторный мазок той же поверхностью долю не наращивает", f.trans_at(ci, ci) == 9 and f.under_at(ci, ci) == FieldMaterials.SLOT_BASE, str(f.trans_at(ci, ci)))
+	# другой материал поверх непрозрачного: прежний уходит вниз и просвечивает
+	var g := TerrainField.new()
+	var bc := FieldBrush.new()
+	bc.materials = pal
+	bc.radius = 4.0
+	bc.set_surfaces([sc])
+	g.begin_edit()
+	bc.stroke(g, c, 1.0, 1, 1.0, _big_clip())
+	g.end_edit()
+	var bb := FieldBrush.new()
+	bb.materials = pal
+	bb.radius = 4.0
+	bb.set_surfaces([sb])
+	g.begin_edit()
+	bb.stroke(g, c, 1.0, 0, 1.0, _big_clip())
+	g.end_edit()
+	check("прозрачность: прежний верхний материал уходит вниз", g.mat_at(ci, ci) == pal.slot_of(sb) and g.under_at(ci, ci) == pal.slot_of(sc) and g.trans_at(ci, ci) == 8,
+			"%d %d %d" % [g.mat_at(ci, ci), g.under_at(ci, ci), g.trans_at(ci, ci)])
+	# мягкий край: непрозрачность спадает к краю мазка
+	var sf := _surf(TerrainField.SMOOTH, Color(0.9, 0.9, 0.1), 3.0)
+	sf.feather = 2.0
+	var pal2 := _palette([sf])
+	var h := TerrainField.new()
+	var bf := FieldBrush.new()
+	bf.materials = pal2
+	bf.radius = 6.0
+	bf.set_surfaces([sf])
+	h.begin_edit()
+	bf.stroke(h, c, 1.0, 1, 1.0, _big_clip())
+	h.end_edit()
+	var row: Array[int] = []
+	for i in range(ci, ci + 30):
+		if h.has_layer(i, ci):
+			row.append(h.trans_at(i, ci))
+	var mono := true
+	for k in range(1, row.size()):
+		if row[k] < row[k - 1]:
+			mono = false
+	check("перо: в центре мазок непрозрачный, к краю прозрачность растёт", row.size() > 4 and row[0] == 0 and row[row.size() - 1] > 0 and mono, str(row))
+	var plain := TerrainField.new()
+	var bp := FieldBrush.new()
+	bp.materials = pal2
+	bp.radius = 6.0
+	bp.set_surfaces([_surf(TerrainField.SMOOTH, Color(0.9, 0.9, 0.1), 3.0)])
+	plain.begin_edit()
+	bp.stroke(plain, c, 1.0, 1, 1.0, _big_clip())
+	plain.end_edit()
+	var all_opaque := true
+	for i in range(ci, ci + 30):
+		if plain.has_layer(i, ci) and plain.trans_at(i, ci) != 0:
+			all_opaque = false
+	check("перо: без пера (feather 0) край резкий и непрозрачный", all_opaque)
+	# слово переживает сейв
+	var g2 := TerrainField.new()
+	g2.load_data(g.save_data())
+	check("прозрачность: нижний материал и доли переживают сейв", g2.under_at(ci, ci) == g.under_at(ci, ci) and g2.trans_at(ci, ci) == g.trans_at(ci, ci) and g2.blend_at(ci, ci) == g.blend_at(ci, ci))
 
 
 func _test_floor() -> void:

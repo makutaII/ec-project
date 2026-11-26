@@ -119,6 +119,7 @@ func apply(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("tints", tints)
 	mat.set_shader_parameter("tiles", tiles)
 	mat.set_shader_parameter("slot_cliff", SLOT_CLIFF)
+	mat.set_shader_parameter("blend_max", FieldSurface.BLEND_MAX)
 	mat.set_shader_parameter("edge_noise", edge_noise)
 	mat.set_shader_parameter("edge_scale", edge_scale)
 
