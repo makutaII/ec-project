@@ -14,8 +14,10 @@ class_name RoadConfig extends TrackConfig
 @export var network: StringName = &"road"
 ## Ширина полосы, ю (как у Faller H0: 50 мм, то есть 5 ю). Коридор машины. На коллизию и видимую ширину не влияет
 @export var lane_width := 5.0
-## Управляющий элемент куска: none, stop, junction, parking, sensor (CS4)
+## Управляющий элемент куска: none, stop, parking, sensor (CS4a), junction (CS4b). Компонент C_RoadControl читает отсюда вид элемента
 @export var control: StringName = &"none"
+## Метка группы для связи датчика и стоп-секции (CS4a): стоп с группой держит, пока занят датчик той же группы. Пусто: только вручную
+@export var group: StringName = &""
 
 
 ## StyleVisualSetting спрашивает у паспорта, каким компонентом строить путь

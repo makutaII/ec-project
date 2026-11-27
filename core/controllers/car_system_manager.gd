@@ -8,7 +8,8 @@ extends Node
 ## остановиться на конце дороги, поехать снова, потеря полосы) и проверка аварий считаются здесь реже: 20 Гц, как в Wunderland (ATTN_28 §28.6).
 ## Авария (CS3, Р7): контроля дистанции нет, поэтому машина, догнавшая другую, врезается. Перекрытие кузовов ищется в тике по сетке
 ## ячеек CELL (соседние ячейки), а не перебором всех пар: стоимость растёт с числом машин линейно.
-## CS4 добавит сюда управляющие элементы.
+## Управляющие элементы (CS4a): C_RoadControl регистрируется сам, CSM отдаёт его машинам по куску дороги (control_of), считает занятость
+## датчиков в тике и хранит занятость групп для автоматики «занято, значит стоп».
 
 ## Частота решений, Гц
 const TICK_HZ := 20.0
@@ -29,7 +30,12 @@ signal crashed(culprit: C_RoadVehicle, victim: C_RoadVehicle, reason: StringName
 ## Сколько аварий было с начала сессии
 var crash_count := 0
 
+## ⚡ Датчик сменил состояние
+signal sensor_changed(control: C_RoadControl, occupied: bool)
+
 var _vehicles: Array[C_RoadVehicle] = []
+var _controls: Dictionary = {}     # instance_id куска дороги -> C_RoadControl
+var _groups_occupied: Dictionary = {}   # метка группы -> занят ли какой-либо датчик группы
 var _acc := 0.0
 var _step_usec := 0
 
@@ -56,6 +62,28 @@ func count() -> int:
 	return get_vehicles().size()
 
 
+## XX claude-car CS4a. Управляющий элемент куска дороги (стоп-секция, парковка, датчик) или null
+func control_of(track: Entity) -> C_RoadControl:
+	if track == null or not is_instance_valid(track):
+		return null
+	return _controls.get(track.get_instance_id())
+
+
+func register_control(c: C_RoadControl) -> void:
+	if c != null and c.entity != null:
+		_controls[c.entity.get_instance_id()] = c
+
+
+func unregister_control(c: C_RoadControl) -> void:
+	if c != null and c.entity != null and _controls.get(c.entity.get_instance_id()) == c:
+		_controls.erase(c.entity.get_instance_id())
+
+
+## Занят ли какой-либо датчик группы (по состоянию последнего тика)
+func group_occupied(group: StringName) -> bool:
+	return bool(_groups_occupied.get(group, false))
+
+
 ## Замер: машины прибавляют сюда время своего физического шага, мкс. Бенч забирает через take_step_usec
 func add_step_usec(us: int) -> void:
 	_step_usec += us
@@ -79,8 +107,32 @@ func _physics_process(delta: float) -> void:
 			alive.append(v)
 			v.decide(dt)
 	_vehicles = alive
+	_update_controls()
 	_check_crashes()
 	ticked.emit(dt)
+
+
+# ==========================================
+# Управляющие элементы
+# ==========================================
+
+func _update_controls() -> void:
+	if _controls.is_empty():
+		return
+	var on_track := {}
+	for v in _vehicles:
+		if v.mode != C_RoadVehicle.Mode.OFF_ROAD and v.state.has("track") and is_instance_valid(v.state.track):
+			on_track[(v.state.track as Object).get_instance_id()] = true
+	var groups := {}
+	for id in _controls.keys():
+		var c: C_RoadControl = _controls[id]
+		if not is_instance_valid(c):
+			_controls.erase(id)
+			continue
+		c.tick(on_track)
+		if c.kind == C_RoadControl.KIND_SENSOR and not c.group.is_empty() and c.occupied:
+			groups[c.group] = true
+	_groups_occupied = groups
 
 
 # ==========================================

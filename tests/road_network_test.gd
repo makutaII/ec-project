@@ -106,7 +106,7 @@ func _ready() -> void:
 				var s := load(ROAD_DIR + f) as EntitySetting
 				if s != null:
 					settings.append(s)
-	check("в папке есть объекты дорог (ожидается 8: 2 прямых, 4 поворота, 2 пандуса)", settings.size() == 8)
+	check("в папке есть объекты дорог (ожидается 11: 2 прямых, 4 поворота, 2 пандуса, 3 элемента управления)", settings.size() == 11)
 	for s in settings:
 		var idc: IdentitySetting = null
 		for c in s.components:
@@ -128,7 +128,7 @@ func _ready() -> void:
 	var vis := a.get_comp(C_StyleVisual) as C_StyleVisual
 	check("основание дороги на слое roads и не на tracks", vis != null and vis.ballast != null
 		and vis.ballast.collision_layer == Global.active_layers(["roads"]) and (vis.ballast.collision_layer & Global.active_layers(["tracks"])) == 0)
-	check("поверхность дороги на высоте стиля над origin пути", ap != null and vis != null and absf(ap.head_height() - vis.style.surface_height) < 0.001)
+	check("поверхность дороги на высоте головки стиля над origin пути", ap != null and vis != null and absf(ap.head_height() - vis.style.head_height()) < 0.001)
 	var r0 := piece(rail_s, Vector3(0, 0, -30))
 	await frames(5)
 	check("сеть рельса rail", C_Path.network_of(r0) == &"rail")

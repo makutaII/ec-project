@@ -42,9 +42,14 @@ var speed := 0.0
 var target_speed := 0.0
 ## Описание аварии {reason, role, other, speed}, пока mode == CRASHED
 var crash: Dictionary = {}
+## Почему стоит в HALTED: &"end" (конец дороги) или &"control" (держит стоп-секция или парковка)
+var halt_reason: StringName = &""
+## Элемент управления, который держит или собирается держать машину на текущем куске (стоп, парковка), иначе null
+var hold_control: C_RoadControl = null
 
 var _saved_on_road := false
 var _held := false          # машина призрак или в драге: не едет
+var _hold_s := -1.0         # точка остановки по элементу управления на текущем маршруте (dist), -1 нет
 var _cfg: CarConfig
 # Кэш пути под колёсами: шаг в кадр не должен искать компоненты
 var _track: Entity
@@ -129,6 +134,9 @@ func snap_to(track: Entity, route: int, dist: float, world_dir: Vector3) -> bool
 		return false
 	_clear_crash()
 	_set_state(st)
+	hold_control = null
+	halt_reason = &""
+	_hold_s = -1.0
 	mode = Mode.DRIVING
 	speed = 0.0
 	target_speed = max_speed()
@@ -152,6 +160,9 @@ func _lose_road() -> void:
 	_track = null
 	_pc = null
 	_crv = null
+	hold_control = null
+	halt_reason = &""
+	_hold_s = -1.0
 	mode = Mode.OFF_ROAD
 	speed = 0.0
 	target_speed = 0.0
@@ -193,7 +204,10 @@ func _physics_process(delta: float) -> void:
 		_dist = target
 		state.dist = target
 		_apply_pose_fast()
+		if _hold_s >= 0.0 and ((_dir > 0.0 and _dist >= _hold_s) or (_dir < 0.0 and _dist <= _hold_s)):
+			_hold_stop()   # дошли до точки остановки элемента управления
 	else:
+		_hold_s = -1.0
 		var nxt := PathWalker.advance(state, speed * delta, ROAD_LAYER, CROSS_PROBE)
 		if nxt.is_empty():
 			_halt()
@@ -214,9 +228,11 @@ func decide(_dt: float) -> void:
 		Mode.HALTED:
 			if not _road_valid():
 				_lose_road()
+			elif halt_reason == &"control":
+				if hold_control == null or not is_instance_valid(hold_control) or not hold_control.holds_for(self):
+					_resume()   # катушку выключили, на парковке дали «поехали» или пропало питание
 			elif not PathWalker.advance(state, RESUME_PROBE, ROAD_LAYER, CROSS_PROBE).is_empty():
-				mode = Mode.DRIVING   # дорогу достроили
-				target_speed = _plan_speed()
+				_resume()   # дорогу достроили
 		Mode.CRASHED:
 			if not _road_valid():
 				_lose_road()
@@ -227,6 +243,14 @@ func decide(_dt: float) -> void:
 func _plan_speed() -> float:
 	var br := maxf(brake(), 0.1)
 	var best := _limit_at(state)
+	# Элемент управления на текущем куске (стоп-секция, парковка): тормозим до точки остановки
+	_hold_s = -1.0
+	hold_control = null
+	var cd := _control_dist(state)
+	if cd >= 0.0:
+		hold_control = CSM.control_of(state.track)
+		_hold_s = hold_control.stop_point(state)
+		return minf(best, sqrt(2.0 * br * cd))
 	var look := minf(speed * speed / (2.0 * br) + LOOK_MARGIN, LOOK_MAX)
 	var st := state
 	var d := 0.0
@@ -245,6 +269,10 @@ func _plan_speed() -> float:
 				break
 			st = nxt
 			d += 0.01
+			# Элемент управления на следующем куске: остановка у его точки
+			var cd_next := _control_dist(st)
+			if cd_next >= 0.0:
+				return minf(best, sqrt(2.0 * br * (d + cd_next)))
 		best = minf(best, sqrt(_limit_at(st) * _limit_at(st) + 2.0 * br * d))
 	return best
 
@@ -258,6 +286,36 @@ func _limit_at(st: Dictionary) -> float:
 	return v
 
 
+## Расстояние до точки остановки элемента управления на куске состояния st, ю; -1: элемента нет, он не держит эту машину или точку уже проехали
+func _control_dist(st: Dictionary) -> float:
+	var ctl := CSM.control_of(st.track)
+	if ctl == null or not ctl.holds_for(self):
+		return -1.0
+	var to := (ctl.stop_point(st) - float(st.dist)) * float(st.dir)
+	return maxf(to, 0.0) if to >= -0.02 else -1.0
+
+
+## Дошли до точки остановки: встаём ровно в ней
+func _hold_stop() -> void:
+	_dist = _hold_s
+	state.dist = _hold_s
+	_apply_pose_fast()
+	_hold_s = -1.0
+	mode = Mode.HALTED
+	halt_reason = &"control"
+	speed = 0.0
+	target_speed = 0.0
+
+
+## Трогаемся после остановки
+func _resume() -> void:
+	mode = Mode.DRIVING
+	halt_reason = &""
+	hold_control = null
+	_hold_s = -1.0
+	target_speed = _plan_speed()
+
+
 ## Встали на самом краю маршрута
 func _halt() -> void:
 	if _crv != null:
@@ -265,6 +323,7 @@ func _halt() -> void:
 		_dist = float(state.dist)
 		_apply_pose_fast()
 	mode = Mode.HALTED
+	halt_reason = &"end"
 	speed = 0.0
 	target_speed = 0.0
 

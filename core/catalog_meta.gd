@@ -45,7 +45,7 @@ const CATEGORIES := {
 const TAGS := {
 	&"train": [&"loco", &"boxcar", &"parts", &"consist"],
 	&"track": [&"straight", &"curve", &"junction", &"special"],
-	&"road": [&"straight", &"curve", &"ramp"],   # XX claude-car CS1, ramp: CS1c
+	&"road": [&"straight", &"curve", &"ramp", &"control"],   # XX claude-car CS1, ramp: CS1c, control: CS4a
 	&"car": [&"passenger"],   # XX claude-car CS2
 	&"building": [&"house", &"mybuildings"],
 	&"terrain": [&"foam", &"cut", &"field", &"relief", &"water", &"plaster", &"brush"],   # XX claude-terra 13.14: field (H1b), relief (H2)
@@ -86,6 +86,7 @@ const TAG_META := {
 		&"straight": {"name": "Прямые"},
 		&"curve": {"name": "Повороты"},
 		&"ramp": {"name": "Пандусы"},   # XX claude-car CS1c
+		&"control": {"name": "Управление", "tooltip": "Стоп-секция, парковка, датчик"},   # XX claude-car CS4a
 	},
 	&"car": {   # XX claude-car CS2
 		&"passenger": {"name": "Легковые"},
