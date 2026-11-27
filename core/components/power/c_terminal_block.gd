@@ -68,6 +68,9 @@ func set_count(n: int) -> String:
 			if t != null:
 				t.collision_layer = 0
 				t.remove_from_group(&"power_terminal")
+				# из дерева сразу, не только queue_free: иначе _collect_meshes ещё видит сферу клеммы и C_Visual красит освобождённый узел
+				if t.get_parent() != null:
+					t.get_parent().remove_child(t)
 				t.queue_free()
 	count = n
 	if n > old:
@@ -77,6 +80,7 @@ func set_count(n: int) -> String:
 		var tt := term(_term_key(i))
 		if tt != null:
 			tt.position.x = _term_x(i)
+	_collect_meshes()   # список мешей C_Visual (оверлей выбора, контур) без убранных клемм и с добавленными
 	_changed()
 	return ""
 

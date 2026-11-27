@@ -107,7 +107,8 @@ func _exit_tree() -> void:
 
 func _set_overlay(mat: Material) -> void:
 	for mesh in mesh_nodes:
-		mesh.set_material_overlay(mat)
+		if is_instance_valid(mesh):   # XX claude-wire W7: меш мог быть освобождён (клемма клеммника убрана)
+			mesh.set_material_overlay(mat)
 
 
 # --- Меши ---

@@ -49,6 +49,11 @@ func _ready() -> void:
 	check("уменьшить до 2: лишние клеммы убраны", tb.set_count(2) == "" and tb.count == 2 and tb.term(&"t3") == null and tb.term(&"t4") == null)
 	await get_tree().physics_frame
 	check("осталось 2 клеммы по центру", is_equal_approx(tb.term(&"t1").position.x, -0.5) and is_equal_approx(tb.term(&"t2").position.x, 0.5))
+	var no_freed := true
+	for mn in tb.mesh_nodes:
+		no_freed = no_freed and is_instance_valid(mn) and not mn.is_queued_for_deletion()
+	check("после уменьшения в списке мешей нет освобождённых (краш C_Visual._set_overlay)", no_freed)
+	tb.update_visual()   # оверлей и контур по всем мешам без ошибок
 	check("увеличить до 5: клеммы добавлены, все переставлены", tb.set_count(5) == "" and tb.count == 5 and tb.term(&"t5") != null \
 			and is_equal_approx(tb.term(&"t1").position.x, -2.0) and is_equal_approx(tb.term(&"t5").position.x, 2.0))
 	check("больше 5 и меньше 2 зажимаются", tb.set_count(9) == "" and tb.count == 5 and tb.set_count(0) == "" and tb.count == 2)
