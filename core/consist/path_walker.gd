@@ -61,8 +61,11 @@ static func reversed(s: Dictionary) -> Dictionary:
 
 
 ## Идёт вперёд на d метров (d >= 0). Пусто: путь кончился или дальше нет трака.
-## layer: слой Global.active_layers, по которому ищется следующий путь за краем (tracks у рельсов, roads у дороги)
-static func advance(s: Dictionary, d: float, layer: StringName = &"tracks") -> Dictionary:
+## layer: слой Global.active_layers, по которому ищется следующий путь за краем (tracks у рельсов, roads у дороги).
+## extra_probe (XX claude-car CS3): насколько дальше за край смотреть лучом сверх PROBE_AHEAD. Коллизия трака короче самого трака на
+## COL_END_INSET (0.2) с каждого торца, поэтому при малом перелёте за край (шаг машины за кадр 0.1..0.2) луч в соседний кусок не попадал.
+## Лишний вылет за край возвращается обратно: новое dist отсчитывается от стыка. 0 (рельсы): поведение прежнее
+static func advance(s: Dictionary, d: float, layer: StringName = &"tracks", extra_probe: float = 0.0) -> Dictionary:
 	var r := s.duplicate()
 	var pc := _path(r.track)
 	if pc == null:
@@ -81,7 +84,7 @@ static func advance(s: Dictionary, d: float, layer: StringName = &"tracks") -> D
 	var et := crv.sample_baked_with_rotation(edge)
 	var tan := (pc.path_node.global_basis * -et.basis.z).normalized()
 	var out_dir := tan if exiting_end else -tan   # куда уходим с трака
-	var probe := pc.path_node.to_global(et.origin) + out_dir * (overflow + PROBE_AHEAD)
+	var probe := pc.path_node.to_global(et.origin) + out_dir * (overflow + PROBE_AHEAD + extra_probe)
 
 	var next_track := _track_at(probe, r.track, pc.head_height(), layer)
 	if next_track == null:
@@ -96,6 +99,9 @@ static func advance(s: Dictionary, d: float, layer: StringName = &"tracks") -> D
 	r.route = nroute
 	r.dist = nd
 	r.dir = 1.0 if _tangent(npc, nroute, nd).dot(out_dir) >= 0.0 else -1.0
+	if extra_probe > 0.0:
+		nd = clampf(nd - float(r.dir) * extra_probe, 0.0, ncrv.get_baked_length())
+		r.dist = nd
 	return r
 
 

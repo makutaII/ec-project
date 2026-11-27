@@ -130,7 +130,7 @@ func _check_pair(a: C_RoadVehicle, b: C_RoadVehicle) -> void:
 	if same > 0.5:
 		reason = &"rear_end"
 		# позади та, у которой другая впереди по её ходу
-		var ahead := (pb - pa).dot(fa) > 0.0
+		var ahead := Vector2(pb.x - pa.x, pb.z - pa.z).dot(fa) > 0.0
 		culprit = a if ahead else b
 		victim = b if ahead else a
 		rel = maxf(culprit.speed - victim.speed, culprit.speed if victim.mode == C_RoadVehicle.Mode.CRASHED else 0.0)

@@ -208,12 +208,19 @@ func _ready() -> void:
 	check("с места машина стоит (скорость 0), разгоняться начинает позже", veh.speed < 0.5)
 	var peak_straight := 0.0
 	var seen_halt := false
+	var joint_speeds: Array[float] = []
+	var last_track: Entity = veh.state.track
 	for i in MAX_FRAMES:
 		peak_straight = maxf(peak_straight, veh.speed)
+		if veh.state.has("track") and veh.state.track != last_track:
+			joint_speeds.append(veh.speed)   # скорость в момент перехода на следующий кусок
+			last_track = veh.state.track
 		if veh.mode == C_RoadVehicle.Mode.HALTED:
 			seen_halt = true
 			break
 		await get_tree().physics_frame
+	check("оба стыка проехала на скорости, без остановки (скорость на стыке не ниже 0.8 max_speed)", joint_speeds.size() == 2
+		and joint_speeds.min() > cfg.max_speed * 0.8)
 	check("на прямой разогналась до max_speed (%.1f)" % cfg.max_speed, peak_straight > cfg.max_speed * 0.95 and peak_straight <= cfg.max_speed + 0.05)
 	check("затормозила и встала у конца дороги без скачка", seen_halt and veh.speed == 0.0 and absf(car.global_position.z + 50.0) < 0.6)
 

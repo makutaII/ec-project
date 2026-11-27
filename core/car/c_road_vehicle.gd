@@ -26,6 +26,8 @@ const RESUME_PROBE := 0.5
 const LOOK_STEP := 1.0
 const LOOK_MARGIN := 2.0
 const LOOK_MAX := 40.0
+## Насколько дальше за край смотрит луч при переходе на следующий кусок, ю (коллизия куска короче его на 0.2 ю с торца, PathWalker.advance)
+const CROSS_PROBE := 0.3
 ## Запас луча вниз при поиске дороги под машиной после загрузки, ю
 const LOAD_RAY_UP := 1.0
 const LOAD_RAY_DOWN := 2.0
@@ -192,7 +194,7 @@ func _physics_process(delta: float) -> void:
 		state.dist = target
 		_apply_pose_fast()
 	else:
-		var nxt := PathWalker.advance(state, speed * delta, ROAD_LAYER)
+		var nxt := PathWalker.advance(state, speed * delta, ROAD_LAYER, CROSS_PROBE)
 		if nxt.is_empty():
 			_halt()
 		else:
@@ -212,7 +214,7 @@ func decide(_dt: float) -> void:
 		Mode.HALTED:
 			if not _road_valid():
 				_lose_road()
-			elif not PathWalker.advance(state, RESUME_PROBE, ROAD_LAYER).is_empty():
+			elif not PathWalker.advance(state, RESUME_PROBE, ROAD_LAYER, CROSS_PROBE).is_empty():
 				mode = Mode.DRIVING   # дорогу достроили
 				target_speed = _plan_speed()
 		Mode.CRASHED:
@@ -236,7 +238,7 @@ func _plan_speed() -> float:
 			st.dist = float(st.dist) + float(st.dir) * LOOK_STEP
 			d += LOOK_STEP
 		else:
-			var nxt := PathWalker.advance(st, step + 0.01, ROAD_LAYER)
+			var nxt := PathWalker.advance(st, step + 0.01, ROAD_LAYER, CROSS_PROBE)
 			d += step
 			if nxt.is_empty():
 				best = minf(best, sqrt(2.0 * br * maxf(d, 0.0)))   # конец дороги: остановиться у самого края
