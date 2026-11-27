@@ -250,5 +250,6 @@ void fragment() {
 	// крупная вариация яркости прячет повтор текстуры
 	col *= 0.92 + 0.08 * vnoise(v_pos.xz * 0.12);
 	ALBEDO = col;
+	//ALBEDO = vec3(w.x);
 	ROUGHNESS = 0.95;
 }
