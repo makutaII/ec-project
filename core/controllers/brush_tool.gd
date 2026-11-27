@@ -52,6 +52,12 @@ var _rmb_pos := Vector2.ZERO
 var _msg := ""
 var _msg_t := 0.0
 
+## H2d: настройки игрока поверх карточки (панель «Инструмент», ToolSettings). На сессию, по кистям: ключ карточки -> значения
+static var saved := {}
+var _card_surfaces: Array[FieldSurface] = []   # поверхности карточки
+var _mat_choice := -1                          # -1 материал как в карточке, иначе слот палитры FieldMaterials
+var _settings_ver := 0                         # растёт, когда набор строк панели надо собрать заново
+
 var _mi: MeshInstance3D
 var _imm: ImmediateMesh
 
@@ -61,6 +67,7 @@ func enter() -> void:
 	_fb.load_brush(brush)
 	if last_objects_mode >= 0:
 		_fb.objects_mode = last_objects_mode
+	_restore_settings()
 	_fb.ceiling_fn = Callable(TGM, "field_ceilings")
 	_leveling = false
 	_hover_ok = false
@@ -70,10 +77,12 @@ func enter() -> void:
 	_refresh_objects()
 	_ensure_preview()
 	controller.publish_selection(null)
+	controller.publish_tool_settings(self)   # H2d: настройки кисти в InfoPanel
 
 
 func exit(_to_drag: bool = false) -> void:
 	_finish_level()
+	controller.clear_tool_settings(self)
 	if is_instance_valid(_mi):
 		_mi.queue_free()
 	InfoTips.clear(self)
@@ -83,7 +92,268 @@ func exit(_to_drag: bool = false) -> void:
 
 
 func _brush_title() -> String:
-	return "Кисть · %s" % _fb.type_label()
+	return "Кисть · %s%s" % [_fb.type_label(), " · только краска" if _fb.paint_only else ""]
+
+
+## --- Настройки в InfoPanel (H2d, контракт ToolSettings) ---
+
+func settings_title() -> String:
+	return _brush_title()
+
+
+func settings_version() -> int:
+	return _settings_ver
+
+
+func get_info_sections() -> Array[InfoSection]:
+	var mat_ids: Array = [-1]
+	var mat_titles: Array = ["Как в карточке"]
+	var pal := FieldMaterials.shared()
+	if pal != null:
+		for i in pal.slots().size():
+			mat_ids.append(i)
+			mat_titles.append(pal.slot_title(i))
+	var form := InfoSection.make("Форма кисти", [
+		InfoSection.slider("Радиус, ю", _fb.radius_min, _fb.radius_max, RADIUS_STEP, Callable(self, "_get_radius"), Callable(self, "_set_radius")),
+		InfoSection.slider("Угол склона, °", 5.0, 90.0, ANGLE_STEP, Callable(self, "_get_angle"), Callable(self, "_set_angle")),
+		InfoSection.list("Объекты в зоне", [0, 1, 2], OBJ_NAMES, Callable(self, "_get_objects"), Callable(self, "_set_objects")),
+	])
+	var relief := InfoSection.make("Рельеф", [
+		InfoSection.slider("Шаг щелчка, слоёв", 0.05, 1.0, 0.05, Callable(self, "_get_notch"), Callable(self, "_set_notch")),
+		InfoSection.slider("Предел толщины, слоёв", 1.0, 31.0, 1.0, Callable(self, "_get_max_layers"), Callable(self, "_set_max_layers")),
+		InfoSection.slider("Сила подтягивания", 0.1, 1.0, 0.05, Callable(self, "_get_strength"), Callable(self, "_set_strength")),
+		InfoSection.slider("Мин. площадка, ю", 0.5, 5.0, 0.5, Callable(self, "_get_plateau"), Callable(self, "_set_plateau")),
+		InfoSection.slider("Допуск склона, доля радиуса", 0.0, 1.0, 0.05, Callable(self, "_get_tol_frac"), Callable(self, "_set_tol_frac")),
+		InfoSection.slider("Допуск склона, макс. ю", 0.0, 6.0, 0.5, Callable(self, "_get_tol_max"), Callable(self, "_set_tol_max")),
+	])
+	var surface := InfoSection.make("Поверхность", [
+		InfoSection.list("Материал", mat_ids, mat_titles, Callable(self, "_get_material"), Callable(self, "_set_material")),
+		InfoSection.toggle("Только краска", Callable(self, "_get_paint_only"), Callable(self, "_set_paint_only")),
+		InfoSection.slider("Непрозрачность", 0.0, 1.0, 0.05, Callable(self, "_get_opacity"), Callable(self, "_set_opacity")),
+		InfoSection.slider("Перо, ю", 0.0, 3.0, 0.1, Callable(self, "_get_feather"), Callable(self, "_set_feather")),
+		InfoSection.slider("Переход, ю", 0.0, FieldSurface.BLEND_MAX, 0.05, Callable(self, "_get_blend"), Callable(self, "_set_blend")),
+		InfoSection.list("Фактура рельефа", [-1, 0, 1, 2], ["Как у материала", "Гладкая", "Каменистая", "Скалистая"], Callable(self, "_get_kind"), Callable(self, "_set_kind")),
+		InfoSection.button("Сбросить к карточке", Callable(self, "_settings_reset")),
+	])
+	var keys := InfoSection.make("Клавиши", [
+		InfoSection.note("Alt+колесо или , и .: радиус. Ctrl+колесо: подъём или яма (Shift: до целого слоя)"),
+		InfoSection.note("%s и %s: угол склона (Shift ×5). %s: объекты в зоне. %s: отмена правки" % [Actions.key_text(&"width_down"), Actions.key_text(&"width_up"), Actions.key_text(&"brush_objects"), Actions.key_text(&"tool_undo")]),
+	])
+	return [form, relief, surface, keys]
+
+
+func _touch() -> void:
+	_prev_key = ""
+	_remember_settings()
+
+
+func _get_radius() -> float:
+	return _fb.radius
+
+
+func _set_radius(v: float) -> void:
+	_fb.radius = clampf(v, _fb.radius_min, _fb.radius_max)
+	_touch()
+
+
+func _get_angle() -> float:
+	return _fb.angle
+
+
+func _set_angle(v: float) -> void:
+	_fb.angle = clampf(v, 5.0, 90.0)
+	_touch()
+
+
+func _get_objects() -> Variant:
+	return _fb.objects_mode
+
+
+func _set_objects(v: Variant) -> void:
+	_fb.objects_mode = clampi(int(v), FieldBrush.OBJ_IGNORE, FieldBrush.OBJ_LIFT)
+	last_objects_mode = _fb.objects_mode
+	_refresh_objects()
+	_touch()
+
+
+func _get_notch() -> float:
+	return _fb.notch_layers
+
+
+func _set_notch(v: float) -> void:
+	_fb.notch_layers = clampf(v, 0.05, 1.0)
+	_touch()
+
+
+func _get_max_layers() -> float:
+	return _fb.max_layers
+
+
+func _set_max_layers(v: float) -> void:
+	_fb.max_layers = clampf(v, 1.0, 31.0)
+	_touch()
+
+
+func _get_strength() -> float:
+	return _fb.strength
+
+
+func _set_strength(v: float) -> void:
+	_fb.strength = clampf(v, 0.1, 1.0)
+	_touch()
+
+
+func _get_plateau() -> float:
+	return _fb.plateau_min
+
+
+func _set_plateau(v: float) -> void:
+	_fb.plateau_min = clampf(v, 0.5, 5.0)
+	_touch()
+
+
+func _get_tol_frac() -> float:
+	return _fb.tol_frac
+
+
+func _set_tol_frac(v: float) -> void:
+	_fb.tol_frac = clampf(v, 0.0, 1.0)
+	_touch()
+
+
+func _get_tol_max() -> float:
+	return _fb.tol_max
+
+
+func _set_tol_max(v: float) -> void:
+	_fb.tol_max = clampf(v, 0.0, 6.0)
+	_touch()
+
+
+func _get_material() -> Variant:
+	return _mat_choice
+
+
+func _set_material(v: Variant) -> void:
+	_mat_choice = int(v)
+	_apply_material()
+	_touch()
+
+
+func _get_paint_only() -> bool:
+	return _fb.paint_only
+
+
+func _set_paint_only(on: bool) -> void:
+	_fb.paint_only = on
+	_touch()
+
+
+func _get_opacity() -> float:
+	return _fb.opacity_now()
+
+
+func _set_opacity(v: float) -> void:
+	_fb.ov_opacity = clampf(v, 0.0, 1.0)
+	_fb.reapply_surfaces()
+	_touch()
+
+
+func _get_feather() -> float:
+	return _fb.feather_now()
+
+
+func _set_feather(v: float) -> void:
+	_fb.ov_feather = maxf(v, 0.0)
+	_fb.reapply_surfaces()
+	_touch()
+
+
+func _get_blend() -> float:
+	return _fb.blend_now()
+
+
+func _set_blend(v: float) -> void:
+	_fb.ov_blend = clampf(v, 0.0, FieldSurface.BLEND_MAX)
+	_fb.reapply_surfaces()
+	_touch()
+
+
+func _get_kind() -> Variant:
+	return _fb.ov_kind
+
+
+func _set_kind(v: Variant) -> void:
+	_fb.ov_kind = clampi(int(v), -1, TerrainField.ROCK)
+	_fb.reapply_surfaces()
+	_touch()
+
+
+## Поверхности кисти по выбору материала: -1 как в карточке, иначе одна поверхность из палитры
+func _apply_material() -> void:
+	var list: Array[FieldSurface] = []
+	var pal := FieldMaterials.shared()
+	if _mat_choice >= 0 and pal != null and _mat_choice < pal.slots().size():
+		list.append(pal.slots()[_mat_choice])
+	else:
+		_mat_choice = -1
+		list.assign(_card_surfaces)
+	_fb.set_surfaces(list)
+
+
+func _brush_key() -> String:
+	if brush == null:
+		return ""
+	return brush.resource_path if not brush.resource_path.is_empty() else str(brush.get_instance_id())
+
+
+func _remember_settings() -> void:
+	saved[_brush_key()] = {
+		"radius": _fb.radius, "angle": _fb.angle, "notch": _fb.notch_layers, "max_layers": _fb.max_layers,
+		"strength": _fb.strength, "plateau": _fb.plateau_min, "tol_frac": _fb.tol_frac, "tol_max": _fb.tol_max,
+		"mat": _mat_choice, "paint_only": _fb.paint_only,
+		"ov_opacity": _fb.ov_opacity, "ov_feather": _fb.ov_feather, "ov_blend": _fb.ov_blend, "ov_kind": _fb.ov_kind,
+	}
+
+
+## Настройки, сделанные игроком в этой сессии, возвращаются поверх карточки (enter)
+func _restore_settings() -> void:
+	_card_surfaces.assign(brush.surfaces if brush != null else [])
+	_mat_choice = -1
+	var d: Dictionary = saved.get(_brush_key(), {})
+	if d.is_empty():
+		return
+	_fb.radius = clampf(float(d.get("radius", _fb.radius)), _fb.radius_min, _fb.radius_max)
+	_fb.angle = clampf(float(d.get("angle", _fb.angle)), 5.0, 90.0)
+	_fb.notch_layers = clampf(float(d.get("notch", _fb.notch_layers)), 0.05, 1.0)
+	_fb.max_layers = clampf(float(d.get("max_layers", _fb.max_layers)), 1.0, 31.0)
+	_fb.strength = clampf(float(d.get("strength", _fb.strength)), 0.1, 1.0)
+	_fb.plateau_min = clampf(float(d.get("plateau", _fb.plateau_min)), 0.5, 5.0)
+	_fb.tol_frac = clampf(float(d.get("tol_frac", _fb.tol_frac)), 0.0, 1.0)
+	_fb.tol_max = clampf(float(d.get("tol_max", _fb.tol_max)), 0.0, 6.0)
+	_fb.paint_only = bool(d.get("paint_only", false))
+	_fb.ov_opacity = float(d.get("ov_opacity", -1.0))
+	_fb.ov_feather = float(d.get("ov_feather", -1.0))
+	_fb.ov_blend = float(d.get("ov_blend", -1.0))
+	_fb.ov_kind = int(d.get("ov_kind", -1))
+	_mat_choice = int(d.get("mat", -1))
+	_apply_material()
+
+
+## Кнопка «Сбросить к карточке»: всё, что менял игрок, возвращается к значениям карточки
+func _settings_reset() -> void:
+	saved.erase(_brush_key())
+	_fb.ov_opacity = -1.0
+	_fb.ov_feather = -1.0
+	_fb.ov_blend = -1.0
+	_fb.ov_kind = -1
+	_fb.paint_only = false
+	_mat_choice = -1
+	last_objects_mode = -1
+	_fb.load_brush(brush)
+	_settings_ver += 1
+	_prev_key = ""
+	_say("Настройки кисти сброшены к карточке")
 
 
 ## --- Ввод ---
@@ -116,6 +386,7 @@ func handle_input(event: InputEvent) -> void:
 	if Actions.pressed_shift_ok(event, &"brush_objects"):
 		_fb.objects_mode = (_fb.objects_mode + 1) % OBJ_NAMES.size()
 		last_objects_mode = _fb.objects_mode
+		_remember_settings()
 		_refresh_objects()
 		_prev_key = ""
 		_say("Объекты в зоне: %s" % OBJ_NAMES[_fb.objects_mode])
@@ -125,6 +396,7 @@ func handle_input(event: InputEvent) -> void:
 	var a := Actions.axis_step(event, &"width_up", &"width_down", 5)
 	if a != 0:
 		_fb.angle = clampf(_fb.angle + float(a) * ANGLE_STEP, 5.0, 90.0)
+		_remember_settings()
 		_prev_key = ""
 		_say("Угол склона %.0f°" % _fb.angle)
 		return
@@ -145,6 +417,7 @@ func _on_wheel(mb: InputEventMouseButton) -> void:
 
 func _change_radius(dir_: float) -> void:
 	_fb.radius = clampf(_fb.radius + dir_ * RADIUS_STEP, _fb.radius_min, _fb.radius_max)
+	_remember_settings()
 	_prev_key = ""
 	_say("Радиус кисти %.1f ю" % _fb.radius)
 
@@ -165,6 +438,9 @@ func _undo() -> void:
 ## Щелчок Ctrl+колеса: площадка на notch_layers выше или ниже поверхности под курсором (whole: до целого слоя)
 func _raise(dir_: float, whole: bool) -> void:
 	if not _hover_ok or _leveling:
+		return
+	if _fb.paint_only:
+		_say("Режим «только краска»: рельеф не меняется")
 		return
 	var f := TGM.field
 	var c := Vector2(_hover.x, _hover.z)

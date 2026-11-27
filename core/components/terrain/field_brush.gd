@@ -32,6 +32,14 @@ var radius_max := 15.0
 ## H2b: поверхности кисти (FieldSurface) и их слова: класс рельефа и слот материала в битах узла. Пусто: плоская базовая (слот 0, гладкая)
 var surfaces: Array[FieldSurface] = []
 var materials: FieldMaterials   # палитра слотов; null: общая FieldMaterials.shared()
+## H2d: настройки игрока поверх карточки (панель «Инструмент»): -1 значение из поверхности, иначе своё для всех поверхностей кисти
+var ov_opacity := -1.0
+var ov_feather := -1.0     # ю
+var ov_blend := -1.0       # ю
+var ov_kind := -1          # класс рельефа
+## H2d: режим «только краска»: мазок меняет материал и прозрачность существующих узлов в радиусе кисти, рельеф не трогает
+var paint_only := false
+var _src: Array[FieldSurface] = []
 var _bits := PackedInt32Array([0])       # на поверхность: (слот << MAT_SHIFT) | (класс << TYPE_SHIFT)
 var _cum := PackedFloat32Array([1.0])    # накопленные веса поверхностей
 # H2c: на поверхность непрозрачность 0..1, мягкий край в ячейках и ширина перехода 0..15 (в слове узла)
@@ -78,6 +86,7 @@ func load_brush(b: TerrainBrush) -> void:
 
 ## Поверхности кисти (H2b): считает слова узла и накопленные веса. Слот берётся у палитры materials
 func set_surfaces(list: Array[FieldSurface]) -> void:
+	_src.assign(list)
 	surfaces = []
 	_bits = PackedInt32Array()
 	_cum = PackedFloat32Array()
@@ -91,18 +100,47 @@ func set_surfaces(list: Array[FieldSurface]) -> void:
 			continue
 		surfaces.append(s)
 		var slot := pal.slot_of(s) if pal != null else FieldMaterials.SLOT_BASE
-		_bits.append(((s.kind & TerrainField.TYPE_MASK) << TerrainField.TYPE_SHIFT) | ((slot & TerrainField.MAT_MASK) << TerrainField.MAT_SHIFT))
+		var kind := ov_kind if ov_kind >= 0 else s.kind
+		_bits.append(((kind & TerrainField.TYPE_MASK) << TerrainField.TYPE_SHIFT) | ((slot & TerrainField.MAT_MASK) << TerrainField.MAT_SHIFT))
 		total += s.weight
 		_cum.append(total)
-		_opac.append(clampf(s.opacity, 0.0, 1.0))
-		_feath.append(maxf(s.feather, 0.0) / STEP)
-		_blend.append(s.blend_nibble())
+		_opac.append(clampf(ov_opacity if ov_opacity >= 0.0 else s.opacity, 0.0, 1.0))
+		_feath.append(maxf(ov_feather if ov_feather >= 0.0 else s.feather, 0.0) / STEP)
+		_blend.append(_blend_nibble(ov_blend if ov_blend >= 0.0 else s.blend))
 	if _bits.is_empty():
-		_bits = PackedInt32Array([0])
+		var kind0 := maxi(ov_kind, 0)
+		_bits = PackedInt32Array([(kind0 & TerrainField.TYPE_MASK) << TerrainField.TYPE_SHIFT])
 		_cum = PackedFloat32Array([1.0])
-		_opac = PackedFloat32Array([1.0])
-		_feath = PackedFloat32Array([0.0])
-		_blend = PackedInt32Array([0])
+		_opac = PackedFloat32Array([clampf(ov_opacity, 0.0, 1.0) if ov_opacity >= 0.0 else 1.0])
+		_feath = PackedFloat32Array([maxf(ov_feather, 0.0) / STEP])
+		_blend = PackedInt32Array([_blend_nibble(maxf(ov_blend, 0.0))])
+
+
+## H2d: ширина перехода в слове узла (0..15) по ширине в ю
+static func _blend_nibble(blend: float) -> int:
+	return clampi(roundi(clampf(blend, 0.0, FieldSurface.BLEND_MAX) / FieldSurface.BLEND_MAX * 15.0), 0, 15)
+
+
+## H2d: пересчитать слова поверхностей после смены переопределений ov_* или материала
+func reapply_surfaces() -> void:
+	set_surfaces(_src)
+
+
+## H2d: действующие значения первой поверхности кисти (с учётом переопределений) для слайдеров панели
+func opacity_now() -> float:
+	return _opac[0]
+
+
+func feather_now() -> float:
+	return _feath[0] * STEP
+
+
+func blend_now() -> float:
+	return float(_blend[0]) / 15.0 * FieldSurface.BLEND_MAX
+
+
+func kind_now() -> int:
+	return (_bits[0] >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK
 
 
 ## Подпись поверхности кисти: подпись одной поверхности (или название её класса рельефа) или «смесь»
@@ -247,8 +285,13 @@ func _node_cap(k: int, fl: float, unit_y: float, cap: int) -> int:
 ## План мазка без записи (кольца кисти и подпись). mode как у stroke
 func preview(field: TerrainField, c: Vector2, ht: float, mode: int, clip: Array) -> Dictionary:
 	_load(field, c, clip)
-	last_plan = _plan(c, ht, mode, field.layer_height)
+	last_plan = _paint_plan(ht) if paint_only else _plan(c, ht, mode, field.layer_height)
 	return last_plan
+
+
+## H2d: «план» режима «только краска»: рельеф не меняется, кольцо кисти одно (радиус)
+func _paint_plan(ht: float) -> Dictionary:
+	return {"ht": ht, "dh": 0.0, "w": 0.0, "p": radius, "e": radius, "t": 0.0, "ang": angle, "limit": ""}
 
 
 ## Мазок: считает план и меняет поле. kk доля пути к цели за вызов (1 сразу). Вызывать внутри field.begin_edit / end_edit.
@@ -256,8 +299,13 @@ func preview(field: TerrainField, c: Vector2, ht: float, mode: int, clip: Array)
 func stroke(field: TerrainField, c: Vector2, ht: float, mode: int, kk: float, clip: Array) -> bool:
 	_load(field, c, clip)
 	var lh := field.layer_height
-	last_plan = _plan(c, ht, mode, lh)
-	var ch := _apply(c, last_plan, mode, kk, lh)
+	var ch: Rect2i
+	if paint_only:
+		last_plan = _paint_plan(ht)
+		ch = _apply_paint(c)
+	else:
+		last_plan = _plan(c, ht, mode, lh)
+		ch = _apply(c, last_plan, mode, kk, lh)
 	if ch.size.x <= 0:
 		return false
 	field.write_region(_rect, _w, ch)
@@ -333,6 +381,50 @@ func _plan(c: Vector2, ht: float, mode: int, lh: float) -> Dictionary:
 		limit = ""
 	var p := maxf(pmin, radius - w)
 	return {"ht": ht, "dh": dh, "w": w, "p": p, "e": p + w, "t": t_eff, "ang": ang, "limit": limit, "ceiling": capped and mode >= 0, "locked": locked}
+
+
+## H2d: режим «только краска». Красит существующие узлы в радиусе кисти (мимо следов объектов): материал, прозрачность, переход.
+## Толщину узлов не трогает. Возвращает прямоугольник изменённых узлов (пустой, если менять нечего)
+func _apply_paint(c: Vector2) -> Rect2i:
+	var r_cells := radius / STEP
+	var rsq := r_cells * r_cells
+	var cx := c.x / STEP
+	var cz := c.y / STEP
+	var minx := 1 << 30
+	var maxx := -(1 << 30)
+	var minz := 1 << 30
+	var maxz := -(1 << 30)
+	var x_end := _rect.end.x - 1
+	for rj in _rect.size.y:
+		var j := _rect.position.y + rj
+		var dz := float(j) - cz
+		var iv: PackedInt32Array = _iv[rj]
+		var row := rj * _rect.size.x - _rect.position.x
+		for q in range(0, iv.size(), 2):
+			var a := maxi(iv[q], _rect.position.x)
+			var b := mini(iv[q + 1], x_end)
+			for i in range(a, b + 1):
+				var dx := float(i) - cx
+				var d2 := dx * dx + dz * dz
+				if d2 > rsq:
+					continue
+				var k := row + i
+				if not _lock.is_empty() and _lock[k] != 0:
+					continue
+				var w0 := _w[k]
+				var u0 := w0 & TerrainField.TH_MASK
+				if u0 == 0:
+					continue
+				var nw := paint_bits(w0, i, j, sqrt(d2), r_cells) | u0
+				if nw != w0:
+					_w[k] = nw
+					minx = mini(minx, i)
+					maxx = maxi(maxx, i)
+					minz = mini(minz, j)
+					maxz = maxi(maxz, j)
+	if maxx < minx:
+		return Rect2i()
+	return Rect2i(minx, minz, maxx - minx + 1, maxz - minz + 1)
 
 
 ## Меняет слова в буфере _w. Возвращает прямоугольник узлов, где что-то изменилось (size.x = 0: ничего)

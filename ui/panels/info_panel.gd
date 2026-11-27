@@ -14,6 +14,9 @@ class_name InfoPanel extends FloatingPanel
 const REFRESH_HZ := 10.0
 
 var current_target: Entity
+## H2d: поставщик настроек активного инструмента (ToolSettings) и его вкладка
+var tool_provider: Object = null
+var _tool_tab: InfoToolTab
 
 ## ⚡Сигнал для спидометра
 signal s_select_entity( sel_entity:Variant, spdmetr_on: bool, vert :bool)
@@ -40,6 +43,7 @@ func _ready() -> void:
 	var _tc := get_node_or_null("../../../ToolController")   # HUD → UI → GameRoot (после U8)
 	if _tc:
 		_tc.selection_changed.connect(set_target)
+		_tc.tool_settings_changed.connect(set_tool_settings)   # H2d: настройки активного инструмента
 
 	_power = InfoPowerTab.new()
 	_main = InfoMainTab.new()
@@ -49,6 +53,8 @@ func _ready() -> void:
 	_add_tab(InfoVisualTab.new(), tab_container.get_node("VisualTab"))   # U13: секции компонентов (D13); U5a.3: в ней же блоки механизмов, света и листа
 	_add_tab(InfoSettingsTab.new())   # U5a.4: блоки стрелки, стола (T4), пульта и проводов (D4), коммутатора (D5)
 	_add_tab(InfoHintsTab.new())   # U5a.5: описание, характеристики и клавиши выбранного объекта
+	_tool_tab = InfoToolTab.new()
+	_add_tab(_tool_tab)   # H2d: настройки активного инструмента (ToolSettings), видна без выбранной сущности
 	_update_tab_visibility()
 
 	# Трак питания обновляется по сигналам менеджера, поезд живыми значениями вкладки
@@ -92,10 +98,14 @@ func set_target(entity: Entity) -> void:
 
 	current_target = entity
 
-	# 2. Если кликнули в пустоту - прячем панель
+	# 2. Если кликнули в пустоту - прячем панель (H2d: кроме случая, когда активный инструмент показывает свои настройки)
 	if not current_target:
 		s_select_entity.emit(null, false, false)
-		hide()
+		if ToolSettings.is_provider(tool_provider):
+			show()
+			_update_tab_visibility()
+		else:
+			hide()
 		return
 
 	# 3. Подписываемся на новый объект (компоненты добавляются и убираются)
@@ -138,7 +148,29 @@ func _update_tab_visibility() -> void:
 	var current := tab_container.get_current_tab_control()
 	var idx_now := tab_container.get_tab_idx_from_control(current)
 	if idx_now < 0 or tab_container.is_tab_hidden(idx_now):
-		tab_container.current_tab = 0
+		tab_container.current_tab = _first_visible_tab()   # H2d: без сущности первая вкладка скрыта, открывается видимая
+
+
+## H2d: первая не скрытая вкладка (0, если скрыты все)
+func _first_visible_tab() -> int:
+	for i in tab_container.get_tab_count():
+		if not tab_container.is_tab_hidden(i):
+			return i
+	return 0
+
+
+## H2d: ToolController.tool_settings_changed. Инструмент показывает или убирает свои настройки (контракт ToolSettings)
+func set_tool_settings(provider: Object) -> void:
+	tool_provider = provider if ToolSettings.is_provider(provider) else null
+	if _tool_tab != null:
+		_tool_tab.set_provider(tool_provider)
+	if is_instance_valid(current_target):
+		return   # выбранная сущность важнее: вкладка инструмента скрыта, пока выбор есть
+	if tool_provider != null:
+		show()
+		_update_tab_visibility()
+	else:
+		hide()
 
 
 ## Вызывается ТОЛЬКО когда у цели добавился или удалился компонент

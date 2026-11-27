@@ -44,6 +44,8 @@ var active_tool: Node
 
 ## ⚡Сигнал: объект, который показывает инфопанель, сменился (null: ничего)
 signal selection_changed(entity: Entity)
+## XX claude-terra 13.14 H2d: настройки активного инструмента для InfoPanel (вкладка «Инструмент», см. ToolSettings). null: нет
+signal tool_settings_changed(provider: Object)
 ## ⚡Сигнал: сменился активный инструмент
 signal tool_changed(tool_name: StringName)
 ## ⚡Сигнал: выбор объекта для стройки снят (UI снимает нажатие с кнопки объекта)
@@ -51,6 +53,8 @@ signal build_selection_cleared
 
 ## Сущность, о которой сейчас показывается информация (выбранная, призрак стройки)
 var current_target: Entity = null
+## XX claude-terra 13.14 H2d: поставщик настроек активного инструмента (ToolSettings) или null
+var tool_settings: Object = null
 
 
 
@@ -211,6 +215,18 @@ func selected_for_duplicate() -> Entity:
 func publish_selection(entity: Entity) -> void:
 	current_target = entity
 	selection_changed.emit(entity)
+
+
+## XX claude-terra 13.14 H2d: инструмент показывает свои настройки в InfoPanel (контракт ToolSettings). Зовёт в enter()
+func publish_tool_settings(provider: Object) -> void:
+	tool_settings = provider
+	tool_settings_changed.emit(provider)
+
+
+## Инструмент убирает свои настройки в exit(). Чужие (уже включившегося следующего инструмента) не трогает
+func clear_tool_settings(provider: Object) -> void:
+	if tool_settings == provider:
+		publish_tool_settings(null)
 
 
 

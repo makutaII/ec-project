@@ -42,6 +42,8 @@ func _ready() -> void:
 	_test_clip()
 	_test_types()
 	_test_paint()
+	_test_overrides()
+	_test_tool_settings()
 	_test_floor()
 	_test_materials()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
@@ -420,6 +422,134 @@ func _test_paint() -> void:
 	var g2 := TerrainField.new()
 	g2.load_data(g.save_data())
 	check("прозрачность: нижний материал и доли переживают сейв", g2.under_at(ci, ci) == g.under_at(ci, ci) and g2.trans_at(ci, ci) == g.trans_at(ci, ci) and g2.blend_at(ci, ci) == g.blend_at(ci, ci))
+
+
+## H2d: поставщик настроек для проверки контракта ToolSettings
+class _Prov extends RefCounted:
+	func settings_title() -> String:
+		return "t"
+
+	func get_info_sections() -> Array[InfoSection]:
+		return []
+
+	func settings_version() -> int:
+		return 7
+
+
+func _g03() -> float:
+	return 0.3
+
+
+func _noop(_v: float) -> void:
+	pass
+
+
+## H2d: настройки игрока поверх карточки и режим «только краска»
+func _test_overrides() -> void:
+	var s := _surf(TerrainField.ROCKY, Color(0.4, 0.7, 0.2), 3.0)
+	var pal := _palette([s])
+	var b := FieldBrush.new()
+	b.materials = pal
+	b.set_surfaces([s])
+	check("настройки: без переопределений значения из поверхности", is_equal_approx(b.opacity_now(), 1.0) and is_equal_approx(b.feather_now(), 0.0) and is_equal_approx(b.blend_now(), 0.0) and b.kind_now() == TerrainField.ROCKY)
+	b.ov_opacity = 0.5
+	b.ov_feather = 1.0
+	b.ov_blend = 0.5
+	b.ov_kind = TerrainField.ROCK
+	b.reapply_surfaces()
+	check("настройки: переопределения прозрачности, пера, перехода и фактуры", is_equal_approx(b.opacity_now(), 0.5) and is_equal_approx(b.feather_now(), 1.0) and is_equal_approx(b.blend_now(), 8.0 / 15.0) and b.kind_now() == TerrainField.ROCK,
+			"%s %s %s %d" % [b.opacity_now(), b.feather_now(), b.blend_now(), b.kind_now()])
+	check("настройки: переопределение не меняет саму поверхность карточки", is_equal_approx(s.opacity, 1.0) and s.kind == TerrainField.ROCKY)
+	var e := FieldBrush.new()
+	e.materials = pal
+	e.ov_opacity = 0.25
+	e.ov_kind = TerrainField.ROCK
+	e.set_surfaces([])
+	check("настройки: кисть без поверхностей тоже слушается переопределений", is_equal_approx(e.opacity_now(), 0.25) and e.kind_now() == TerrainField.ROCK)
+	# только краска: рельеф стоит, красятся существующие узлы в радиусе
+	var sa := _surf(TerrainField.SMOOTH, Color(0.8, 0.2, 0.2), 3.0)
+	var sb := _surf(TerrainField.ROCKY, Color(0.2, 0.8, 0.2), 3.0)
+	var p2 := _palette([sa, sb])
+	var c := Vector2(20.0, 20.0)
+	var ci := node(c.x)
+	var f := TerrainField.new()
+	var ba := FieldBrush.new()
+	ba.materials = p2
+	ba.radius = 4.0
+	ba.set_surfaces([sa])
+	f.begin_edit()
+	ba.stroke(f, c, 1.0, 1, 1.0, _big_clip())
+	f.end_edit()
+	var th0 := f.word_at(ci, ci) & TerrainField.TH_MASK
+	var th_far := f.word_at(ci + 6, ci) & TerrainField.TH_MASK
+	var bp := FieldBrush.new()
+	bp.materials = p2
+	bp.radius = 2.0
+	bp.paint_only = true
+	bp.set_surfaces([sb])
+	f.begin_edit()
+	var changed := bp.stroke(f, c, 5.0, 1, 1.0, _big_clip())
+	f.end_edit()
+	check("только краска: мазок красит узлы в радиусе кисти", changed and f.mat_at(ci, ci) == p2.slot_of(sb), str(f.mat_at(ci, ci)))
+	check("только краска: толщина узлов не меняется", (f.word_at(ci, ci) & TerrainField.TH_MASK) == th0 and (f.word_at(ci + 6, ci) & TerrainField.TH_MASK) == th_far)
+	check("только краска: за радиусом материал прежний", f.mat_at(ci + 6, ci) == p2.slot_of(sa), str(f.mat_at(ci + 6, ci)))
+	f.begin_edit()
+	var empty_changed := bp.stroke(f, Vector2(120.0, 120.0), 5.0, 1, 1.0, _big_clip())
+	f.end_edit()
+	check("только краска: на пустом месте слой не создаётся", not empty_changed and not f.has_layer(node(120.0), node(120.0)))
+	check("только краска: план без рельефа (кольцо одно, радиус)", is_equal_approx(float(bp.last_plan["dh"]), 0.0) and is_equal_approx(float(bp.last_plan["p"]), 2.0) and is_equal_approx(float(bp.last_plan["e"]), 2.0))
+
+
+## H2d: контракт ToolSettings, строки InfoSection и настройки кисти в панели
+func _test_tool_settings() -> void:
+	var pv := _Prov.new()
+	check("ToolSettings: подходящий объект и его версия", ToolSettings.is_provider(pv) and ToolSettings.version_of(pv) == 7)
+	check("ToolSettings: неподходящие объекты", not ToolSettings.is_provider(null) and not ToolSettings.is_provider(RefCounted.new()) and ToolSettings.version_of(RefCounted.new()) == 0)
+	var live: Array[Dictionary] = []
+	var ctl := InfoSectionView.make_row(InfoSection.slider("x", 0.0, 1.0, 0.1, Callable(self, "_g03"), Callable(self, "_noop")), live)
+	InfoSectionView.refresh_row(live[0])
+	check("InfoSectionView: слайдер строится и читает getter", live.size() == 1 and is_equal_approx((live[0]["control"] as HSlider).value, 0.3))
+	ctl.free()
+	# кисть как поставщик
+	BrushTool.saved.clear()
+	var gravel := (load("res://data/terrain/objects/relief_gravel.tres") as EntitySetting).components[0] as TerrainBrush
+	var t := BrushTool.new()
+	t.brush = gravel
+	t._fb.load_brush(gravel)
+	t._restore_settings()
+	check("кисть: поставщик настроек подходит под контракт", ToolSettings.is_provider(t) and t.settings_title().begins_with("Кисть"))
+	var secs := t.get_info_sections()
+	var titles: Array[String] = []
+	var nrows := 0
+	for sec in secs:
+		titles.append(sec.title)
+		nrows += sec.rows.size()
+	check("кисть: четыре секции (форма, рельеф, поверхность, клавиши)", titles == ["Форма кисти", "Рельеф", "Поверхность", "Клавиши"] and nrows >= 15, str(titles))
+	t._set_radius(3.0)
+	t._set_angle(40.0)
+	t._set_paint_only(true)
+	t._set_opacity(0.4)
+	check("кисть: слайдеры меняют настройки", is_equal_approx(t._get_radius(), 3.0) and is_equal_approx(t._get_angle(), 40.0) and t._get_paint_only() and is_equal_approx(t._get_opacity(), 0.4))
+	t._set_material(FieldMaterials.SLOT_CLIFF)
+	check("кисть: материал из палитры заменяет поверхности карточки", t._fb.surfaces.size() == 1 and t._fb.mat_for(0, 0) == FieldMaterials.SLOT_CLIFF and t._get_material() == FieldMaterials.SLOT_CLIFF)
+	# запоминание между включениями
+	var t2 := BrushTool.new()
+	t2.brush = gravel
+	t2._fb.load_brush(gravel)
+	t2._restore_settings()
+	check("кисть: настройки возвращаются при следующем включении", is_equal_approx(t2._get_radius(), 3.0) and is_equal_approx(t2._get_angle(), 40.0) and t2._get_paint_only() and is_equal_approx(t2._get_opacity(), 0.4) and t2._get_material() == FieldMaterials.SLOT_CLIFF)
+	t2._settings_reset()
+	check("кисть: сброс возвращает карточку", is_equal_approx(t2._get_radius(), gravel.radius_default) and not t2._get_paint_only() and t2._get_material() == -1 and is_equal_approx(t2._get_opacity(), 1.0) and t2.settings_version() == 1)
+	var t3 := BrushTool.new()
+	t3.brush = gravel
+	t3._fb.load_brush(gravel)
+	t3._restore_settings()
+	check("кисть: после сброса сохранённых настроек нет", is_equal_approx(t3._get_radius(), gravel.radius_default) and not t3._get_paint_only())
+	BrushTool.saved.clear()
+	t.free()
+	t2.free()
+	t3.free()
+	pv = null
 
 
 func _test_floor() -> void:

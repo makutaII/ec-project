@@ -82,6 +82,20 @@ func slot_of(s: FieldSurface, add := false) -> int:
 	return SLOT_BASE
 
 
+## Подпись слота для списка в панели: подпись поверхности (label) или имя файла текстуры без суффикса _Color, или «Материал N»
+func slot_title(i: int) -> String:
+	var sl := slots()
+	if i < 0 or i >= sl.size():
+		return "-"
+	var s := sl[i]
+	var name := s.label
+	if name.is_empty() and s.texture != null and not s.texture.resource_path.is_empty():
+		name = s.texture.resource_path.get_file().get_basename().replace("_Color", "").replace("_1K-WebP", "")
+	if name.is_empty():
+		name = "Материал %d" % i
+	return "%d: %s" % [i, name]
+
+
 func _catalog_surfaces() -> Array[FieldSurface]:
 	var res: Array[FieldSurface] = []
 	for dir in brush_dirs:
