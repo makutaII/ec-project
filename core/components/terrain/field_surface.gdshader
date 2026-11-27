@@ -196,40 +196,59 @@ vec4 sharpen(vec4 w, ivec4 m, vec2 wxz, float bl) {
 	return r / s;
 }
 
-vec3 tex_of(int c, vec2 uv) {
-	return texture(texs, vec3(uv, float(c))).rgb * tints[c].rgb;
+// Выборка слоя c массива текстур с заданными производными: ветвления по данным ниже безопасны (неявные производные в них не определены)
+vec3 tex_g(int c, vec2 uv, vec2 gx, vec2 gy) {
+	return textureGrad(texs, vec3(uv, float(c)), gx, gy).rgb * tints[c].rgb;
 }
 
-// Цвет материала слота c в точке: сверху проекция по XZ, на крутом склоне боковые проекции XY и ZY.
-// Ветвлений по данным нет (все выборки идут при любых значениях): иначе производные для мип-уровней в ветвях не определены
-vec3 mat_color(int c, vec3 p, vec3 n) {
+// Цвет материала слота c в точке: сверху проекция по XZ, на крутом склоне боковые проекции XY и ZY (их веса wx, wz, вес верха wy).
+// На плоском (wy = 1) боковые не считаются: результат тот же, выборок вдвое-втрое меньше. dpx, dpy: производные позиции по экрану
+vec3 mat_color(int c, vec3 p, float wy, float wx, float wz, vec3 dpx, vec3 dpy) {
 	float tl = max(tiles[c], 0.1);
-	vec3 top = tex_of(c, p.xz / tl);
-	float wy = smoothstep(0.6, 0.9, abs(n.y));
-	float wx = abs(n.x);
-	float wz = abs(n.z);
-	vec3 side = (tex_of(c, p.zy / tl) * wx + tex_of(c, p.xy / tl) * wz) / max(wx + wz, 0.0001);
+	vec3 top = tex_g(c, p.xz / tl, dpx.xz / tl, dpy.xz / tl);
+	if (wy >= 0.9999) {
+		return top;
+	}
+	vec3 side = (tex_g(c, p.zy / tl, dpx.zy / tl, dpy.zy / tl) * wx + tex_g(c, p.xy / tl, dpx.xy / tl, dpy.xy / tl) * wz) / max(wx + wz, 0.0001);
 	return mix(side, top, wy);
 }
 
 void fragment() {
+	// Производные для textureGrad считаются до отсечения и ветвлений по данным: в ветвях неявные производные не определены
+	vec3 dpx = dFdx(v_pos);
+	vec3 dpy = dFdy(v_pos);
+	// Точки без слоя отсекаются первыми: голый стол почти бесплатен, цена растёт с площадью покрашенного
+	if (v_th < thin_eps) {
+		discard;
+	}
 	vec3 n = normalize(v_nrm);
 	ivec4 m;
 	vec4 w;
 	float bl;
 	node_mats(v_pos.xz, m, w, bl);
-	w = sharpen(w, m, v_pos.xz, bl);
-	vec3 col = vec3(0.0);
-	for (int c = 0; c < 4; c++) {
-		col += w[c] * mat_color(m[c], v_pos, n);
+	// один материал (веса отсортированы по убыванию): граница не рвётся, шум не нужен
+	if (w.x < 0.999) {
+		w = sharpen(w, m, v_pos.xz, bl);
 	}
+	float wy = smoothstep(0.6, 0.9, abs(n.y));
+	float wx = abs(n.x);
+	float wz = abs(n.z);
+	vec3 col = vec3(0.0);
+	float ws = 0.0;
+	for (int c = 0; c < 4; c++) {
+		// материалы с ничтожным весом не выбираются (вклад меньше 0,2 %)
+		if (w[c] > 0.002) {
+			col += w[c] * mat_color(m[c], v_pos, wy, wx, wz, dpx, dpy);
+			ws += w[c];
+		}
+	}
+	col /= max(ws, 0.0001);
 	// крутой склон уходит в материал склонов
-	col = mix(col, mat_color(slot_cliff, v_pos, n), v_slope);
+	if (v_slope > 0.002) {
+		col = mix(col, mat_color(slot_cliff, v_pos, wy, wx, wz, dpx, dpy), v_slope);
+	}
 	// крупная вариация яркости прячет повтор текстуры
 	col *= 0.92 + 0.08 * vnoise(v_pos.xz * 0.12);
 	ALBEDO = col;
 	ROUGHNESS = 0.95;
-	if (v_th < thin_eps) {
-		discard;
-	}
 }
