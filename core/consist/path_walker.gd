@@ -26,6 +26,21 @@ static func from_snap(track: Entity, route: int, dist: float, world_dir: Vector3
 	return {"track": track, "route": route, "dist": dist, "dir": d}
 
 
+## Радиус кривой в этой точке, ю (INF у прямой). XX claude-car CS3: от него считается скорость машины в повороте
+static func radius_at(s: Dictionary) -> float:
+	var pc := _path(s.track)
+	return pc.radius_at(s.dist) if pc != null else INF
+
+
+## Сколько осталось идти до края маршрута по направлению ходьбы. XX claude-car CS3: до конца дороги машина тормозит заранее
+static func dist_to_end(s: Dictionary) -> float:
+	var pc := _path(s.track)
+	if pc == null:
+		return 0.0
+	var length := pc.curve_of(s.route).get_baked_length()
+	return (length - float(s.dist)) if float(s.dir) > 0.0 else float(s.dist)
+
+
 ## Мировое направление ходьбы в этой точке
 static func heading(s: Dictionary) -> Vector3:
 	var pc := _path(s.track)

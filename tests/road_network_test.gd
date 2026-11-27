@@ -9,12 +9,12 @@ extends Node
 ##   4) стык дороги с дорогой: соседи появляются
 ##   5) стык дороги с рельсом в одной точке: соседей нет, никто не заблокирован
 ##   6) дорога поверх рельса (пересечение): C_Blocked не вешается ни на дорогу, ни на рельс
-##   7) ширина как у трака: коллизия из паспорта (иначе из стиля), меш и ложе рельефа (ballast_samples) следуют за ней, у рельса прежние
-##   8) разметка в материале: одна поверхность меша, ShaderMaterial с линией, with_ballast_width
+##   7) три ширины независимы: collision_width (паспорт > 0 только этот экземпляр, иначе стиль всех), видимая ширина и ложе рельефа по профилю стиля
+##   8) разметка в материале: одна поверхность меша, ShaderMaterial с линией
 ##   9) эстакада (CS1c): поднятая дорога получает опоры, ригель по ширине полотна, на столе опор нет; шейпов рельсов у дороги нет
 ##  10) пролёт: рельс над дорогой и дорога над дорогой без опор сквозь полотно
 ##  11) пандус: путь C_RoadPath с rise, тег ramp
-## Ожидаемые ширины читаются из паспорта и стиля объекта, правка road_width, collision_width или surface_height в .tres тест не ломает.
+## Ожидаемые ширины читаются из паспорта и стиля объекта, правка collision_width, профиля или surface_height в .tres тест не ломает.
 ## Красных строк E в Output быть не должно. Проверки перетаскивания (красный призрак, подсказка «Другая сеть»,
 ## магнит) руками в редакторе: см. ATTN_28 §28.7, этап CS1.
 
@@ -78,12 +78,10 @@ func _collision_width(s: EntitySetting) -> float:
 	return st.collision_width if st != null else 0.0
 
 
-## Ширина полотна (меш и ложе): road_width, а без неё ширина коллизии
-func _mesh_width(s: EntitySetting) -> float:
-	var cfg := _cfg_and_style(s)[0] as RoadConfig
-	if cfg != null and cfg.road_width > 0.0:
-		return cfg.road_width
-	return _collision_width(s)
+## Видимая ширина полотна и ложе: по профилю стиля (collision_width её не меняет)
+func _visible_width(s: EntitySetting) -> float:
+	var st := _cfg_and_style(s)[1] as TrackStyle
+	return st.ballast_half_width() * 2.0 if st != null else 0.0
 
 
 func _ready() -> void:
@@ -164,10 +162,10 @@ func _ready() -> void:
 	check("дорога поверх рельса не заблокирована", not road2.has_comp(C_Blocked))
 	check("рельс под дорогой не заблокирован", not rail2.has_comp(C_Blocked))
 
-	print("== 7. ширина как у трака")
+	print("== 7. три ширины независимы")
 	await clear()
 	var want_c := _collision_width(road_s)
-	var want_m := _mesh_width(road_s)
+	var want_v := _visible_width(road_s)
 	var wr := piece(road_s, Vector3.ZERO)
 	var wl := piece(rail_s, Vector3(0, 0, -30))
 	await frames(5)
@@ -175,25 +173,40 @@ func _ready() -> void:
 	var wlp := wl.get_comp(C_Path) as C_Path
 	var rs := wrp.ballast_samples()
 	var ls := wlp.ballast_samples()
-	check("ложе дороги по ширине полотна (%.2f ю)" % want_m, rs.size() >= 2 and absf(((rs[0]["l"] as Vector2) - (rs[0]["r"] as Vector2)).length() - want_m) < 0.01)
+	check("ложе дороги по видимой ширине профиля (%.2f ю)" % want_v, rs.size() >= 2 and absf(((rs[0]["l"] as Vector2) - (rs[0]["r"] as Vector2)).length() - want_v) < 0.01)
 	check("ложе рельса прежнее (ширина балласта из настроек)", ls.size() >= 2
 		and is_equal_approx(((ls[0]["l"] as Vector2) - (ls[0]["r"] as Vector2)).length(), float(Global.settings.track_ballast_segment.size.x)))
-	check("bed_half_width дороги половина ширины полотна, рельса по настройкам", absf(wrp.bed_half_width() - want_m * 0.5) < 0.01
+	check("bed_half_width дороги половина видимой ширины, рельса по настройкам", absf(wrp.bed_half_width() - want_v * 0.5) < 0.01
 		and is_equal_approx(wlp.bed_half_width(), float(Global.settings.track_ballast_segment.size.x) * 0.5))
 	var wv := wr.get_comp(C_StyleVisual) as C_StyleVisual
-	check("меш полотна по ширине полотна (%.2f ю)" % want_m, wv != null and wv.mesh_node != null and wv.mesh_node.mesh != null
-		and absf(wv.mesh_node.mesh.get_aabb().size.x - want_m) < 0.05)
-	check("коллизия основания по ширине коллизии (%.2f ю)" % want_c, wv != null and wv.style != null and absf(wv.style.collision_width - want_c) < 0.01)
-	# паспорт меняет только свой объект, стиль общий
-	var curve_s: EntitySetting = load(ROAD_DIR + "road_r15_30.tres")
-	var curve_c := _collision_width(curve_s)
-	var curve_m := _mesh_width(curve_s)
-	var wc := piece(curve_s, Vector3(0, 0, -60))
+	check("меш полотна по профилю стиля (%.2f ю)" % want_v, wv != null and wv.mesh_node != null and wv.mesh_node.mesh != null
+		and absf(wv.mesh_node.mesh.get_aabb().size.x - want_v) < 0.05)
+	check("коллизия основания по collision_width объекта (%.2f ю)" % want_c, wv != null and wv.style != null and absf(wv.style.collision_width - want_c) < 0.01)
+	# Паспорт > 0: меняется только коллизия этого экземпляра; меш, ложе и стиль других объектов те же
+	var s_pass: EntitySetting = road_s.duplicate(true)
+	var cfg_pass := _cfg_and_style(s_pass)[0] as RoadConfig
+	cfg_pass.collision_width = want_c + 2.0
+	var ep := piece(s_pass, Vector3(0, 0, -60))
 	await frames(5)
-	var wcv := wc.get_comp(C_StyleVisual) as C_StyleVisual
-	check("поворот: коллизия %.2f и меш %.2f по его паспорту и стилю" % [curve_c, curve_m], wcv != null and absf(wcv.style.collision_width - curve_c) < 0.01
-		and absf(wcv.mesh_node.mesh.get_aabb().size.x - curve_m) < 0.2)
-	check("прямая не изменилась от паспорта поворота", wv != null and absf(wv.style.collision_width - want_c) < 0.01)
+	var epv := ep.get_comp(C_StyleVisual) as C_StyleVisual
+	var epp := ep.get_comp(C_Path) as C_Path
+	check("паспорт collision_width > 0: коллизия этого экземпляра изменилась", epv != null and absf(epv.style.collision_width - (want_c + 2.0)) < 0.01)
+	check("и только она: меш и ложе те же", absf(epv.mesh_node.mesh.get_aabb().size.x - want_v) < 0.05 and absf(epp.bed_half_width() - want_v * 0.5) < 0.01)
+	check("другой экземпляр того же объекта не изменился", absf(wv.style.collision_width - want_c) < 0.01)
+	# Стиль: collision_width стиля меняет всех, у кого в паспорте 0; видимая ширина и ложе не меняются
+	var s_style: EntitySetting = road_s.duplicate(true)
+	for c in s_style.components:
+		if c is StyleVisualSetting:
+			(c as StyleVisualSetting).style = (c as StyleVisualSetting).style.duplicate() as TrackStyle
+			(c as StyleVisualSetting).style.collision_width = want_c + 1.0
+	var es := piece(s_style, Vector3(0, 0, -90))
+	await frames(5)
+	var esv := es.get_comp(C_StyleVisual) as C_StyleVisual
+	var esp := es.get_comp(C_Path) as C_Path
+	check("collision_width стиля при нуле в паспорте даёт коллизию объекта", esv != null and absf(esv.style.collision_width - (want_c + 1.0)) < 0.01)
+	check("видимая ширина и ложе от collision_width стиля не зависят", absf(esv.mesh_node.mesh.get_aabb().size.x - want_v) < 0.05 and absf(esp.bed_half_width() - want_v * 0.5) < 0.01)
+	var lane_cfg := _cfg_and_style(road_s)[0] as RoadConfig
+	check("lane_width отдельное поле паспорта и на коллизию не влияет", lane_cfg != null and "lane_width" in lane_cfg)
 	# нарезка и шейпы: рельсовых шейпов у дороги нет, остаётся основание
 	var head := (wrp.head_node as Node)
 	var ball := (wrp.ballast_node as Node)
@@ -206,12 +219,6 @@ func _ready() -> void:
 	check("у меша дороги одна поверхность (линия не геометрия)", wv != null and wv.mesh_node.mesh.get_surface_count() == 1)
 	var mat := wv.mesh_node.mesh.surface_get_material(0) if wv != null else null
 	check("материал полотна ShaderMaterial с шейдером линии", mat is ShaderMaterial and (mat as ShaderMaterial).shader != null)
-	var narrow := TrackStyle.with_ballast_width(wv.style, want_c - 2.0)
-	var nx := 0.0
-	for pt in narrow.ballast_profile:
-		nx = maxf(nx, absf(pt.x))
-	check("with_ballast_width: уже на 2 даёт полуширину на 1 меньше, копия, исходный стиль цел", absf(nx - (want_m * 0.5 - 1.0)) < 0.001 and narrow != wv.style)
-	check("with_ballast_width: та же ширина профиля возвращает тот же стиль", TrackStyle.with_ballast_width(wv.style, want_m) == wv.style)
 
 	print("== 9. эстакада: опоры дороги")
 	await clear()

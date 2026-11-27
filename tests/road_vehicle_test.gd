@@ -11,6 +11,9 @@ extends Node
 ##   6) драг: над дорогой притягивается к оси и смотрит вдоль неё, Q/E меняют сторону, бросили на дороге: едет
 ##   7) сейв: on_road в save_data, load_data и restore_after_load садят машину обратно
 ##   8) PathWalker.advance с параметром слоя: рельсовая ходьба прежняя
+##   9) разгон с нуля до max_speed на прямой и торможение до остановки у конца дороги (CS3)
+##  10) поворот R15: скорость ограничена sqrt(lat_accel_max * R), на прямой выше (CS3)
+##  11) аварии: догнала стоящую (rear_end), лоб в лоб (head_on), параллельные полосы без аварии, снятие аварии драгом (CS3)
 ## Красных строк FAIL в Output быть не должно. Скорости и габариты берутся из паспорта, правка CarConfig в .tres тест не ломает.
 
 const ROAD_DIR := "res://data/roads/objects/"
@@ -85,8 +88,8 @@ func _ready() -> void:
 	check("посадка на полосу: snap_to вернул true", veh.snap_to(r0, 0, 5.0, Vector3(0, 0, -1)))
 	check("после посадки машина едет (DRIVING) на первом куске", veh.mode == C_RoadVehicle.Mode.DRIVING and veh.state.track == r0)
 	var z0 := car.global_position.z
-	await frames(30)
-	check("машина движется вперёд по -Z", car.global_position.z < z0 - 0.5)
+	var moved := await wait_until(func(): return car.global_position.z < z0 - 0.5)
+	check("машина разгоняется и движется вперёд по -Z", moved)
 	var head_h := ((r0.get_comp(C_Path)) as C_Path).head_height()
 	check("колёса на поверхности дороги (y равен высоте головки)", absf(car.global_position.y - head_h) < 0.05)
 	check("смотрит вдоль дороги (-Z)", (-car.global_basis.z).dot(Vector3(0, 0, -1)) > 0.99)
@@ -139,7 +142,7 @@ func _ready() -> void:
 	drag.on_drag_ended({})
 	check("бросили на дороге: машина едет", veh.mode == C_RoadVehicle.Mode.DRIVING)
 	var zd := car.global_position.z
-	await frames(30)
+	await wait_until(func(): return absf(car.global_position.z - zd) > 0.3)
 	check("и едет в выбранную сторону (против прежней)", (car.global_position.z - zd) * fwd.z < 0.0)
 	drag.on_drag_started({})
 	check("взяли в драг: машина не едет", veh.mode == C_RoadVehicle.Mode.OFF_ROAD)
@@ -191,6 +194,113 @@ func _ready() -> void:
 	check("PathWalker со слоем roads переходит на следующий кусок дороги", not cj.is_empty() and cj.track == q1)
 	var cj_rail := PathWalker.advance(cs, 9.0)   # слой по умолчанию tracks: дорогу не видит
 	check("слой по умолчанию tracks не видит дорогу (вагоны дорогу не замечают)", cj_rail.is_empty())
+
+	print("== 9. разгон и торможение")
+	await clear()
+	var sp0 := piece(road_s, Vector3(0, 0, 0))
+	var sp1 := piece(road_s, Vector3(0, 0, -20))
+	var sp2 := piece(road_s, Vector3(0, 0, -40))
+	car = piece(car_s, Vector3.ZERO)
+	await frames(5)
+	veh = car.get_comp(C_RoadVehicle) as C_RoadVehicle
+	cfg = CarConfig.from_entity(car)
+	veh.snap_to(sp0, 0, 0.5, Vector3(0, 0, -1))
+	check("с места машина стоит (скорость 0), разгоняться начинает позже", veh.speed < 0.5)
+	var peak_straight := 0.0
+	var seen_halt := false
+	for i in MAX_FRAMES:
+		peak_straight = maxf(peak_straight, veh.speed)
+		if veh.mode == C_RoadVehicle.Mode.HALTED:
+			seen_halt = true
+			break
+		await get_tree().physics_frame
+	check("на прямой разогналась до max_speed (%.1f)" % cfg.max_speed, peak_straight > cfg.max_speed * 0.95 and peak_straight <= cfg.max_speed + 0.05)
+	check("затормозила и встала у конца дороги без скачка", seen_halt and veh.speed == 0.0 and absf(car.global_position.z + 50.0) < 0.6)
+
+	print("== 10. поворот")
+	await clear()
+	var curve_s: EntitySetting = load(ROAD_DIR + "road_r15_90.tres")
+	var cur := piece(curve_s, Vector3.ZERO)
+	car = piece(car_s, Vector3.ZERO)
+	await frames(5)
+	veh = car.get_comp(C_RoadVehicle) as C_RoadVehicle
+	cfg = CarConfig.from_entity(car)
+	var cp := cur.get_comp(C_Path) as C_Path
+	var r_curve := cp.radius_at(1.0)
+	var limit := minf(cfg.max_speed, sqrt(cfg.lat_accel_max * r_curve))
+	check("поворот R15 ограничивает скорость ниже max_speed (иначе проверять нечего)", limit < cfg.max_speed - 0.5)
+	var cur_dir := (cp.path_node.global_basis * -cp.curve_of(0).sample_baked_with_rotation(1.0).basis.z).normalized()
+	veh.snap_to(cur, 0, 1.0, cur_dir)
+	var peak_curve := 0.0
+	for i in MAX_FRAMES:
+		peak_curve = maxf(peak_curve, veh.speed)
+		if veh.mode == C_RoadVehicle.Mode.HALTED:
+			break
+		await get_tree().physics_frame
+	check("в повороте скорость не выше sqrt(lat_accel_max * R) = %.1f (пик %.1f)" % [limit, peak_curve], peak_curve <= limit + 0.3)
+	check("и доходит до этого предела (пик не ниже %.1f)" % (limit - 0.8), peak_curve >= limit - 0.8)
+	check("в повороте медленнее, чем на прямой", peak_curve < peak_straight - 0.5)
+
+	print("== 11. аварии")
+	await clear()
+	var crashes: Array = []
+	var on_crash := func(c: C_RoadVehicle, v: C_RoadVehicle, r: StringName) -> void: crashes.append([c, v, r])
+	CSM.crashed.connect(on_crash)
+	# а) догнала стоящую у конца дороги
+	var a0 := piece(road_s, Vector3(0, 0, 0))
+	var a1 := piece(road_s, Vector3(0, 0, -20))
+	var a2 := piece(road_s, Vector3(0, 0, -40))
+	var lead := piece(car_s, Vector3.ZERO)
+	var follow := piece(car_s, Vector3.ZERO)
+	await frames(5)
+	var vl := lead.get_comp(C_RoadVehicle) as C_RoadVehicle
+	var vf := follow.get_comp(C_RoadVehicle) as C_RoadVehicle
+	vl.snap_to(a2, 0, 14.0, Vector3(0, 0, -1))
+	vf.snap_to(a0, 0, 2.0, Vector3(0, 0, -1))
+	var got := await wait_until(func(): return crashes.size() > 0)
+	check("догнавшая врезалась в стоящую: событие аварии пришло", got)
+	if got:
+		check("причина rear_end, виновата догонявшая, пострадала стоявшая", crashes[0][2] == &"rear_end" and crashes[0][0] == vf and crashes[0][1] == vl)
+		check("обе машины в аварии (CRASHED) и стоят", vf.mode == C_RoadVehicle.Mode.CRASHED and vl.mode == C_RoadVehicle.Mode.CRASHED and vf.speed == 0.0)
+		check("причина видна игроку: у обеих есть текст аварии", vf.crash_text().begins_with("Авария") and vl.crash_text().begins_with("Авария") and vf.crash_text() != vl.crash_text())
+	var n_after_a := crashes.size()
+	await frames(30)
+	check("повторных событий по той же паре нет", crashes.size() == n_after_a)
+	# г) драг снимает аварию
+	var df := vf.entity.get_comp(C_CarDraggable) as C_CarDraggable
+	df.on_drag_started({})
+	check("взяли машину в драг: авария снята, полосы нет", vf.mode == C_RoadVehicle.Mode.OFF_ROAD and vf.crash.is_empty())
+
+	# б) лоб в лоб на одном куске
+	await clear()
+	crashes.clear()
+	var h0 := piece(road_s, Vector3.ZERO)
+	var ca := piece(car_s, Vector3.ZERO)
+	var cb := piece(car_s, Vector3.ZERO)
+	await frames(5)
+	var va := ca.get_comp(C_RoadVehicle) as C_RoadVehicle
+	var vb := cb.get_comp(C_RoadVehicle) as C_RoadVehicle
+	va.snap_to(h0, 0, 3.0, Vector3(0, 0, -1))
+	vb.snap_to(h0, 0, 17.0, Vector3(0, 0, 1))
+	var got_h := await wait_until(func(): return crashes.size() > 0)
+	check("встречные на одной полосе: авария head_on", got_h and crashes[0][2] == &"head_on")
+
+	# в) параллельные полосы: без аварии
+	await clear()
+	crashes.clear()
+	var p0 := piece(road_s, Vector3(0, 0, 0))
+	var p1 := piece(road_s, Vector3(5, 0, 0))
+	var cc := piece(car_s, Vector3.ZERO)
+	var cd := piece(car_s, Vector3.ZERO)
+	await frames(5)
+	var vc := cc.get_comp(C_RoadVehicle) as C_RoadVehicle
+	var vd := cd.get_comp(C_RoadVehicle) as C_RoadVehicle
+	vc.snap_to(p0, 0, 3.0, Vector3(0, 0, -1))
+	vd.snap_to(p1, 0, 17.0, Vector3(0, 0, 1))
+	for i in 240:
+		await get_tree().physics_frame
+	check("встречные на соседних полосах (5 ю друг от друга) разъезжаются без аварии", crashes.is_empty())
+	CSM.crashed.disconnect(on_crash)
 
 	await clear()
 	print("== Итого: %s" % ("всё прошло" if _fails == 0 else "провалено проверок: %d" % _fails))

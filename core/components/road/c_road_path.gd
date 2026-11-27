@@ -18,16 +18,12 @@ func network_id() -> StringName:
 	return cfg.network if cfg else &"road"
 
 
-## Половина ширины полотна для ложа рельефа (ATTN_28 Р10): road_width паспорта, а без неё ширина коллизии стиля
-## (в ней уже учтён collision_width паспорта, TrackStyle.with_collision_width)
+## Половина видимой ширины полотна для ложа рельефа (ATTN_28 Р10): по профилю стиля (TrackStyle.ballast_half_width).
+## Ширина коллизии (collision_width стиля или паспорта) ложе не меняет
 func bed_half_width() -> float:
-	var idc := get_comp(C_Identity) as C_Identity
-	var cfg := idc.object_config as RoadConfig if idc else null
-	if cfg != null and cfg.road_width > 0.0:
-		return cfg.road_width * 0.5
 	var vis := get_comp(C_StyleVisual) as C_StyleVisual
-	if vis != null and vis.style != null and vis.style.collision_width > 0.0:
-		return vis.style.collision_width * 0.5
+	if vis != null and vis.style != null:
+		return vis.style.ballast_half_width()
 	return super.bed_half_width()
 
 

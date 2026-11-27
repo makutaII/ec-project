@@ -39,12 +39,6 @@ func create_path() -> C_Path:
 	return C_Path.new()
 
 
-## Стиль, подогнанный под паспорт (XX claude-car CS1b). Спрашивает StyleVisualSetting после ширины коллизии. У траков стиль как есть,
-## RoadConfig подгоняет ширину меша под полотно
-func shape_style(st: TrackStyle) -> TrackStyle:
-	return st
-
-
 ## Ширина коллизии основания из паспорта трака, ю (0 = не задана или у сущности нет паспорта TrackConfig)
 static func collision_width_of(entity: Entity) -> float:
 	var idc := entity.get_comp(C_Identity) as C_Identity

@@ -17,10 +17,8 @@
 
 [sub_resource type="Resource" id="Resource_cfg"]
 script = ExtResource("2_rc")
-road_width = 4.0
 radius = 30.0
 deg = 90.0
-collision_width = 3.0
 
 [sub_resource type="Resource" id="Resource_id"]
 script = ExtResource("3_id")

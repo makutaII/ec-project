@@ -43,11 +43,6 @@ func _create_style_visual(entity: Entity, st: TrackStyle) -> Component:
 	var vis := C_StyleVisual.new()
 	# Ширина коллизии из паспорта (0 = как в стиле)
 	vis.style = TrackStyle.with_collision_width(st, TrackConfig.collision_width_of(entity))
-	# XX claude-car CS1b: паспорт дороги подгоняет и ширину меша
-	var idc := entity.get_comp(C_Identity) as C_Identity
-	var cfg := idc.object_config as TrackConfig if idc else null
-	if cfg != null:
-		vis.style = cfg.shape_style(vis.style)
 	vis.name = 'C_StyleVisual'
 	entity.add_component(vis)
 	return vis
