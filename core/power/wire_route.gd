@@ -78,6 +78,31 @@ func smooth(bend_radius := BEND_RADIUS) -> PackedVector3Array:
 	return dedupe(res)
 
 
+## Провод проходит столешницу строго вертикально: на каждом вертикальном отрезке через плиту добавляются узлы на верхней плоскости (y = 0)
+## и на нижней (y = -th). Узлы лежат на одной прямой (скругление их не трогает), а угол над плитой отдаёт вертикали лишь доли своего радиуса:
+## иначе дуга скругления входит в плиту раньше, и втулка стоит не по проводу
+static func split_at_plate(line: PackedVector3Array, th: float) -> PackedVector3Array:
+	var res := PackedVector3Array()
+	if line.is_empty():
+		return res
+	res.append(line[0])
+	for i in range(1, line.size()):
+		var p := line[i - 1]
+		var q := line[i]
+		if absf(p.x - q.x) < 0.01 and absf(p.z - q.z) < 0.01 and p.y * q.y < 0.0:
+			var down := p.y > q.y
+			var mids: Array[float] = []
+			for y in [0.0, -th]:
+				if (down and y < p.y and y > q.y) or (not down and y > p.y and y < q.y):
+					mids.append(y)
+			if not down:
+				mids.reverse()
+			for y in mids:
+				res.append(Vector3(p.x, y, p.z))
+		res.append(q)
+	return res
+
+
 ## Базис, у которого ось Y направлена вдоль dir (для цилиндров по отрезку). dir любой ненулевой, в том числе вертикаль
 static func basis_along(dir: Vector3) -> Basis:
 	var y := dir.normalized()

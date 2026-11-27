@@ -257,7 +257,9 @@ func _rebuild() -> void:
 	if route.points.size() < 2:
 		_mi.mesh = null
 		return
-	var mesh := WireMesh.build(route.smooth(Global.settings.wire_bend_radius), twist)   # XX claude-wire W5: радиус в настройках
+	# XX claude-wire W5: радиус в настройках; W6: через плиту провод идёт прямо (split_at_plate), втулка стоит по проводу
+	var smooth_route := WireRoute.from_polyline(WireRoute.split_at_plate(route.points, LYM.plate_thickness()))
+	var mesh := WireMesh.build(smooth_route.smooth(Global.settings.wire_bend_radius), twist)
 	for k in mesh.get_surface_count():
 		mesh.surface_set_material(k, _mats[k])
 	_mi.mesh = mesh
@@ -284,21 +286,30 @@ func _add_extras(line: PackedVector3Array) -> void:
 		_add_end_handle(&"a", line[0])
 	if not is_instance_valid(b):
 		_add_end_handle(&"b", line[line.size() - 1])
+	for h in holes():
+		var ring := MeshInstance3D.new()
+		var torus := TorusMesh.new()
+		torus.inner_radius = GROMMET_INNER
+		torus.outer_radius = GROMMET_OUTER
+		ring.mesh = torus
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.12, 0.12, 0.14)
+		ring.material_override = mat
+		ring.position = Vector3(h.x, 0.02, h.y)
+		_vis.add_child(ring)
+		_extras.append(ring)
+
+
+## Вводы провода через столешницу: место (x, z) каждого вертикального отрезка, пересекающего плоскость плиты (y = 0)
+func holes() -> Array[Vector2]:
+	var res: Array[Vector2] = []
+	var line := WireRoute.dedupe(polyline())
 	for i in line.size() - 1:
 		var p := line[i]
 		var q := line[i + 1]
 		if absf(p.x - q.x) < 0.01 and absf(p.z - q.z) < 0.01 and p.y * q.y < 0.0:
-			var ring := MeshInstance3D.new()
-			var torus := TorusMesh.new()
-			torus.inner_radius = GROMMET_INNER
-			torus.outer_radius = GROMMET_OUTER
-			ring.mesh = torus
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = Color(0.12, 0.12, 0.14)
-			ring.material_override = mat
-			ring.position = Vector3(p.x, 0.02, p.z)
-			_vis.add_child(ring)
-			_extras.append(ring)
+			res.append(Vector2(p.x, p.z))
+	return res
 
 
 func _add_end_handle(which: StringName, pos: Vector3) -> void:
@@ -326,6 +337,7 @@ func _add_end_handle(which: StringName, pos: Vector3) -> void:
 	mat.roughness = 0.35
 	mi.material_override = mat
 	h.add_child(mi)
+	h.tip = mi
 	_vis.add_child(h)
 	_extras.append(h)
 

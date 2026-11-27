@@ -91,13 +91,84 @@ func removal_block_reason(e: Entity) -> String:
 		return ""
 	var counts := {}
 	for o in on:
-		var cat := GroupSelection.category_of(o)
-		var label: String = GroupSelection.LABELS.get(cat, String(cat) if cat != &"" else "Прочее")
+		var label := _object_label(o)
 		counts[label] = int(counts.get(label, 0)) + 1
 	var parts: Array[String] = []
 	for k in counts:
 		parts.append("%s %d" % [k, counts[k]])
 	return "На секции стоят объекты (%s). Сначала уберите их или перенесите" % ", ".join(parts)
+
+
+## XX claude-wire W6: подпись объекта в причине отказа: провода, блоки и пульты называются своими именами, остальное по категории
+static func _object_label(o: Entity) -> String:
+	if o.has_comp(C_Wire):
+		return "Провода"
+	if o.has_comp(C_PowerDevice):
+		return "Блоки"
+	if o.has_comp(C_PowerSource):
+		return "Пульты"
+	var cat := GroupSelection.category_of(o)
+	return GroupSelection.LABELS.get(cat, String(cat) if cat != &"" else "Прочее")
+
+
+## XX claude-wire W6. Что хранит секция: блоки, пульты, провода (их длина по участкам над этой секцией), свободные концы, вводы через плиту.
+## Секция хранитель проводки по геометрии: принадлежность по положению, как у objects_on_section, отдельных списков нет
+func wiring_report(sec: Entity) -> Dictionary:
+	var rep := {"blocks": 0, "sources": 0, "wires": 0, "free_ends": 0, "holes": 0, "length": 0.0}
+	var poly := section_polygon(sec)
+	for o in objects_on_section(sec):
+		var w := o.get_comp(C_Wire) as C_Wire
+		if w != null:
+			rep["wires"] += 1
+			for which in [&"a", &"b"]:
+				if w.end_is_free(which):
+					rep["free_ends"] += 1
+			for h in w.holes():
+				if _poly_has(poly, h):
+					rep["holes"] += 1
+			var line := WireRoute.dedupe(w.polyline())
+			for i in line.size() - 1:
+				var mid := (line[i] + line[i + 1]) * 0.5
+				if _poly_has(poly, Vector2(mid.x, mid.z)):
+					rep["length"] += line[i].distance_to(line[i + 1])
+		elif o.has_comp(C_PowerDevice):
+			rep["blocks"] += 1
+		elif o.has_comp(C_PowerSource):
+			rep["sources"] += 1
+	return rep
+
+
+## XX claude-wire W6. Проводка без опоры: блок или узел провода лежит под плитой, а нижней полки под ним нет (подрамник выключили, опоры не ножки,
+## стол стал ниже или другой контур). Ничего не удаляется: список для вкладки «Стол», игрок сам возвращает полку или переставляет
+func wiring_problems() -> PackedStringArray:
+	var res := PackedStringArray()
+	if not is_inside_tree():
+		return res
+	var polys := shelf_polygons()
+	var top := shelf_top() if not polys.is_empty() else 0.0
+	for n in get_tree().get_nodes_in_group(&"power_device"):
+		var dev := n as C_PowerDevice
+		if dev == null or dev.entity == null or dev.entity.is_queued_for_deletion() or dev.entity.has_comp(C_Ghost):
+			continue
+		var p := dev.entity.global_position
+		if Mount.under_plate(p.y) and not _on_shelf_level(p, polys, top, 0.6):
+			res.append("%s под столом: нижней полки под ним нет" % dev.title())
+	for n in get_tree().get_nodes_in_group(&"power_wire"):
+		var w := n as C_Wire
+		if w == null or not w.is_alive():
+			continue
+		for p in w.points:
+			if Mount.under_plate(p.y) and not _on_shelf_level(p, polys, top, 1.5):
+				res.append("Провод под столом: узла (%d, %d) без нижней полки" % [roundi(p.x), roundi(p.z)])
+				break
+	return res
+
+
+## Точка p лежит над нижней полкой (в её контуре) на высоте её верха плюс не больше above
+func _on_shelf_level(p: Vector3, polys: Array[PackedVector2Array], top: float, above: float) -> bool:
+	if polys.is_empty() or p.y < top - 0.6 or p.y > top + above:
+		return false
+	return _any_has(polys, Vector2(p.x, p.z))
 
 
 ## Объекты, которые останутся без стола, если убрать секцию: любая их точка (начало, контрольные точки пути) лежит на этой секции
@@ -276,6 +347,21 @@ func support_warning() -> String:
 ## Проход вокруг стола, u (ножки и рама: от стен не ближе; кронштейны: с рабочих сторон)
 func set_aisle(v: float) -> void:
 	config.aisle_min = clampf(v, 0.0, 150.0)
+
+
+# XX claude-wire W6: сколько проводок без опоры было при прошлой смене макета (сообщаем, когда стало больше)
+var _problem_count := 0
+
+
+func _ready() -> void:
+	layout_changed.connect(_on_layout_changed_wiring)
+
+
+func _on_layout_changed_wiring() -> void:
+	var n := wiring_problems().size()
+	if n > _problem_count:
+		notice.emit("Проводка без опоры: %d (подробности во вкладке «Стол»)" % n)
+	_problem_count = n
 
 
 # XX claude-wire W3: плита стола показана (true) или скрыта (режим «Монтаж»). В сейв не пишется

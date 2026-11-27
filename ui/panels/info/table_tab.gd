@@ -17,6 +17,9 @@ var _height_spin: SpinBox
 var _aisle_spin: SpinBox
 # XX claude-wire W2: подрамник под плитой (только при ножках)
 var _apron_check: CheckBox
+# XX claude-wire W6: проводка выбранной секции и проводка без опоры
+var _wiring_info: Label
+var _problems: Label
 ## Идёт запись значений в контролы: их сигналы (SpinBox сам правит значение при смене пределов) в LYM не идут
 var _syncing := false
 
@@ -61,6 +64,15 @@ func _setup() -> void:
 	_aisle_spin.value_changed.connect(_on_aisle_changed)
 	row2.add_child(_aisle_spin)
 	box.add_child(row2)
+	_wiring_info = Label.new()
+	_wiring_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_wiring_info.custom_minimum_size = Vector2(120, 0)
+	box.add_child(_wiring_info)
+	_problems = Label.new()
+	_problems.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_problems.custom_minimum_size = Vector2(120, 0)
+	_problems.add_theme_color_override("font_color", Color(1.0, 0.75, 0.25))
+	box.add_child(_problems)
 
 
 func can_show(entity: Entity) -> bool:
@@ -98,6 +110,13 @@ func _sync(force: bool) -> void:
 	set_spin(_height_spin, LYM.config.height)
 	set_spin(_aisle_spin, LYM.config.aisle_min)
 	footer_message(&"table_warn", LYM.support_warning(), &"warn")
+	# XX claude-wire W6: секция хранит проводку: что на ней и что осталось без опоры
+	var rep := LYM.wiring_report(target)
+	_wiring_info.text = "Проводка секции: блоков %d, пультов %d, проводов %d (%d u), вводов в плиту %d, свободных концов %d" % [
+			rep["blocks"], rep["sources"], rep["wires"], roundi(rep["length"]), rep["holes"], rep["free_ends"]]
+	var problems := LYM.wiring_problems()
+	_problems.visible = not problems.is_empty()
+	_problems.text = "Без опоры:\n" + "\n".join(problems.slice(0, 6)) + ("\n…" if problems.size() > 6 else "")
 	_syncing = false
 
 

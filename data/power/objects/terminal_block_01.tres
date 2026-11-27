@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EntitySetting" format=3]
+
+[ext_resource type="Script" path="res://core/component_setting.gd" id="1_cs"]
+[ext_resource type="Script" path="res://core/entity_setting.gd" id="2_es"]
+[ext_resource type="Script" path="res://core/components/comp_settings/identity_setting.gd" id="3_id"]
+[ext_resource type="Script" path="res://core/components/comp_settings/selectable_setting.gd" id="4_sel"]
+[ext_resource type="Script" path="res://core/components/comp_settings/hoverable_setting.gd" id="5_hov"]
+[ext_resource type="Texture2D" path="res://ui/icons/electric/plug.svg" id="6_ic"]
+[ext_resource type="Script" path="res://core/components/comp_settings/terminal_block_setting.gd" id="7_ps"]
+[ext_resource type="Script" path="res://core/components/comp_settings/mountdraggable_setting.gd" id="8_dr"]
+
+[sub_resource type="Resource" id="Resource_id"]
+script = ExtResource("3_id")
+
+[sub_resource type="Resource" id="Resource_sel"]
+script = ExtResource("4_sel")
+
+[sub_resource type="Resource" id="Resource_hov"]
+script = ExtResource("5_hov")
+
+[sub_resource type="Resource" id="Resource_fu"]
+script = ExtResource("7_ps")
+count = 4
+
+[sub_resource type="Resource" id="Resource_dr"]
+script = ExtResource("8_dr")
+
+[resource]
+script = ExtResource("2_es")
+key = &"dc_controller.switch.terminal_block_01"
+name = "Клеммник"
+description = "Соединяет провода: один вход и выходы, 2–5 клемм"
+category = &"dc_controller"
+tag = &"switch"
+icon = ExtResource("6_ic")
+sort_order = 15
+pick_layers = Array[StringName]([&"ground"])
+components = Array[ExtResource("1_cs")]([SubResource("Resource_id"), SubResource("Resource_sel"), SubResource("Resource_hov"), SubResource("Resource_fu"), SubResource("Resource_dr")])

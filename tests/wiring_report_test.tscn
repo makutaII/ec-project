@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/wiring_report_test.gd" id="1_t"]
+
+[node name="WiringReportTest" type="Node"]
+script = ExtResource("1_t")

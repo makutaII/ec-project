@@ -11,6 +11,9 @@ var _pos_box: HBoxContainer
 var _fuse_box: VBoxContainer
 var _limit: SpinBox
 var _replace: Button
+# XX claude-wire W6: клеммник: число клемм
+var _count_box: HBoxContainer
+var _count: SpinBox
 var _tasks: Label
 var _syncing := false
 
@@ -43,6 +46,19 @@ func _setup() -> void:
 	_replace.pressed.connect(_on_replace)
 	_fuse_box.add_child(_replace)
 
+	_count_box = HBoxContainer.new()
+	box.add_child(_count_box)
+	var cl := Label.new()
+	cl.text = "Клемм (вход и выходы)"
+	cl.tooltip_text = "Клеммник: один вход слева и выходы. Убрать клемму можно, только если на ней нет провода"
+	_count_box.add_child(cl)
+	_count = SpinBox.new()
+	_count.min_value = C_TerminalBlock.MIN_TERMS
+	_count.max_value = C_TerminalBlock.MAX_TERMS
+	_count.step = 1
+	_count.value_changed.connect(_on_count_changed)
+	_count_box.add_child(_count)
+
 	var auto_btn := Button.new()
 	auto_btn.text = "Автопроводка (пульт → устройство → клипы)"
 	auto_btn.pressed.connect(_on_autowire)
@@ -62,6 +78,7 @@ func can_show(entity: Entity) -> bool:
 
 func _on_bind() -> void:
 	footer_message(&"auto_dev", "")
+	footer_message(&"terminal_count", "")
 	for c in _pos_box.get_children():
 		c.queue_free()
 	var dev := _dev()
@@ -90,6 +107,12 @@ func refresh() -> void:
 		_limit.set_value_no_signal(fuse.limit_a)
 		_syncing = false
 		_replace.disabled = not fuse.blown
+	var tb := dev as C_TerminalBlock
+	_count_box.visible = tb != null
+	if tb != null:
+		_syncing = true
+		_count.set_value_no_signal(tb.count)
+		_syncing = false
 	var parts: PackedStringArray = []
 	for id in PowerTasks.TASKS:
 		var r := PowerTasks.evaluate(id, panel.get_tree())
@@ -110,6 +133,17 @@ func _on_limit_changed(v: float) -> void:
 	var f := _dev() as C_Fuse
 	if f:
 		f.set_limit(v)
+
+
+func _on_count_changed(v: float) -> void:
+	if _syncing:
+		return
+	var tb := _dev() as C_TerminalBlock
+	if tb == null:
+		return
+	var why := tb.set_count(int(v))
+	footer_message(&"terminal_count", why, &"bad")
+	refresh()   # отказ: возвращает прежнее число
 
 
 func _on_replace() -> void:

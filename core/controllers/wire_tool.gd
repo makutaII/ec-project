@@ -24,6 +24,7 @@ var _active := false          # провод начат (с клеммы, сво
 var _resume: C_Wire           # продолжаемый провод (брали его свободный конец), иначе null
 var _resume_which: StringName = &"b"
 var _hover: PowerTerminal
+var _hover_end: WireEnd       # свободный конец под курсором (подсвечивается как клемма)
 var _preview: MeshInstance3D
 var _rmb_start := Vector2.ZERO
 
@@ -43,6 +44,7 @@ func enter() -> void:
 
 func exit(_to_drag: bool = false) -> void:
 	_set_hover(null)
+	_set_hover_end(null)
 	_reset()
 	if is_instance_valid(_preview):
 		_preview.queue_free()
@@ -57,6 +59,11 @@ func _lift() -> float:
 func process_tick(_delta: float) -> void:
 	var t := _terminal_under_mouse() if not UIPointer.is_over_ui(get_viewport()) else null
 	_set_hover(t)
+	# XX claude-wire W6: свободный конец, который можно взять, подсвечивается при наведении, как клемма
+	var h: WireEnd = null
+	if t == null and not _active and not UIPointer.is_over_ui(get_viewport()):
+		h = _end_under_mouse()
+	_set_hover_end(h)
 	_update_preview(t)
 
 
@@ -280,6 +287,16 @@ func _set_hover(t: PowerTerminal) -> void:
 	_hover = t
 	if is_instance_valid(_hover):
 		_hover.set_highlight(true)
+
+
+func _set_hover_end(h: WireEnd) -> void:
+	if h == _hover_end:
+		return
+	if is_instance_valid(_hover_end):
+		_hover_end.set_highlight(false)
+	_hover_end = h
+	if is_instance_valid(_hover_end):
+		_hover_end.set_highlight(true)
 
 
 func _update_preview(t: PowerTerminal) -> void:

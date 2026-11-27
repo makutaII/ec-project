@@ -64,6 +64,27 @@ func _ready() -> void:
 	var vert := WireRoute.from_polyline(PackedVector3Array([Vector3(0, 0, 0), Vector3(0, 10, 0), Vector3(5, 10, 0)])).smooth()
 	check("вертикаль с поворотом: без NaN", _finite(vert) and vert.size() > 3)
 
+	print("== 2б. WireRoute.split_at_plate: через плиту строго вертикально")
+	var through := PackedVector3Array([Vector3(0, 0.2, 0), Vector3(20, 0.2, 0), Vector3(20, -10.0, 0), Vector3(40, -10.0, 0)])
+	var split := WireRoute.split_at_plate(through, 5.0)
+	check("на вертикали добавлены узлы y = 0 и y = -5", split.size() == 6 and split[2] == Vector3(20, 0, 0) and split[3] == Vector3(20, -5, 0), str(split))
+	var sm_split := WireRoute.from_polyline(split).smooth()
+	var straight_ok := _finite(sm_split) and sm_split.has(Vector3(20, 0, 0))
+	for sp in sm_split:
+		if sp.y < 0.09 and sp.y > -4.99 and absf(sp.x - 20.0) > 0.001:
+			straight_ok = false
+	check("после скругления провод проходит плиту ровно по оси (втулка по проводу)", straight_ok, str(sm_split))
+	var sm_raw := WireRoute.from_polyline(through).smooth()
+	var drift := false
+	for sp in sm_raw:
+		if sp.y < 0.0 and sp.y > -1.0 and absf(sp.x - 20.0) > 0.05:
+			drift = true
+	check("без разбиения дуга входит в плиту раньше (причина смещения втулки)", drift)
+	var up := WireRoute.split_at_plate(PackedVector3Array([Vector3(20, -10.0, 0), Vector3(20, 0.2, 0)]), 5.0)
+	check("вертикаль вверх: узлы в порядке движения", up.size() == 4 and up[1] == Vector3(20, -5, 0) and up[2] == Vector3(20, 0, 0), str(up))
+	check("вертикаль в пределах плиты по одну сторону и горизонталь не трогаем", WireRoute.split_at_plate(PackedVector3Array([Vector3(0, 0.2, 0), Vector3(0, 3, 0), Vector3(5, 3, 0)]), 5.0).size() == 3 and WireRoute.split_at_plate(PackedVector3Array(), 5.0).is_empty())
+	check("полка близко под плитой: нижний узел только в пределах отрезка", WireRoute.split_at_plate(PackedVector3Array([Vector3(0, 0.2, 0), Vector3(0, -3.0, 0)]), 5.0).size() == 3)
+
 	print("== 3. WireRoute.basis_along")
 	for d in [Vector3.UP, Vector3.DOWN, Vector3.RIGHT, Vector3(1, 2, 3), Vector3(0, 0, -4)]:
 		var b := WireRoute.basis_along(d)
