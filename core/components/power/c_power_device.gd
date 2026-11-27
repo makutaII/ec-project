@@ -205,10 +205,15 @@ func _knob_color() -> Color:
 	return Color(0.8, 0.8, 0.85)
 
 
+## XX claude-wire W7: номер провода в серии автопроводки этого прибора (соседние идут со сдвигом)
+var _lane := 0
+
+
 ## Автопроводка (D5): входы к ближайшим выводам пультов (разные входы к разным выводам), выход к клипам с метками этих выводов.
 ## Возвращает число созданных проводов
 func autowire(parent: Node) -> int:
 	get_tree().call_group(&"power_device", "sync_terminals")
+	_lane = 0
 	var made := 0
 	var used: Dictionary = {}   # метка -> true: вывод уже занят входом этого устройства
 	var feeds: Dictionary = {}  # метки, чьи клипы нужно запитать выходом
@@ -260,11 +265,11 @@ func _upstream_label(t: PowerTerminal) -> int:
 
 
 func _connect(parent: Node, a: PowerTerminal, b: PowerTerminal) -> bool:
-	var pa := a.global_position
-	var pb := b.global_position
-	var mid := (pa + pb) * 0.5
-	mid.y = maxf(pa.y, pb.y) + 2.0
-	return C_Wire.create_wire(parent, a, b, PackedVector3Array([mid])) != null
+	# XX claude-wire W7: провод лежит на поверхностях, под столом через ввод и по нижней полке (AutoWire), не дугой по воздуху
+	var ok := C_Wire.create_wire(parent, a, b, AutoWire.points(a, b, _lane)) != null
+	if ok:
+		_lane += 1
+	return ok
 
 
 # ------ СЕЙВ ------

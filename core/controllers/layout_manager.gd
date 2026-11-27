@@ -388,6 +388,31 @@ func shelf_polygons() -> Array[PackedVector2Array]:
 	return TableSupports.shelf_polygons(footprint())
 
 
+## XX claude-wire W7: где по нижней полке можно вести провод: полка без полосы подрамника (царги стоят по её краю)
+func shelf_walkable() -> Array[PackedVector2Array]:
+	var res: Array[PackedVector2Array] = []
+	for poly in shelf_polygons():
+		for inner in Geometry2D.offset_polygon(poly, -(TableSupports.APRON_W + 0.5), Geometry2D.JOIN_MITER):
+			if inner.size() >= 3:
+				res.append(inner)
+	return res
+
+
+## XX claude-wire W7: запретные для провода прямоугольники в плане: ножки стола с запасом margin (они проходят сквозь полку)
+func leg_keepouts(margin := 1.2) -> Array[Rect2]:
+	var res: Array[Rect2] = []
+	var cfg := room_config()
+	if cfg == null or int(config.support) != LayoutConfig.Support.LEGS:
+		return res
+	for part in TableSupports.parts(int(config.support), footprint(), config.height, plate_thickness(), cfg.table_leg, cfg, false):
+		if String(part["name"]) != "Leg":
+			continue
+		var size: Vector3 = part["size"]
+		var c: Vector3 = part["center"]
+		res.append(Rect2(c.x - size.x * 0.5 - margin, c.z - size.z * 0.5 - margin, size.x + 2.0 * margin, size.z + 2.0 * margin))
+	return res
+
+
 ## Глубина подрамника, ю (настройка GlobalSetting.apron_depth)
 func apron_depth() -> float:
 	return Global.settings.apron_depth

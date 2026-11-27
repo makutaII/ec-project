@@ -193,15 +193,7 @@ func _append_node(p: Vector3) -> String:
 ## Точка на поверхности под клеммой (с подъёмом оси): провод спускается к ней вертикально и дальше лежит. null: поверхности нет
 ## или клемма уже у поверхности. Луч идёт вниз от клеммы, поэтому у клеммы на нижней полке плита над ней не мешает
 func _drop(t: PowerTerminal) -> Variant:
-	var from := t.global_position + Vector3.UP * 0.05
-	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 200.0, Global.active_layers(["ground", "tracks", "plaster", "underside"]))
-	var hit := get_viewport().world_3d.direct_space_state.intersect_ray(q)
-	if hit.is_empty():
-		return null
-	var p: Vector3 = hit.position + Vector3.UP * _lift()
-	if p.y >= t.global_position.y - 0.05:
-		return null
-	return p
+	return WireSurface.drop(t)   # XX claude-wire W7: общий с автопроводкой
 
 
 func _surface_hit() -> Dictionary:

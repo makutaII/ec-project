@@ -345,11 +345,8 @@ func autowire(parent: Node) -> int:
 				continue
 			if clip.net_id != t.output_label or clip.wired or not clip.terminal.is_free():
 				continue
-			var pa := t.global_position
-			var pb := clip.terminal.global_position
-			var mid := (pa + pb) * 0.5
-			mid.y = maxf(pa.y, pb.y) + 2.0
-			if C_Wire.create_wire(parent, t, clip.terminal, PackedVector3Array([mid])) != null:
+			# XX claude-wire W7: провод лежит на поверхностях, под столом через ввод и по нижней полке (AutoWire), не дугой по воздуху
+			if C_Wire.create_wire(parent, t, clip.terminal, AutoWire.points(t, clip.terminal, made)) != null:
 				made += 1
 	return made
 
