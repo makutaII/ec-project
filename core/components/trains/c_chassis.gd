@@ -554,6 +554,10 @@ func _physics_process(delta: float) -> void:
 	# 5. Подтягиваем ригид к ентити
 	_assist_rb_to_entity()
 
+	# 6. Допуски узлов тележек (поперечный ход, предел курса): когда кузов уже на месте. Без допусков в паспорте ничего не делает
+	if bogie_comp.has_tolerances():
+		bogie_comp.apply_tolerances(rb.global_transform)
+
 
 
 # ==========================================

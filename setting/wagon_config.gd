@@ -69,6 +69,9 @@ const BUFFER_HEIGHT := 1.061
 ## true: если в модели есть узлы unit_<n> с колёсными парами wheel_<n>_<k> (радиус в extras), тележки строятся по модели (ModelRig),
 ## bogie_configs не нужны и игнорируются. false: всегда по bogie_configs. Модели без узлов unit_* на это не реагируют
 @export var use_model_rig: bool = true
+## Допуски узлов тележек из модели (поперечный ход, предел курса, центровка): для длинного локо с опорным узлом посередине.
+## Узел задаётся номером из роли unit_<n>. Пусто: узлы жёстко по оси кузова
+@export var unit_tuning: Array[UnitTuning] = []
 
 
 @export_category("Coupler (Сцепка)")

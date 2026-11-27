@@ -25,6 +25,8 @@ var bogie_nodes: Array[Node3D] = []
 var rig: ModelRig = null
 ## Из паспорта (WagonConfig.use_model_rig): искать в модели узлы unit_<n> и строить тележки по ним
 var use_model_rig := true
+## Допуски узлов тележек из модели (WagonConfig.unit_tuning): по номеру из роли unit_<n>
+var unit_tuning: Array[UnitTuning] = []
 
 var wheel_nodes: Array[Dictionary] = [] # все колеса {'wheel_node', 'radius', 'bogie': номер тележки, 'sign': +1/-1 по Z, 'axle': номер оси в узле, 'meshes': меши колеса (под шейдер), 'role': роль колеса из модели}
 ## Коллизии тележек по номеру тележки в паспорте (нужны для правки раскладки в DebugPanel)
@@ -118,6 +120,11 @@ func _build_bogies_from_rig() -> void:
 	for i in rig.units.size():
 		var u: ModelRig.Unit = rig.units[i]
 		var cfg: BogieConfig = u.config
+		for tuning in unit_tuning:
+			if tuning != null and tuning.unit == u.number:
+				cfg.lateral_play = tuning.lateral_play
+				cfg.axle_balance = tuning.axle_balance
+				cfg.yaw_limit_deg = tuning.yaw_limit_deg
 		var node := u.node
 		node.basis = Basis.IDENTITY
 		node.position = Vector3(0.0, cfg.wheel_pair_position.y, cfg.b_offset_z)   # ось на высоте радиуса над рельсом

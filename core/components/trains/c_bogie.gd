@@ -16,6 +16,10 @@ class BogieData:
 	var up: Vector3 = Vector3.UP
 	var calculated_global_pos: Vector3
 	var calculated_global_basis: Basis
+	## Мировой базис узла по хорде его осей (как его выставил расчёт). Нужен, чтобы после перемещения кузова считать допуски точно
+	var world_basis := Basis.IDENTITY
+	## Точка узла на рельсе (центровка по BogieConfig.axle_balance), считается только при lateral_play > 0
+	var rail_pos := Vector3.ZERO
 	#var is_front: bool = false # уже не надо
 
 var is_derailed: bool = false
@@ -378,7 +382,12 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 		# ----------------------------------------------------------------------------------------
 		
 		if is_instance_valid(bogie.pivot) and forward_dir.length_squared() > 0.001:
-			bogie.pivot.global_basis = Basis.looking_at(forward_dir, up)
+			bogie.world_basis = Basis.looking_at(forward_dir, up)
+			bogie.pivot.global_basis = bogie.world_basis
+		# Точка узла для поперечного хода: между серединой хорды крайних осей и точкой рельса в центре узла
+		if bogie.config and bogie.config.lateral_play > 0.0:
+			var arc_pos = _assist_sample_pos_with_extrapolation(path_comp, bogie.track_distance, curve_len, bogie.route)
+			bogie.rail_pos = ((front_pos + rear_pos) / 2.0).lerp(arc_pos, bogie.config.axle_balance) + up * track_h
 	else:
 		# Одноосная тележка: расчет по центральной точке
 		bogie.calculated_global_pos = _assist_sample_pos_with_extrapolation(path_comp, bogie.track_distance, curve_len, bogie.route)
@@ -394,7 +403,9 @@ func _assist_update_calc_global_pos(bogie: BogieData) -> void:
 			# --------------------------------------------------------------------------------
 			
 			if global_forward.length_squared() > 0.001:
-				bogie.pivot.global_basis = Basis.looking_at(global_forward, up)
+				bogie.world_basis = Basis.looking_at(global_forward, up)
+				bogie.pivot.global_basis = bogie.world_basis
+			bogie.rail_pos = bogie.calculated_global_pos
 				
 				
 				
@@ -518,6 +529,35 @@ func _phase_wheel(role: StringName) -> Dictionary:
 		push_warning("[C_Bogie] %s: колесо с ролью '%s' не найдено, фаза привода не считается" % [entity.name if entity else "?", role])
 	_phase_cache[role] = best   # и пустой результат: не искать каждый кадр
 	return best
+
+
+## Допуски узлов (BogieConfig.lateral_play и yaw_limit_deg): узел сдвигается поперёк кузова к своей точке на рельсе и не поворачивается
+## относительно кузова больше предела. Зовётся после того, как кузов поставлен (C_Chassis), body_xf это итоговый transform кузова.
+## Узлы без допусков (по умолчанию все) не трогаются
+func has_tolerances() -> bool:
+	for bd in bogies_data:
+		if bd.config != null and (bd.config.lateral_play > 0.0 or bd.config.yaw_limit_deg < 179.0):
+			return true
+	return false
+
+
+func apply_tolerances(body_xf: Transform3D) -> void:
+	var inv := body_xf.affine_inverse()
+	for bd in bogies_data:
+		var cfg := bd.config
+		if cfg == null or not is_instance_valid(bd.pivot):
+			continue
+		var lateral := cfg.lateral_play > 0.0
+		var limit_yaw := cfg.yaw_limit_deg < 179.0
+		if not lateral and not limit_yaw:
+			continue
+		# Базис в осях кузова из мирового по хорде осей: точно по текущему кузову, без отставания на кадр
+		var local_basis := inv.basis * bd.world_basis
+		if limit_yaw:
+			local_basis = BogieMath.clamp_yaw(local_basis, cfg.yaw_limit_deg)
+		bd.pivot.basis = local_basis
+		if lateral:
+			bd.pivot.position.x = BogieMath.clamp_lateral((inv * bd.rail_pos).x, cfg.lateral_play)
 
 
 ## Все колёса без проскальзывания (шейдер в нормальный цвет)

@@ -32,6 +32,22 @@ static func collision_length(half_base: float, radius: float) -> float:
 	return (half_base + radius) * 2.0
 
 
+## Поперечный ход узла: смещение по оси X кузова к точке на рельсе, не дальше допуска
+static func clamp_lateral(rel_x: float, play: float) -> float:
+	return clampf(rel_x, -play, play)
+
+
+## Предел курса узла относительно кузова: ограничивает рыскание (вокруг Y), наклон и крен не трогает.
+## local_basis это базис узла в осях кузова
+static func clamp_yaw(local_basis: Basis, limit_deg: float) -> Basis:
+	var e := local_basis.get_euler(EULER_ORDER_YXZ)
+	var lim := deg_to_rad(limit_deg)
+	if absf(e.y) <= lim:
+		return local_basis
+	e.y = clampf(e.y, -lim, lim)
+	return Basis.from_euler(e, EULER_ORDER_YXZ)
+
+
 ## Фаза в обратную сторону: поза покоя (0) остаётся на месте, цикл идёт назад
 static func reverse_phase(phase: float) -> float:
 	return fposmod(1.0 - phase, 1.0)

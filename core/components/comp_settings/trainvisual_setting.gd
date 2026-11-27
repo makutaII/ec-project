@@ -15,6 +15,7 @@ func create_component(entity: Entity) -> Component:
 		comp.bogie_configs = cfg.bogie_configs
 		comp.offset_mesh_y = cfg.offset_mesh_y
 		comp.use_model_rig = cfg.use_model_rig
+		comp.unit_tuning = cfg.unit_tuning
 
 	comp.name = 'C_TrainVisual'
 	entity.add_component(comp) # Добавили комп к объекту
