@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://7vuxuiiysiji" path="res://setting/bogie_config.gd" id="2_7m61j"]
 [ext_resource type="Script" uid="uid://daeylhso0elsx" path="res://setting/light_config.gd" id="6_g04a0"]
 [ext_resource type="Script" uid="uid://gv2lrhu17dtf" path="res://setting/mechanism_config.gd" id="8_70t6v"]
+[ext_resource type="Script" uid="uid://dssggpx8q8unl" path="res://setting/unit_tuning.gd" id="8_ewp7k"]
 [ext_resource type="PackedScene" uid="uid://f08rax813uk5" path="res://data/models/loco_blue_baby/loco_blue_baby.tscn" id="9_aodhn"]
 [ext_resource type="Script" uid="uid://bicjny5dv1h3s" path="res://setting/wagon_config.gd" id="10_ua0d2"]
 [ext_resource type="Script" uid="uid://bwaluvayi2o8k" path="res://setting/suspension_config.gd" id="11_ryaq6"]
@@ -36,6 +37,12 @@ metadata/_custom_type_script = "uid://gv2lrhu17dtf"
 script = ExtResource("11_ryaq6")
 metadata/_custom_type_script = "uid://bwaluvayi2o8k"
 
+[sub_resource type="Resource" id="Resource_mybpe"]
+script = ExtResource("8_ewp7k")
+unit = 3
+lateral_play = 0.2
+yaw_limit_deg = 45.0
+
 [sub_resource type="Resource" id="Resource_ybgll"]
 script = ExtResource("10_ua0d2")
 mass = 4.0
@@ -44,6 +51,7 @@ suspension = SubResource("Resource_0p1ic")
 has_engine = true
 max_theoretical_speed = 50.0
 scene = ExtResource("9_aodhn")
+unit_tuning = Array[ExtResource("8_ewp7k")]([SubResource("Resource_mybpe")])
 coupler_offset = 8.04
 coupler_travel = 0.05
 coupler_strength = 120.0
