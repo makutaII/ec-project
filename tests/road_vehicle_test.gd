@@ -74,6 +74,13 @@ func _ready() -> void:
 		and (vis.pick_area.collision_layer & (Global.active_layers([&"tracks"]) | road_layer)) == 0)
 	check("у кузова есть меши для подсветки (кузов, кабина, 4 колеса)", vis != null and vis.mesh_nodes.size() == 6)
 	check("CSM знает машину", CSM.get_vehicles().has(veh))
+	var pick_shape := (vis.pick_area.get_child(0) as CollisionShape3D).shape as BoxShape3D if vis != null and vis.pick_area != null else null
+	check("машина из сцены (car_red): область выбора по мешам сцены (около 1.8 x 5.0 по высоте и длине)", cfg != null and cfg.scene != null and pick_shape != null
+		and absf(pick_shape.size.z - 5.0) < 0.2 and absf(pick_shape.size.y - 1.8) < 0.2)
+	var blue := piece(load("res://data/cars/objects/car_blue.tres"), Vector3(10, 30, 0))
+	await frames(3)
+	var vis_blue := blue.get_comp(C_CarVisual) as C_CarVisual
+	check("машина без сцены (car_blue) строится из примитивов", CarConfig.from_entity(blue).scene == null and vis_blue != null and vis_blue.mesh_nodes.size() == 6)
 	check("свободная машина вне дороги не едет", veh != null and veh.mode == C_RoadVehicle.Mode.OFF_ROAD)
 	var speed := cfg.max_speed if cfg != null else C_RoadVehicle.DEFAULT_SPEED
 

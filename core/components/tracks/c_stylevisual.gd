@@ -100,7 +100,7 @@ func _build_collision(curve: Curve3D, L: float) -> void:
 	ballast.get_child(0).queue_free()   # заглушка из build_skeleton
 	head.get_child(0).queue_free()
 
-	var cuts := TrackMeshBuilder.collision_cuts(curve, L, false, true)   # прямая: одна коллизия
+	var cuts := TrackMeshBuilder.collision_cuts(curve, L, false, true, style.collision_end_inset)   # прямая: одна коллизия
 	var own_path := get_comp(C_Path) as C_Path
 	var rails := own_path == null or own_path.has_rail_shapes()   # XX claude-car CS1c: у дороги рельсов нет
 	for i in cuts.size() - 1:

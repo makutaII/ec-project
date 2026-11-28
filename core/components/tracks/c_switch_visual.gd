@@ -182,7 +182,7 @@ func _rebuild() -> void:
 			continue
 		_meshes[i].mesh = TrackMeshBuilder.build_mesh(style, c, L, false)
 		TrackMeshBuilder.place_sleepers(_sleepers[i].multimesh, style, c, L)
-		var cuts := TrackMeshBuilder.collision_cuts(c, L, false)
+		var cuts := TrackMeshBuilder.collision_cuts(c, L, false, false, style.collision_end_inset)
 		plan.append({"c": c, "L": L, "cuts": cuts})
 		total += cuts.size() - 1
 

@@ -8,11 +8,13 @@
 [ext_resource type="Script" path="res://core/car/road_vehicle_setting.gd" id="6_rv"]
 [ext_resource type="Script" uid="uid://cuumo0qj7r7gb" path="res://core/components/comp_settings/hoverable_setting.gd" id="7_hv"]
 [ext_resource type="Script" uid="uid://deljgsmo4bpow" path="res://core/components/comp_settings/selectable_setting.gd" id="8_sl"]
+[ext_resource type="PackedScene" path="res://art/cars/car_template.tscn" id="11_sc"]
 [ext_resource type="Texture2D" path="res://ui/icons/transport/mine-truck.svg" id="9_ic"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="10_es"]
 
 [sub_resource type="Resource" id="Resource_cfg"]
 script = ExtResource("2_cc")
+scene = ExtResource("11_sc")
 body_color = Color(0.75, 0.15, 0.12, 1)
 
 [sub_resource type="Resource" id="Resource_id"]

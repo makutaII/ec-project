@@ -134,7 +134,7 @@ func _rebuild() -> void:
 # --- коллизии: пул сегментов, Area3D не трогаем ---
 
 func _rebuild_collision(curve: Curve3D, L: float) -> void:
-	var cuts := TrackMeshBuilder.collision_cuts(curve, L, _preview)
+	var cuts := TrackMeshBuilder.collision_cuts(curve, L, _preview, false, style.collision_end_inset)
 	var nseg := cuts.size() - 1
 	_resize_pool(nseg)
 	for i in nseg:

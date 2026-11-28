@@ -16,6 +16,7 @@ var _preset: OptionButton
 var _rules_label: Label
 var _bus_check: CheckBox
 var _bus_label: Label
+var _bus_limit: SpinBox   # XX claude-car CS4a: предел тока шины, А
 
 
 func _init() -> void:
@@ -87,6 +88,22 @@ func _init() -> void:
 	_bus_label = Label.new()
 	_bus_label.modulate = Color(1, 1, 1, 0.7)
 	add_child(_bus_label)
+	# XX claude-car CS4a: предел тока шины. Защита срабатывает при нагрузке выше предела дольше 0.5 с, при двойной нагрузке сразу
+	var limit_row := HBoxContainer.new()
+	var limit_caption := Label.new()
+	limit_caption.text = "Предел тока шины, А"
+	limit_row.add_child(limit_caption)
+	_bus_limit = SpinBox.new()
+	_bus_limit.min_value = 0.1
+	_bus_limit.max_value = 20.0
+	_bus_limit.step = 0.05
+	_bus_limit.value = PGM.bus.i_max
+	_bus_limit.tooltip_text = "Нагрузка на шину считается только в пресете «Реалистичный» (правило «нагрузка от света и аксессуаров»)"
+	_bus_limit.value_changed.connect(func(v: float) -> void:
+		PGM.bus.i_max = v
+		_sync_bus())
+	limit_row.add_child(_bus_limit)
+	add_child(limit_row)
 	var bus_reset := Button.new()
 	bus_reset.text = "Сбросить защиту шины"
 	bus_reset.pressed.connect(func() -> void:
@@ -161,6 +178,8 @@ func _sync_bus() -> void:
 	if _bus_check == null:
 		return
 	_bus_check.set_pressed_no_signal(PGM.bus.enabled)
+	if _bus_limit != null:
+		_bus_limit.set_value_no_signal(PGM.bus.i_max)
 	_bus_label.text = "Шина: %s, нагрузка %.2f из %.1f А" % [
 		"ОТКЛЮЧЕНА ЗАЩИТОЙ" if PGM.bus.tripped else ("запитана" if PGM.bus_powered() else "без питания"),
 		PGM.bus.load_a, PGM.bus.i_max]

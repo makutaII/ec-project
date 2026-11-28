@@ -26,8 +26,10 @@ const RESUME_PROBE := 0.5
 const LOOK_STEP := 1.0
 const LOOK_MARGIN := 2.0
 const LOOK_MAX := 40.0
-## Насколько дальше за край смотрит луч при переходе на следующий кусок, ю (коллизия куска короче его на 0.2 ю с торца, PathWalker.advance)
+## Насколько дальше за край смотрит луч при переходе на следующий кусок, ю, минимум (коллизия куска короче его на collision_end_inset стиля
+## с торца, по умолчанию 0.2, PathWalker.advance). Реально берётся максимум из этого и отступа стиля плюс запас CROSS_MARGIN
 const CROSS_PROBE := 0.3
+const CROSS_MARGIN := 0.15
 ## Запас луча вниз при поиске дороги под машиной после загрузки, ю
 const LOAD_RAY_UP := 1.0
 const LOAD_RAY_DOWN := 2.0
@@ -58,6 +60,7 @@ var _crv: Curve3D
 var _node: Path3D
 var _len := 0.0
 var _head_h := 0.0
+var _cross := CROSS_PROBE    # проба за край для текущего куска
 var _dist := 0.0
 var _dir := 1.0
 var _note: TrackNote.Line
@@ -180,6 +183,8 @@ func _set_state(st: Dictionary) -> void:
 		_node = _pc.path_node if _pc != null else null
 		_len = _crv.get_baked_length() if _crv != null else 0.0
 		_head_h = _pc.head_height() if _pc != null else 0.0
+		var sv := _track.get_comp(C_StyleVisual) as C_StyleVisual
+		_cross = maxf(CROSS_PROBE, (sv.style.collision_end_inset if sv != null and sv.style != null else 0.2) + CROSS_MARGIN)
 
 
 func _road_valid() -> bool:
@@ -208,7 +213,7 @@ func _physics_process(delta: float) -> void:
 			_hold_stop()   # дошли до точки остановки элемента управления
 	else:
 		_hold_s = -1.0
-		var nxt := PathWalker.advance(state, speed * delta, ROAD_LAYER, CROSS_PROBE)
+		var nxt := PathWalker.advance(state, speed * delta, ROAD_LAYER, _cross)
 		if nxt.is_empty():
 			_halt()
 		else:
@@ -231,7 +236,7 @@ func decide(_dt: float) -> void:
 			elif halt_reason == &"control":
 				if hold_control == null or not is_instance_valid(hold_control) or not hold_control.holds_for(self):
 					_resume()   # катушку выключили, на парковке дали «поехали» или пропало питание
-			elif not PathWalker.advance(state, RESUME_PROBE, ROAD_LAYER, CROSS_PROBE).is_empty():
+			elif not PathWalker.advance(state, RESUME_PROBE, ROAD_LAYER, _cross).is_empty():
 				_resume()   # дорогу достроили
 		Mode.CRASHED:
 			if not _road_valid():
@@ -262,7 +267,7 @@ func _plan_speed() -> float:
 			st.dist = float(st.dist) + float(st.dir) * LOOK_STEP
 			d += LOOK_STEP
 		else:
-			var nxt := PathWalker.advance(st, step + 0.01, ROAD_LAYER, CROSS_PROBE)
+			var nxt := PathWalker.advance(st, step + 0.01, ROAD_LAYER, _cross)
 			d += step
 			if nxt.is_empty():
 				best = minf(best, sqrt(2.0 * br * maxf(d, 0.0)))   # конец дороги: остановиться у самого края

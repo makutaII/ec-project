@@ -205,6 +205,15 @@ func _ready() -> void:
 	var esp := es.get_comp(C_Path) as C_Path
 	check("collision_width стиля при нуле в паспорте даёт коллизию объекта", esv != null and absf(esv.style.collision_width - (want_c + 1.0)) < 0.01)
 	check("видимая ширина и ложе от collision_width стиля не зависят", absf(esv.mesh_node.mesh.get_aabb().size.x - want_v) < 0.05 and absf(esp.bed_half_width() - want_v * 0.5) < 0.01)
+	# collision_end_inset: отступ боксов коллизии от торцов задаётся стилем (по умолчанию 0.2 как COL_END_INSET)
+	var cv := Curve3D.new()
+	cv.add_point(Vector3.ZERO)
+	cv.add_point(Vector3(0, 0, -20))
+	var cuts_def := TrackMeshBuilder.collision_cuts(cv, 20.0, false, true)
+	var cuts_big := TrackMeshBuilder.collision_cuts(cv, 20.0, false, true, 0.5)
+	check("collision_end_inset по умолчанию равен прежней константе 0.2", is_equal_approx(TrackStyle.new().collision_end_inset, TrackMeshBuilder.COL_END_INSET)
+		and cuts_def.size() == 2 and is_equal_approx(cuts_def[0], 0.2) and is_equal_approx(cuts_def[1], 19.8))
+	check("отступ 0.5 укорачивает боксы с каждого торца (0.5 и 19.5)", cuts_big.size() == 2 and is_equal_approx(cuts_big[0], 0.5) and is_equal_approx(cuts_big[1], 19.5))
 	var lane_cfg := _cfg_and_style(road_s)[0] as RoadConfig
 	check("lane_width отдельное поле паспорта и на коллизию не влияет", lane_cfg != null and "lane_width" in lane_cfg)
 	# нарезка и шейпы: рельсовых шейпов у дороги нет, остаётся основание

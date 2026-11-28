@@ -3,9 +3,9 @@ class_name C_CarVisual extends C_Visual
 ###########################
 ## Кузов и колёса машины (ATTN_28 §28.4, CS2)
 ###########################
-## Модели машины пока нет: кузов, кабина и четыре колеса собираются из примитивов по CarConfig (габариты, цвет). Позже настоящая
-## модель встанет вместо _build_model (сцена с ролями частей, как у вагона). Начало координат на поверхности дороги под колёсами,
-## вперёд -Z. Базовый C_Visual даёт подсветку состояний (ghost, selected, hovered, blocked) по mesh_nodes.
+## Модель машины это сцена из паспорта (CarConfig.scene), как у вагонов: базовый C_Visual создаёт инстанс, PartRegistry, цвет по варианту
+## объекта. Нет сцены: кузов, кабина и четыре колеса собираются из примитивов по CarConfig (габариты, цвет). Начало координат на
+## поверхности дороги между колёсами, вперёд -Z. Базовый C_Visual даёт подсветку состояний (ghost, selected, hovered, blocked) по mesh_nodes.
 ## Выбор мышью: Area3D на слое cars. Пока машину тащат или она призрак, слой снят (on_select_layer), чтобы луч видел дорогу под ней.
 
 var pick_area: Area3D
@@ -13,9 +13,14 @@ var pick_area: Area3D
 var _cfg: CarConfig
 
 
-## Базовый on_added строит инстанс из PackedScene, здесь модель собирается кодом, остальные шаги те же
+## Есть сцена: базовый on_added строит инстанс из PackedScene; нет: модель собирается кодом, остальные шаги те же
 func on_added() -> void:
 	_cfg = CarConfig.from_entity(entity)
+	if scene != null:
+		if _cfg == null:
+			_cfg = CarConfig.new()
+		super.on_added()
+		return
 	if _cfg == null:
 		push_error("C_CarVisual: в паспорте (C_Identity.object_config) нет CarConfig, габариты по умолчанию")
 		_cfg = CarConfig.new()
@@ -27,7 +32,46 @@ func on_added() -> void:
 
 
 func _on_instance_ready() -> void:
+	if pick_area == null:
+		_make_scene_pick_area()   # у сцены своей области выбора нет: строим по меши
 	on_select_layer({"enabled": entity.has_comp(C_Ghost)})
+
+
+## Область выбора мышью по общей рамке мешей сцены (в координатах инстанса; дерево сцены ещё может быть вне дерева игры)
+func _make_scene_pick_area() -> void:
+	var box := AABB()
+	var first := true
+	for m in mesh_nodes:
+		if m.mesh == null:
+			continue
+		var ab := _relative_xf(m) * m.mesh.get_aabb()
+		box = ab if first else box.merge(ab)
+		first = false
+	if first:
+		box = AABB(Vector3(-_cfg.width * 0.5, 0.0, -_cfg.length * 0.5), Vector3(_cfg.width, _cfg.height, _cfg.length))
+	pick_area = Area3D.new()
+	pick_area.name = "CarPick"
+	pick_area.collision_layer = Global.active_layers([&"cars"])
+	pick_area.collision_mask = 0
+	pick_area.monitoring = false
+	var shape := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = box.size
+	shape.shape = bs
+	shape.position = box.get_center()
+	pick_area.add_child(shape)
+	instance.add_child(pick_area)
+
+
+## Преобразование узла относительно корня инстанса по цепочке родителей (без глобальных координат)
+func _relative_xf(n: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur != null and cur != instance:
+		if cur is Node3D:
+			xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf
 
 
 ## ⚡ Драг и призрак снимают слой выбора, чтобы курсор видел дорогу под машиной
