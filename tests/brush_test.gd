@@ -446,6 +446,13 @@ func _noop(_v: float) -> void:
 	pass
 
 
+var _last := -1.0
+
+
+func _cap(v: float) -> void:
+	_last = v
+
+
 ## H2d: настройки игрока поверх карточки и режим «только краска»
 func _test_overrides() -> void:
 	var s := _surf(TerrainField.ROCKY, Color(0.4, 0.7, 0.2), 3.0)
@@ -511,6 +518,20 @@ func _test_tool_settings() -> void:
 	var ctl := InfoSectionView.make_row(InfoSection.slider("x", 0.0, 1.0, 0.1, Callable(self, "_g03"), Callable(self, "_noop")), live)
 	InfoSectionView.refresh_row(live[0])
 	check("InfoSectionView: слайдер строится и читает getter", live.size() == 1 and is_equal_approx((live[0]["control"] as HSlider).value, 0.3))
+	# H2f: у слайдера есть поле числа: показывает значение, принимает ввод и двигает ползунок
+	var live2: Array[Dictionary] = []
+	var ctl2 := InfoSectionView.make_row(InfoSection.slider("y", 0.03, 8.0, 0.01, Callable(self, "_g03"), Callable(self, "_cap")), live2)
+	InfoSectionView.refresh_row(live2[0])
+	var spin := live2[0]["spin"] as SpinBox
+	check("InfoSectionView: рядом со слайдером поле числа с тем же значением", spin != null and is_equal_approx(spin.value, 0.3) and is_equal_approx(spin.min_value, 0.03) and is_equal_approx(spin.step, 0.01))
+	spin.value = 0.05
+	check("InfoSectionView: ввод числа вызывает setter и двигает ползунок", is_equal_approx(_last, 0.05) and is_equal_approx((live2[0]["control"] as HSlider).value, 0.05), str(_last))
+	(live2[0]["control"] as HSlider).value = 0.5
+	check("InfoSectionView: ползунок обновляет число", is_equal_approx(spin.value, 0.5) and is_equal_approx(_last, 0.5))
+	var ctl3 := InfoSectionView.make_row(InfoSection.label("z", Callable(self, "_g03")), live2)
+	check("InfoSectionView: у строки без слайдера поля числа нет", live2.size() == 2 and live2[1]["spin"] == null)
+	ctl3.free()
+	ctl2.free()
 	ctl.free()
 	# кисть как поставщик
 	BrushTool.saved.clear()

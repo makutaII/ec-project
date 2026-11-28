@@ -22,7 +22,7 @@ const SHAPE_NAMES := {&"rect": "прямоугольник", &"polygon": "пол
 const BASE_LAYERS := 1.0
 ## Предел толщины в панели, слоёв (поле хранит до 31,99). Тонкий слой (около 0,05) нужен для покраски стола: на нём поверх красят кистью
 const MAX_LAYERS := 8.0
-const MIN_LAYERS := 0.01
+const MIN_LAYERS := 0.03
 
 const COL_OK := Color(0.45, 1.0, 0.65)
 const COL_BAD := Color(1.0, 0.3, 0.3)

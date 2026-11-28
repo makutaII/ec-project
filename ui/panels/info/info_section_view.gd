@@ -6,7 +6,8 @@ class_name InfoSectionView extends RefCounted
 ## «Инструмент» (секции настроек инструмента). Строки типа note сюда не попадают: их выносит вкладка в подвал.
 ###########################
 
-## Контрол строки InfoSection (button, label, toggle, slider, list). Живые строки дописываются в live: [{type, row, control}]
+## Контрол строки InfoSection (button, label, toggle, slider, list). Живые строки дописываются в live: [{type, row, control, spin}]
+## (spin: поле числа у слайдера, у остальных строк null)
 static func make_row(row: Dictionary, live: Array[Dictionary]) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
@@ -27,6 +28,7 @@ static func make_row(row: Dictionary, live: Array[Dictionary]) -> Control:
 	cap.mouse_filter = Control.MOUSE_FILTER_PASS
 	h.add_child(cap)
 	var ctl: Control
+	var extra: SpinBox   # H2f: поле числа у слайдера
 	match type:
 		&"label":
 			ctl = Label.new()
@@ -42,8 +44,22 @@ static func make_row(row: Dictionary, live: Array[Dictionary]) -> Control:
 			s.step = float(row.step)
 			s.custom_minimum_size = Vector2(80, 0)
 			s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			s.value_changed.connect(func(v: float) -> void: (row.setter as Callable).call(v))
 			ctl = s
+			# H2f: рядом с ползунком число: показывает значение и принимает точный ввод (Enter или выход из поля применяют)
+			var sp := SpinBox.new()
+			sp.min_value = s.min_value
+			sp.max_value = s.max_value
+			sp.step = s.step
+			sp.custom_minimum_size = Vector2(72, 0)
+			sp.get_line_edit().alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			sp.get_line_edit().text_submitted.connect(func(_t: String) -> void: sp.get_line_edit().release_focus())
+			s.value_changed.connect(func(v: float) -> void:
+				sp.set_value_no_signal(v)
+				(row.setter as Callable).call(v))
+			sp.value_changed.connect(func(v: float) -> void:
+				s.set_value_no_signal(v)
+				(row.setter as Callable).call(v))
+			extra = sp
 		&"list":
 			var o := OptionButton.new()
 			o.focus_mode = Control.FOCUS_NONE
@@ -61,7 +77,9 @@ static func make_row(row: Dictionary, live: Array[Dictionary]) -> Control:
 			ctl = Label.new()
 	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(ctl)
-	live.append({"type": type, "row": row, "control": ctl})
+	if extra != null:
+		h.add_child(extra)
+	live.append({"type": type, "row": row, "control": ctl, "spin": extra})
 	return h
 
 
@@ -79,7 +97,11 @@ static func refresh_row(v: Dictionary) -> void:
 			(ctl as CheckButton).set_pressed_no_signal(bool((row.getter as Callable).call()))
 		&"slider":
 			var sl := ctl as HSlider
-			sl.set_value_no_signal(float((row.getter as Callable).call()))
+			var val := float((row.getter as Callable).call())
+			sl.set_value_no_signal(val)
+			var spin: SpinBox = v.get("spin")
+			if spin != null and is_instance_valid(spin) and not spin.get_line_edit().has_focus():
+				spin.set_value_no_signal(val)   # пока игрок печатает число, живое значение его не перебивает
 		&"list":
 			var o := ctl as OptionButton
 			var cur: Variant = (row.getter as Callable).call()
