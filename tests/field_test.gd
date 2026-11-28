@@ -31,6 +31,7 @@ func step_floor(x: float, _z: float) -> float:
 
 func _ready() -> void:
 	_test_data()
+	_test_lay_bits()
 	_test_floor()
 	_test_history()
 	_test_save()
@@ -78,6 +79,29 @@ func _test_data() -> void:
 	check("данные: треугольник, узел внутри", t.has_layer(2, 2) and t.has_layer(0, 0))
 	check("данные: треугольник, узел снаружи", not t.has_layer(7, 7) and not t.has_layer(6, 4))
 	check("данные: вырожденный полигон ничего не делает", t.lay_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1, 1)]), 1.0) == 0)
+
+
+## H1c: слой с типом и материалом на пустых узлах (покраска стола тонким слоем)
+func _test_lay_bits() -> void:
+	var bits := (TerrainField.ROCK << TerrainField.TYPE_SHIFT) | (4 << TerrainField.MAT_SHIFT)
+	var f := TerrainField.new()
+	var n := f.lay_polygon(rect(0, 0, 4, 4), 0.05, bits)
+	check("слой с материалом: узлы положены тонким слоем 0,05", n == 81 and near(f.layers_at(2, 2), 0.05, 0.005), "%d %s" % [n, f.layers_at(2, 2)])
+	check("слой с материалом: пустые узлы получили тип и слот материала", f.type_at(2, 2) == TerrainField.ROCK and f.mat_at(2, 2) == 4, "%d %d" % [f.type_at(2, 2), f.mat_at(2, 2)])
+	# слой толще поверх тонкого: тип и материал узла остаются от первого слоя
+	var other := (TerrainField.ROCKY << TerrainField.TYPE_SHIFT) | (7 << TerrainField.MAT_SHIFT)
+	f.lay_polygon(rect(0, 0, 4, 4), 1.0, other)
+	check("слой с материалом: утолщение узла со слоем оставляет его материал", f.mat_at(2, 2) == 4 and f.type_at(2, 2) == TerrainField.ROCK and near(f.layers_at(2, 2), 1.0))
+	# соседние пустые узлы берут новый материал
+	f.lay_polygon(rect(4, 0, 8, 4), 0.05, other)
+	check("слой с материалом: пустые соседние узлы берут свой материал", f.mat_at(6, 2) == 7 and f.mat_at(2, 2) == 4, "%d %d" % [f.mat_at(6, 2), f.mat_at(2, 2)])
+	var g := TerrainField.new()
+	g.lay_polygon(rect(0, 0, 2, 2), 0.05)
+	check("слой без битов: гладкая и базовый материал (как раньше)", g.type_at(1, 1) == TerrainField.SMOOTH and g.mat_at(1, 1) == 0)
+	# наименьшая толщина 1/128 слоя
+	var h := TerrainField.new()
+	h.lay_polygon(rect(0, 0, 2, 2), 0.001)
+	check("слой с материалом: наименьшая толщина 1/UNITS слоя", near(h.layers_at(1, 1), 1.0 / float(TerrainField.UNITS), 0.0001), str(h.layers_at(1, 1)))
 
 
 func _test_floor() -> void:

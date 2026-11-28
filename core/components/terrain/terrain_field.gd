@@ -341,19 +341,20 @@ func attach_undo(cb: Callable) -> void:
 
 ## Положить слой толщиной layers (в слоях) на узлы внутри полигона poly (мировые XZ, граница входит).
 ## Узлы, где слой уже толще, не меняются. Возвращает число изменённых узлов
-func lay_polygon(poly: PackedVector2Array, layers: float) -> int:
+## bits: тип и материал для узлов, где слоя ещё не было (H1c; узлы с уже лежащим слоем оставляют свои), по умолчанию 0 (гладкая, базовый материал)
+func lay_polygon(poly: PackedVector2Array, layers: float, bits := 0) -> int:
 	var units := clampi(roundi(layers * float(UNITS)), 1, TH_MASK)
-	return _apply(poly, units, false)
+	return _apply(poly, units, false, bits)
 
 
 ## Снять слой (и тип) с узлов внутри полигона. Возвращает число изменённых узлов
 func erase_polygon(poly: PackedVector2Array) -> int:
-	return _apply(poly, 0, true)
+	return _apply(poly, 0, true, 0)
 
 
 ## Положить слой толщиной layers на прямоугольник r (мир, XZ, граница входит)
-func lay_rect(r: Rect2, layers: float) -> int:
-	return lay_polygon(_rect_poly(r), layers)
+func lay_rect(r: Rect2, layers: float, bits := 0) -> int:
+	return lay_polygon(_rect_poly(r), layers, bits)
 
 
 func erase_rect(r: Rect2) -> int:
@@ -669,7 +670,7 @@ func _touch(key: Vector2i) -> void:
 		_pending[key] = PackedInt32Array()
 
 
-func _apply(poly: PackedVector2Array, units: int, erase: bool) -> int:
+func _apply(poly: PackedVector2Array, units: int, erase: bool, bits := 0) -> int:
 	if poly.size() < 3:
 		return 0
 	var n := 0
@@ -677,13 +678,13 @@ func _apply(poly: PackedVector2Array, units: int, erase: bool) -> int:
 	for sp: Array in _spans(poly):
 		var j: int = sp[0]
 		for i in range(int(sp[1]), int(sp[2]) + 1):
-			n += _set_node(i, j, units, erase)
+			n += _set_node(i, j, units, erase, bits)
 	end_edit()
 	return n
 
 
 ## Записать узел: слой не тоньше units (erase: слой снят). Возвращает 1, если узел изменился
-func _set_node(i: int, j: int, units: int, erase: bool) -> int:
+func _set_node(i: int, j: int, units: int, erase: bool, bits := 0) -> int:
 	var key := key_of(i, j)
 	var idx := index_in_chunk(i, j)
 	var d := PackedInt32Array()
@@ -706,7 +707,9 @@ func _set_node(i: int, j: int, units: int, erase: bool) -> int:
 		d.resize(CHUNK_NODES)
 		_data[key] = d
 		_make_floor(key)
-	d[idx] = (w & ~TH_MASK) | units   # тип и материал узла остаются
+	if (w & TH_MASK) == 0:
+		w = bits   # H1c: на пустом узле слой получает заданные тип и материал
+	d[idx] = (w & ~TH_MASK) | units   # у узла со слоем тип и материал остаются
 	_data[key] = d
 	return 1
 

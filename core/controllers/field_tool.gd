@@ -6,7 +6,7 @@ class_name FieldTool extends Node
 ##########################
 ## Слой не привязан к листу: он лежит на столе (пол 0) или на верху листа под ним и едет вместе с полом (TGM.field).
 ## Положить слой можно в любой момент, слой можно снять Ctrl+ЛКМ. Форму выбирает пресет (facet "shape": rect, polygon, table),
-## ToolController кладёт её в shape перед enter(). Слой кладётся толщиной BASE_LAYERS (там, где уже толще, ничего не меняется)
+## ToolController кладёт её в shape перед enter(). Слой кладётся толщиной thickness (по умолчанию BASE_LAYERS, меняется в панели «Инструмент», H1c; там, где уже толще, ничего не меняется)
 ## и только на область стола. Кисти-карточки (H2) работают с тем же полем и накладываются поверх.
 ## Ввод: ЛКМ угол (прямоугольник, второй клик кладёт) или вершина (полигон, клик по первой вершине или Enter кладёт),
 ## стол: ЛКМ кладёт на всю столешницу; Ctrl вместе с кликом или Enter снимает слой вместо укладки,
@@ -18,8 +18,11 @@ const SHAPE_POLYGON := &"polygon"
 const SHAPE_TABLE := &"table"
 const SHAPES := [SHAPE_RECT, SHAPE_POLYGON, SHAPE_TABLE]
 const SHAPE_NAMES := {&"rect": "прямоугольник", &"polygon": "полигон", &"table": "вся столешница"}
-## Толщина укладываемого слоя, слоёв
+## Толщина укладываемого слоя по умолчанию, слоёв
 const BASE_LAYERS := 1.0
+## Предел толщины в панели, слоёв (поле хранит до 31,99). Тонкий слой (около 0,05) нужен для покраски стола: на нём поверх красят кистью
+const MAX_LAYERS := 8.0
+const MIN_LAYERS := 0.01
 
 const COL_OK := Color(0.45, 1.0, 0.65)
 const COL_BAD := Color(1.0, 0.3, 0.3)
@@ -30,6 +33,10 @@ const COL_CLOSE := Color(0.4, 1.0, 0.5)
 const MSG_TIME := 2.5
 ## Высота линий превью над поверхностью, ю
 const LIFT := 0.05
+
+## H1c: толщина и материал слоя, настраиваются в InfoPanel (ToolSettings) и помнятся на сессию
+static var thickness := BASE_LAYERS
+static var mat_choice := FieldMaterials.SLOT_BASE
 
 var controller: ToolController
 ## Форма. Задаёт ToolController из пресета до enter()
@@ -59,11 +66,13 @@ func enter() -> void:
 	_ensure_preview()
 	_set_hint_contexts(true)
 	controller.publish_selection(null)
+	controller.publish_tool_settings(self)   # H1c: толщина и материал слоя в InfoPanel
 
 
 func exit(_to_drag: bool = false) -> void:
 	_reset_draw()
 	_set_hint_contexts(false)
+	controller.clear_tool_settings(self)
 	if is_instance_valid(_mi):
 		_mi.queue_free()
 	InfoTips.clear(self)
@@ -196,7 +205,7 @@ func _commit(poly: PackedVector2Array) -> void:
 	if why != "":
 		_say(why)
 		return
-	var n := TGM.field_lay(poly, BASE_LAYERS, _erase)
+	var n := TGM.field_lay(poly, thickness, _erase, lay_bits())
 	_finish(n)
 
 
@@ -204,7 +213,60 @@ func _commit_table() -> void:
 	if not LYM.has_table():
 		_say(LYM.EMPTY_NOTE)
 		return
-	_finish(TGM.field_lay_table(BASE_LAYERS, _erase))
+	_finish(TGM.field_lay_table(thickness, _erase, lay_bits()))
+
+
+## H1c: биты типа и материала для узлов, где слоя ещё не было: материал из палитры (FieldMaterials) и его класс рельефа
+func lay_bits() -> int:
+	var pal := FieldMaterials.shared()
+	if pal == null or mat_choice <= FieldMaterials.SLOT_BASE or mat_choice >= pal.slots().size():
+		return 0
+	var kind: int = pal.slots()[mat_choice].kind
+	return ((kind & TerrainField.TYPE_MASK) << TerrainField.TYPE_SHIFT) | (mat_choice << TerrainField.MAT_SHIFT)
+
+
+## --- Настройки в InfoPanel (H1c, контракт ToolSettings) ---
+
+func settings_title() -> String:
+	return "Шпатлёвка · %s" % SHAPE_NAMES.get(shape, "прямоугольник")
+
+
+func get_info_sections() -> Array[InfoSection]:
+	var ids: Array = []
+	var titles: Array = []
+	var pal := FieldMaterials.shared()
+	if pal != null:
+		for i in pal.slots().size():
+			ids.append(i)
+			titles.append(pal.slot_title(i))
+	return [
+		InfoSection.make("Слой", [
+			InfoSection.slider("Толщина, слоёв", MIN_LAYERS, MAX_LAYERS, 0.01, Callable(self, "_get_thickness"), Callable(self, "_set_thickness")),
+			InfoSection.list("Материал", ids, titles, Callable(self, "_get_material"), Callable(self, "_set_material")),
+		]),
+		InfoSection.make("Подсказка", [
+			InfoSection.note("Тонкий слой (0,05) с материалом красит стол целиком, кистью поверх рисуют рельеф и краску"),
+			InfoSection.note("Ctrl+ЛКМ снимает слой, Ctrl+Z отменяет. Материал получают только узлы, где слоя ещё не было"),
+		]),
+	]
+
+
+func _get_thickness() -> float:
+	return thickness
+
+
+func _set_thickness(v: float) -> void:
+	thickness = clampf(v, MIN_LAYERS, MAX_LAYERS)
+	_dirty = true
+
+
+func _get_material() -> Variant:
+	return mat_choice
+
+
+func _set_material(v: Variant) -> void:
+	mat_choice = int(v)
+	_dirty = true
 
 
 func _finish(n: int) -> void:
@@ -383,7 +445,7 @@ func _update_note() -> void:
 	if not _has_cursor:
 		InfoTips.clear(self)
 		return
-	var lines: Array = [InfoTips.title("Шпатлёвка · %s · %s" % [SHAPE_NAMES.get(shape, "прямоугольник"), "снять (Ctrl)" if _erase else "слой %.0f" % BASE_LAYERS])]
+	var lines: Array = [InfoTips.title("Шпатлёвка · %s · %s" % [SHAPE_NAMES.get(shape, "прямоугольник"), "снять (Ctrl)" if _erase else "слой %.2f" % thickness])]
 	if _msg != "":
 		lines.append(InfoTips.warn(_msg))
 	elif _drawing and _reason != "":

@@ -339,7 +339,7 @@ func field_table_polygons() -> Array[PackedVector2Array]:
 
 ## Положить слой толщиной layers (слоёв) на область poly (мировой XZ) там, где есть стол. erase: снять слой.
 ## Возвращает число изменённых узлов. Одна правка для отмены (Ctrl+Z)
-func field_lay(poly: PackedVector2Array, layers: float, erase := false) -> int:
+func field_lay(poly: PackedVector2Array, layers: float, erase := false, bits := 0) -> int:
 	field.layer_height = float(Global.settings.layer_height)
 	var n := 0
 	field.begin_edit()
@@ -347,18 +347,18 @@ func field_lay(poly: PackedVector2Array, layers: float, erase := false) -> int:
 		for part: PackedVector2Array in Geometry2D.intersect_polygons(poly, sp):
 			if Geometry2D.is_polygon_clockwise(part):
 				continue   # дыра: у прямоугольных секций не бывает
-			n += field.erase_polygon(part) if erase else field.lay_polygon(part, layers)
+			n += field.erase_polygon(part) if erase else field.lay_polygon(part, layers, bits)
 	field.end_edit()
 	return n
 
 
 ## Положить (или снять) слой на весь стол
-func field_lay_table(layers: float, erase := false) -> int:
+func field_lay_table(layers: float, erase := false, bits := 0) -> int:
 	field.layer_height = float(Global.settings.layer_height)
 	var n := 0
 	field.begin_edit()
 	for sp in field_table_polygons():
-		n += field.erase_polygon(sp) if erase else field.lay_polygon(sp, layers)
+		n += field.erase_polygon(sp) if erase else field.lay_polygon(sp, layers, bits)
 	field.end_edit()
 	return n
 

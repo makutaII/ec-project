@@ -45,6 +45,7 @@ func _ready() -> void:
 	_test_overrides()
 	_test_tool_settings()
 	_test_kwindow()
+	_test_field_tool_settings()
 	_test_floor()
 	_test_materials()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
@@ -580,6 +581,32 @@ func _test_kwindow() -> void:
 	FieldView.scatter_k(k4, 8, 8, 15)
 	FieldView.scatter_k(k4, 6, 8, 1)
 	check("окно: несколько узлов берут наибольший радиус", k4[8 * n + 5] == 2 and k4[8 * n + 4] == 1, "%d %d" % [k4[8 * n + 5], k4[8 * n + 4]])
+
+
+## H1c: настройки шпатлёвки в панели (толщина и материал слоя)
+func _test_field_tool_settings() -> void:
+	var t := FieldTool.new()
+	FieldTool.thickness = FieldTool.BASE_LAYERS
+	FieldTool.mat_choice = FieldMaterials.SLOT_BASE
+	check("шпатлёвка: поставщик настроек подходит под контракт", ToolSettings.is_provider(t) and t.settings_title().begins_with("Шпатлёвка"))
+	var secs := t.get_info_sections()
+	check("шпатлёвка: секция «Слой» с толщиной и материалом", secs.size() == 2 and secs[0].title == "Слой" and secs[0].rows.size() == 2)
+	t._set_thickness(0.05)
+	check("шпатлёвка: толщина меняется и зажимается", is_equal_approx(FieldTool.thickness, 0.05) and is_equal_approx(t._get_thickness(), 0.05))
+	t._set_thickness(100.0)
+	check("шпатлёвка: толщина не больше предела", is_equal_approx(FieldTool.thickness, FieldTool.MAX_LAYERS))
+	t._set_thickness(0.0)
+	check("шпатлёвка: толщина не меньше наименьшей", is_equal_approx(FieldTool.thickness, FieldTool.MIN_LAYERS))
+	check("шпатлёвка: базовый материал даёт нулевые биты", t.lay_bits() == 0)
+	t._set_material(FieldMaterials.SLOT_CLIFF)
+	var bits := t.lay_bits()
+	check("шпатлёвка: материал палитры даёт слот и класс рельефа в битах",
+			((bits >> TerrainField.MAT_SHIFT) & TerrainField.MAT_MASK) == FieldMaterials.SLOT_CLIFF and ((bits >> TerrainField.TYPE_SHIFT) & TerrainField.TYPE_MASK) == FieldMaterials.shared().slots()[FieldMaterials.SLOT_CLIFF].kind, str(bits))
+	t._set_material(99)
+	check("шпатлёвка: несуществующий слот это базовый материал", t.lay_bits() == 0)
+	FieldTool.thickness = FieldTool.BASE_LAYERS
+	FieldTool.mat_choice = FieldMaterials.SLOT_BASE
+	t.free()
 
 
 func _test_floor() -> void:
