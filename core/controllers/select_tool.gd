@@ -222,6 +222,12 @@ func handle_input(event: InputEvent):
 	if selected_entity and Actions.pressed(event, &"tunnel_portal"):
 		selected_entity.send_event("on_portal_cycle", {})
 
+	# XX claude-coaster C8.3: крен свободного конца выбранного flex
+	if selected_entity and selected_entity.has_comp(C_FlexShape):
+		if Actions.pressed(event, &"flex_roll_up"):
+			selected_entity.send_event("on_roll_input", {"steps": 1})
+		elif Actions.pressed(event, &"flex_roll_down"):
+			selected_entity.send_event("on_roll_input", {"steps": -1})
 	# Пинок вагона PgUp (вперёд носом) и PgDn (назад). Нажатие короткое: сила 10 при отпускании, зажатие: сильнее (KickCharge)
 	if selected_entity and selected_entity.has_comp(C_Chassis):
 		if Actions.pressed(event, &"wagon_kick_fwd"):

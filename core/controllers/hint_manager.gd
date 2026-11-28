@@ -61,8 +61,8 @@ const HINTS := {
 	"wiring/select_sel": [["@delete", "удалить"], ["@plate_toggle", "столешница: показать / скрыть"]],
 	"wiring/select_switch": [["@delete", "удалить"], ["@plate_toggle", "столешница: показать / скрыть"]],
 	# XX claude-coaster C1: подсказки режима «Coaster» (ATTN_27). Без V и Z: дубль и зоны flex работают только в Build
-	"coaster/select_sel": [["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"]],
-	"coaster/build": [["@duplicate_last", "дубль последнего"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"]],
+	"coaster/select_sel": [["@duplicate_last", "дубль выбранного"], ["@delete", "удалить"], ["Flex: кольцо на конце, @flex_roll_down/@flex_roll_up или Shift+колесо", "крен конца"], ["@wagon_kick_fwd/@wagon_kick_back", "пинок вагона (зажать: сильнее)"]],
+	"coaster/build": [["@duplicate_last", "дубль последнего"], ["Flex, растягивая: @flex_roll_down/@flex_roll_up или Shift+колесо", "крен свободного конца"], ["@rotate_left/@rotate_right", "поворот {rot}° (Shift: 5°)"], ["@gesture_rotate", "вращать (Shift: точнее)"], ["@gesture_height", "высота"], ["@level_up/@level_down", "уровень"], ["Shift+@level_up/@level_down, @level_up_x5/@level_down_x5", "уровень ×5"]],
 	"field_rect": [["Ctrl+ЛКМ", "снять слой"], ["@shape_undo", "отменить рисунок"], ["@tool_undo", "отменить правку"]],
 	"field_polygon": [["@shape_confirm", "положить слой"], ["Ctrl+ЛКМ или Ctrl+@shape_confirm", "снять слой"], ["@shape_undo", "убрать вершину"], ["@tool_undo", "отменить правку"]],
 	"field_table": [["Ctrl+ЛКМ", "снять слой со всей столешницы"], ["@tool_undo", "отменить правку"]],

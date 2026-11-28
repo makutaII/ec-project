@@ -54,3 +54,30 @@ static func roll_about(forward: Vector3, up: Vector3) -> float:
 	if base.length_squared() < 0.000001 or u.length_squared() < 0.000001:
 		return 0.0
 	return rad_to_deg(base.normalized().signed_angle_to(u.normalized(), f))
+
+
+## Базис кольца крена на конце трака с ходом t (ATTN_27, C8.3): X это right репера без крена (t × UP), Y это ход (ось кольца),
+## Z это «верх» без крена (UP без составляющей вдоль хода). Правая тройка. Если ход строго вертикален, единичный базис
+static func ring_basis(t: Vector3) -> Basis:
+	var tn := t.normalized()
+	var base := Vector3.UP - tn * tn.dot(Vector3.UP)
+	if base.length_squared() < 0.000001:
+		return Basis.IDENTITY
+	return Basis(tn.cross(Vector3.UP).normalized(), tn, base.normalized())
+
+
+## Крен (градусы, + правый край ниже), на который указывает вектор offset от центра кольца вокруг хода t. offset проецируется на
+## плоскость кольца. 0 если вектор вдоль хода или ход вертикален
+static func roll_of_point(t: Vector3, offset: Vector3) -> float:
+	var tn := t.normalized()
+	var base := Vector3.UP - tn * tn.dot(Vector3.UP)
+	var v := offset - tn * tn.dot(offset)
+	if base.length_squared() < 0.000001 or v.length_squared() < 0.000001:
+		return 0.0
+	return rad_to_deg(base.normalized().signed_angle_to(v.normalized(), tn))
+
+
+## Скручивание свободного конца по крену, на который указал курсор: крен конца минус крен начала, приведённое к (−180, 180]
+## и округлённое до шага step (5° обычно, 1° с Shift)
+static func twist_for(end_roll_deg: float, start_roll_deg: float, step: float) -> float:
+	return snappedf(wrapf(end_roll_deg - start_roll_deg, -180.0, 180.0), maxf(step, 0.01))

@@ -14,6 +14,7 @@
 [ext_resource type="Resource" uid="uid://bbeytped68e3v" path="res://data/tracks/styles/coaster.tres" id="17_style"]
 [ext_resource type="Texture2D" uid="uid://6vvfxmo2e8wl" path="res://ui/icons/transport/rail_r1.svg" id="15_b1byy"]
 [ext_resource type="Script" uid="uid://do5hjkm3r2pdg" path="res://core/entity_setting.gd" id="16_lwvy1"]
+[ext_resource type="Script" path="res://core/components/comp_settings/flexrollgizmo_setting.gd" id="19_gizmo"]
 
 [sub_resource type="Resource" id="Resource_cfg"]
 script = ExtResource("2_7w4hg")
@@ -47,6 +48,9 @@ script = ExtResource("12_4qu3e")
 [sub_resource type="Resource" id="Resource_sup"]
 script = ExtResource("14_tijak")
 
+[sub_resource type="Resource" id="Resource_gizmo"]
+script = ExtResource("19_gizmo")
+
 [resource]
 script = ExtResource("16_lwvy1")
 key = &"coaster_track.flex.ride_flex"
@@ -58,5 +62,5 @@ tag = &"flex"
 icon = ExtResource("15_b1byy")
 build_behavior = 2
 pick_layers = Array[StringName]([&"ground"])
-components = Array[ExtResource("1_b1byy")]([SubResource("Resource_id"), SubResource("Resource_flex"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock"), SubResource("Resource_sup")])
+components = Array[ExtResource("1_b1byy")]([SubResource("Resource_id"), SubResource("Resource_flex"), SubResource("Resource_drag"), SubResource("Resource_piv"), SubResource("Resource_hov"), SubResource("Resource_sel"), SubResource("Resource_blk"), SubResource("Resource_sock"), SubResource("Resource_sup"), SubResource("Resource_gizmo")])
 metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

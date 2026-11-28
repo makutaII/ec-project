@@ -114,6 +114,39 @@ func _ready() -> void:
 
 
 
+## XX claude-coaster C8.3: Shift+колесо крутит крен свободного конца flex (растягиваемого или выбранного). _input идёт раньше
+## камеры (зум в её _unhandled_input), поэтому событие забираем только когда есть что крутить и курсор не над интерфейсом
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton) or not event.pressed or not event.shift_pressed:
+		return
+	var steps := 0
+	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		steps = 1
+	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		steps = -1
+	else:
+		return
+	var target := _roll_target()
+	if target == null or UIPointer.is_over_ui(get_viewport()):
+		return
+	target.send_event("on_roll_input", {"steps": steps})
+	get_viewport().set_input_as_handled()
+
+
+## Flex, у которого сейчас можно крутить крен: растягиваемый призрак (BuildTool) или выбранный готовый (SelectTool)
+func _roll_target() -> Entity:
+	if active_tool == build_tool and is_instance_valid(build_tool.ghost):
+		var gs := build_tool.ghost.get_comp(C_FlexShape) as C_FlexShape
+		if gs != null and gs.stretching and not gs.snapped_end:
+			return build_tool.ghost
+	elif active_tool == select_tool and is_instance_valid(select_tool.selected_entity):
+		var e: Entity = select_tool.selected_entity
+		var fs := e.get_comp(C_FlexShape) as C_FlexShape
+		if fs != null and not fs.snapped_end and e.has_comp(C_Selected):
+			return e
+	return null
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# U10: пока открыто модальное окно, клавиши (Delete, V, Z...) инструментам не идут
 	if UIPointer.modal_open():

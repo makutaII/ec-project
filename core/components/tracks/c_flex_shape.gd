@@ -41,6 +41,9 @@ var start_slope := 0.0             # dy/ds движения в начале (у�
 var start_roll := 0.0              # крен в начале: берётся у соседа начала (_neighbor_roll)
 var end_roll := 0.0                # крен у привязанного конца: берётся у соседа конца (_snap_to)
 var roll_twist := 0.0              # скручивание свободного конца: end = start + twist (задаёт игрок)
+## Шаг ввода крена клавишей или колесом и предел скручивания, градусы
+const ROLL_STEP := 5.0
+const ROLL_TWIST_MAX := 180.0
 
 # --- производные ---
 var length := 10.0
@@ -142,6 +145,52 @@ func on_elevation_input(data: Dictionary) -> void:
 	if not stretching:
 		return
 	end_levels += int(data.get("levels", 0))
+	_apply(true)
+	_validate()
+
+
+## Крен конца, градусы: у привязанного конца берётся у соседа, у свободного это начало плюс скручивание
+func end_roll_deg() -> float:
+	return end_roll if snapped_end else start_roll + roll_twist
+
+
+## XX claude-coaster C8.3: ввод крена клавишами и Shift+колесом. steps шагов по ROLL_STEP. Во время растягивания просто
+## меняет скручивание, у выбранного готового flex это правка с откатом невалидного результата (как у изгибов)
+func on_roll_input(d: Dictionary) -> void:
+	var steps := int(d.get("steps", 0))
+	if steps == 0 or snapped_end:
+		return   # у привязанного конца крен берётся у соседа
+	if has_comp(C_Ghost) and not stretching:
+		return   # призрак ещё не растягивают
+	var own_edit := not stretching and not editing
+	if own_edit:
+		_begin_edit()
+	_set_twist(roll_twist + float(steps) * ROLL_STEP)
+	if own_edit:
+		_end_edit()
+
+
+## Мышь по кольцу: начало, скручивание, конец правки (откат, если результат невалиден)
+func on_roll_edit_begin(_d: Dictionary) -> void:
+	if not snapped_end:
+		_begin_edit()
+
+
+func on_roll_twist_set(d: Dictionary) -> void:
+	if snapped_end or not (editing or stretching):
+		return
+	_set_twist(float(d.get("twist", 0.0)))
+
+
+func on_roll_edit_end(_d: Dictionary) -> void:
+	_end_edit()
+
+
+func _set_twist(v: float) -> void:
+	v = clampf(snappedf(v, 0.01), -ROLL_TWIST_MAX, ROLL_TWIST_MAX)
+	if is_equal_approx(v, roll_twist):
+		return
+	roll_twist = v
 	_apply(true)
 	_validate()
 
