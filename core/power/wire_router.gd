@@ -69,7 +69,7 @@ static func _hole(pe: Vector3, target: Vector3, ctx: Dictionary) -> Variant:
 	dir = Vector2.RIGHT if dir.length() < 0.01 else dir.normalized()
 	for dist in HOLE_DISTANCES:
 		for ang in HOLE_ANGLES:
-			var p := Vector2(pe.x, pe.z) + dir.rotated(deg_to_rad(ang)) * dist
+			var p = Vector2(pe.x, pe.z) + dir.rotated(deg_to_rad(ang)) * dist
 			if _hole_ok(p, ctx):
 				return Vector3(p.x, 0.0, p.y)
 	return null
