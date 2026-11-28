@@ -163,8 +163,9 @@ func handle_input(event: InputEvent):
 		tunnel_mode = not tunnel_mode
 		ghost.send_event("on_tunnel_set", {"on": tunnel_mode})
 
-	# XX claude-coaster C8.3: крен свободного конца растягиваемого flex
-	if ghost.has_comp(C_FlexShape):
+	# XX claude-coaster C8.3: крен свободного конца растягиваемого flex. Призрака может не быть (после установки flex), а
+	# handle_input идёт на каждое событие, поэтому проверка на живой призрак обязательна
+	if is_instance_valid(ghost) and ghost.has_comp(C_FlexShape):
 		if Actions.pressed(event, &"flex_roll_up"):
 			ghost.send_event("on_roll_input", {"steps": 1})
 		elif Actions.pressed(event, &"flex_roll_down"):
