@@ -16,6 +16,8 @@ const SPACING := 1.0
 
 ## Всего клемм (вход и выходы)
 var count := 4
+## W8: клеммы на шину аксессуаров 12 В (ACCESSORY) вместо рельсовой проводки (TRACK). Меняется, пока на клеммах нет проводов
+var accessory := false
 
 
 func title() -> String:
@@ -27,7 +29,7 @@ func positions() -> int:
 
 
 func state_text() -> String:
-	return "клемм %d, вход слева" % count
+	return "клемм %d, вход слева%s" % [count, ", шина 12 В" if accessory else ""]
 
 
 func _term_key(i: int) -> StringName:
@@ -39,6 +41,7 @@ func _term_x(i: int) -> float:
 
 
 func _build_terminals() -> void:
+	term_kind = PowerTerminal.Kind.ACCESSORY if accessory else PowerTerminal.Kind.TRACK
 	count = clampi(count, MIN_TERMS, MAX_TERMS)
 	for i in count:
 		_add_term(_term_key(i), PowerTerminal.Role.DEV_IN if i == 0 else PowerTerminal.Role.DEV_OUT, _term_x(i))
@@ -85,9 +88,26 @@ func set_count(n: int) -> String:
 	return ""
 
 
+## W8: вид клемм. Возвращает причину отказа или пусто: у клеммника с проводами вид не меняют
+func set_accessory(on: bool) -> String:
+	if on == accessory:
+		return ""
+	for t: PowerTerminal in _terms.values():
+		if t.has_wire():
+			return "Сначала отключите провода: вид клемм меняется у всего клеммника"
+	accessory = on
+	term_kind = PowerTerminal.Kind.ACCESSORY if accessory else PowerTerminal.Kind.TRACK
+	for t: PowerTerminal in _terms.values():
+		t.kind = term_kind
+		t.set_highlight(false)
+	_changed()
+	return ""
+
+
 func save_data() -> Dictionary:
-	return {"count": count}
+	return {"count": count, "accessory": accessory}
 
 
 func load_data(d: Dictionary) -> void:
 	set_count(int(d.get("count", count)))
+	set_accessory(bool(d.get("accessory", accessory)))

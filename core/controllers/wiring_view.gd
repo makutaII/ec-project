@@ -80,7 +80,8 @@ func _apply_paths() -> void:
 		var e := child as Entity
 		if e == null or e.is_queued_for_deletion() or not e.visible:
 			continue
-		if HIDDEN_CATEGORIES.has(GroupSelection.category_of(e)):
+		# W8: потребитель шины (дом со светом) остаётся виден: к его клемме тянут провод
+		if HIDDEN_CATEGORIES.has(GroupSelection.category_of(e)) and not e.has_comp(C_BusTerminal):
 			e.set_meta(META_PREV, true)
 			e.visible = false
 			_hidden.append(e)

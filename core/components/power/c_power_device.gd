@@ -131,8 +131,12 @@ func _box(parent: Node3D, size: Vector3, p: Vector3, color: Color) -> MeshInstan
 	return mi
 
 
+## XX claude-wire W8: вид клемм прибора (TRACK: рельсовая проводка; ACCESSORY: шина 12 В у C_BusSource и клеммника в режиме шины)
+var term_kind: PowerTerminal.Kind = PowerTerminal.Kind.TRACK
+
+
 func _add_term(key: StringName, role: PowerTerminal.Role, x: float) -> PowerTerminal:
-	var t := PowerTerminal.create(instance, entity, PowerTerminal.Kind.TRACK, role, key, Vector3(x, 0.6, DEPTH * 0.5 + 0.2))
+	var t := PowerTerminal.create(instance, entity, term_kind, role, key, Vector3(x, 0.6, DEPTH * 0.5 + 0.2))
 	t.link_fn = Callable(self, "_links_of")
 	_terms[key] = t
 	return t

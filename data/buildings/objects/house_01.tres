@@ -16,6 +16,7 @@
 [ext_resource type="Script" uid="uid://daeylhso0elsx" path="res://setting/light_config.gd" id="30_lcfg"]
 [ext_resource type="Script" uid="uid://brbladjp7pfki" path="res://core/components/comp_settings/mechanisms_setting.gd" id="31_msetg"]
 [ext_resource type="Script" uid="uid://cteud8ws67l53" path="res://setting/glow_rect.gd" id="32_glrect"]
+[ext_resource type="Script" path="res://core/components/comp_settings/bus_terminal_setting.gd" id="40_busterm"]
 
 [sub_resource type="Resource" id="Resource_gr1"]
 script = ExtResource("32_glrect")
@@ -299,6 +300,10 @@ metadata/_custom_type_script = "uid://chprgtlxn3aub"
 script = ExtResource("31_msetg")
 metadata/_custom_type_script = "uid://brbladjp7pfki"
 
+[sub_resource type="Resource" id="Resource_busterm"]
+script = ExtResource("40_busterm")
+offset = Vector3(6.6, 0.8, 0)
+
 [resource]
 script = ExtResource("21_q4ryd")
 key = &"building.house.house_01"
@@ -308,5 +313,5 @@ category = &"building"
 tag = &"house"
 icon = ExtResource("10_iu37o")
 build_behavior = 1
-components = Array[ExtResource("1_ugla1")]([SubResource("Resource_lvfb0"), SubResource("Resource_l1ojo"), SubResource("Resource_lf4xo"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_hmech")])
+components = Array[ExtResource("1_ugla1")]([SubResource("Resource_lvfb0"), SubResource("Resource_l1ojo"), SubResource("Resource_lf4xo"), SubResource("Resource_aqgj4"), SubResource("Resource_j3fkf"), SubResource("Resource_tip3w"), SubResource("Resource_hmech"), SubResource("Resource_busterm")])
 metadata/_custom_type_script = "uid://do5hjkm3r2pdg"

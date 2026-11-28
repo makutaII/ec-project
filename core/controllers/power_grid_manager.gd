@@ -133,6 +133,17 @@ func bus_powered() -> bool:
 	return bus.powered(mains, rules.supply_required)
 
 
+## XX claude-wire W8: запитан ли потребитель шины. Без правила физической проводки или без клеммы шины на объекте шина питает его виртуально,
+## с правилом и клеммой нужен провод, дошедший до клеммы шины (C_BusTerminal)
+func bus_powered_for(e: Entity) -> bool:
+	if not bus_powered():
+		return false
+	if not wiring_required or e == null:
+		return true
+	var bt := e.get_comp(C_BusTerminal) as C_BusTerminal
+	return bt == null or bt.is_fed()
+
+
 func reset_bus() -> void:
 	bus.reset()
 	bus_event.emit("reset")
@@ -830,6 +841,11 @@ func _solve_wiring() -> void:
 		if not is_instance_valid(clip) or clip.terminal == null or not is_instance_valid(clip.terminal):
 			continue
 		clip.apply_drive(g.drive(clip.terminal))
+	# XX claude-wire W8: потребители шины аксессуаров (дом с лампами): дошёл ли провод до клеммы шины
+	for n in get_tree().get_nodes_in_group(&"bus_terminal"):
+		var bt := n as C_BusTerminal
+		if bt != null and is_instance_valid(bt.terminal):
+			bt.apply_bus(g.reach(bt.terminal, PowerTerminal.Kind.ACCESSORY))
 
 
 func _tracks_in_nets() -> int:

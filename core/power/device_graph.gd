@@ -32,6 +32,34 @@ func has_wire(t: PowerTerminal) -> bool:
 	return _adj.has(t) and not (_adj[t] as Array).is_empty()
 
 
+## XX claude-wire W8: потребитель шины. wired: к клемме подключён провод; reachable: путь по проводам и клеммам устройств (link) дошёл до
+## вывода источника вида kind (шина аксессуаров: Kind.ACCESSORY). Источник другого вида путь не завершает и дальше не проводит
+func reach(start: PowerTerminal, kind: int) -> Dictionary:
+	var res := {"wired": has_wire(start), "reachable": false}
+	if not res.wired:
+		return res
+	var seen: Dictionary = {start: true}
+	var stack: Array = [start]
+	while not stack.is_empty():
+		var t: PowerTerminal = stack.pop_back()
+		var next: Array = []
+		for e in (_adj.get(t, []) as Array):
+			next.append(e[0])
+		for l in t.links():
+			next.append(l["terminal"])
+		for nt in next:
+			if nt == null or seen.has(nt):
+				continue
+			seen[nt] = true
+			if nt.role == PowerTerminal.Role.SRC:
+				if nt.kind == kind:
+					res.reachable = true
+					return res
+				continue
+			stack.append(nt)
+	return res
+
+
 ## Ответ для клеммы клипа
 func drive(feeder: PowerTerminal) -> Dictionary:
 	var res := {"wired": has_wire(feeder), "reachable": false, "label": 0, "flip": false, "via": []}

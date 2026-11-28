@@ -14,6 +14,7 @@ var _replace: Button
 # XX claude-wire W6: клеммник: число клемм
 var _count_box: HBoxContainer
 var _count: SpinBox
+var _accessory: CheckBox
 var _tasks: Label
 var _syncing := false
 
@@ -58,6 +59,11 @@ func _setup() -> void:
 	_count.step = 1
 	_count.value_changed.connect(_on_count_changed)
 	_count_box.add_child(_count)
+	_accessory = CheckBox.new()
+	_accessory.text = "Шина 12 В"
+	_accessory.tooltip_text = "Клеммы клеммника на шину аксессуаров (дома, лампы, приводы) вместо рельсовой проводки. Менять можно, пока нет проводов"
+	_accessory.toggled.connect(_on_accessory_toggled)
+	_count_box.add_child(_accessory)
 
 	var auto_btn := Button.new()
 	auto_btn.text = "Автопроводка (пульт → устройство → клипы)"
@@ -112,6 +118,7 @@ func refresh() -> void:
 	if tb != null:
 		_syncing = true
 		_count.set_value_no_signal(tb.count)
+		_accessory.set_pressed_no_signal(tb.accessory)
 		_syncing = false
 	var parts: PackedStringArray = []
 	for id in PowerTasks.TASKS:
@@ -144,6 +151,16 @@ func _on_count_changed(v: float) -> void:
 	var why := tb.set_count(int(v))
 	footer_message(&"terminal_count", why, &"bad")
 	refresh()   # отказ: возвращает прежнее число
+
+
+func _on_accessory_toggled(on: bool) -> void:
+	if _syncing:
+		return
+	var tb := _dev() as C_TerminalBlock
+	if tb == null:
+		return
+	footer_message(&"terminal_count", tb.set_accessory(on), &"bad")
+	refresh()
 
 
 func _on_replace() -> void:

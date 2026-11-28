@@ -129,6 +129,8 @@ func set_highlight(on: bool) -> void:
 		return
 	var mat := StandardMaterial3D.new()
 	var base := Color(0.9, 0.15, 0.1) if polarity > 0 else Color(0.1, 0.1, 0.1)
+	if kind == Kind.ACCESSORY:   # XX claude-wire W8: шина 12 В отличается от рельсовой проводки
+		base = Color(0.2, 0.5, 1.0)
 	mat.albedo_color = Color(1.0, 0.85, 0.2) if on else base
 	mat.emission_enabled = on
 	mat.emission = Color(1.0, 0.85, 0.2)

@@ -705,7 +705,7 @@ func _update_power() -> void:
 	if not _has_power:
 		return
 	var v := absf(_track_voltage())
-	var bus_on := PGM.bus_powered()
+	var bus_on := PGM.bus_powered_for(entity)   # XX claude-wire W8: с правилом физической проводки нужен провод до клеммы шины
 	for id in _lamp_order:
 		var l: Lamp = _lamps[id]
 		if not l.uses_power():
