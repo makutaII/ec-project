@@ -44,6 +44,7 @@ func _ready() -> void:
 	_test_paint()
 	_test_overrides()
 	_test_tool_settings()
+	_test_kwindow()
 	_test_floor()
 	_test_materials()
 	print("ИТОГ: ", "ВСЕ ПРОШЛИ" if _fails == 0 else "ПРОВАЛЕНО %d" % _fails)
@@ -550,6 +551,35 @@ func _test_tool_settings() -> void:
 	t2.free()
 	t3.free()
 	pv = null
+
+
+## H2e: радиус окна выборки шейдера по клеткам (FieldView.scatter_k): окно шире 2x2 только рядом с переходом
+func _test_kwindow() -> void:
+	var n := FieldView.CHUNK
+	var kl := PackedByteArray()
+	kl.resize(n * n)
+	kl.fill(0)
+	FieldView.scatter_k(kl, 8, 8, 15)
+	check("окно: сам узел и соседние клетки остаются в окне 2x2 (K = 1)", kl[8 * n + 8] == 0 and kl[8 * n + 7] == 0 and kl[7 * n + 7] == 0)
+	check("окно: клетка в двух узлах от узла с полным переходом имеет K = 2", kl[8 * n + 6] == 1 and kl[6 * n + 8] == 1 and kl[6 * n + 6] == 1, str(kl[8 * n + 6]))
+	check("окно: клетка в трёх узлах слева и в двух справа имеет K = 3", kl[8 * n + 5] == 2 and kl[8 * n + 10] == 2 and kl[5 * n + 5] == 2, str(kl[8 * n + 5]))
+	check("окно: дальше предела влияния клеток нет", kl[8 * n + 11] == 0 and kl[8 * n + 4] == 0 and kl[2 * n + 8] == 0)
+	var k2 := PackedByteArray()
+	k2.resize(n * n)
+	k2.fill(0)
+	FieldView.scatter_k(k2, 8, 8, 1)
+	check("окно: узкий переход (1/15) достаёт до K = 2, не дальше", k2[8 * n + 6] == 1 and k2[8 * n + 5] == 0 and k2[6 * n + 6] == 0, "%d %d %d" % [k2[8 * n + 6], k2[8 * n + 5], k2[6 * n + 6]])
+	var k3 := PackedByteArray()
+	k3.resize(n * n)
+	k3.fill(0)
+	FieldView.scatter_k(k3, -1, 8, 15)
+	check("окно: узел соседнего чанка расширяет окно клеток у края чанка", k3[8 * n + 0] == 1 and k3[8 * n + 1] == 2 and k3[8 * n + 2] == 0, "%d %d %d" % [k3[8 * n], k3[8 * n + 1], k3[8 * n + 2]])
+	var k4 := PackedByteArray()
+	k4.resize(n * n)
+	k4.fill(0)
+	FieldView.scatter_k(k4, 8, 8, 15)
+	FieldView.scatter_k(k4, 6, 8, 1)
+	check("окно: несколько узлов берут наибольший радиус", k4[8 * n + 5] == 2 and k4[8 * n + 4] == 1, "%d %d" % [k4[8 * n + 5], k4[8 * n + 4]])
 
 
 func _test_floor() -> void:

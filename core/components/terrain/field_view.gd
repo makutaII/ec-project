@@ -13,6 +13,8 @@ const SHADER_PATH := "res://core/components/terrain/field_surface.gdshader"
 ## Набор материалов поверхности (текстуры и оттенки каналов, H4)
 ## Слой тоньше этого не рисуется, ю (тот же порог, что thin_eps в шейдере)
 const THIN_EPS := 0.01
+## H2e: наибольший радиус окна выборки узлов в шейдере (KR), узлов. Ширина перехода материала не больше KR_MAX - 1 ячеек
+const KR_MAX := 3
 const MATERIALS_PATH := "res://data/terrain/field_materials.tres"
 const STEP := TerrainField.STEP
 const CHUNK := TerrainField.CHUNK
@@ -35,6 +37,8 @@ var _tt: ImageTexture
 var _img_f: Image
 var _img_t: Image
 var _buf_f := PackedFloat32Array()   # по два числа на узел: пол, толщина
+var _k_src := {}      # Vector2i чанка -> PackedInt32Array троек (узел окна x, z, ширина перехода 1..15): слой с материалом с переходом
+var _k_wide := {}     # Vector2i чанка -> true, если в чанке есть клетки с окном шире 2x2 (K > 1)
 var _buf_t := PackedByteArray()      # по четыре байта на узел: тип (с битом ложа), слоты материалов, прозрачность и переход, признак слоя
 var _origin := Vector2i.ZERO         # узел окна (0, 0) в мировой сетке, кратен CHUNK
 var _dims := Vector2i.ZERO           # размер окна в узлах (кратен CHUNK плюс 1)
@@ -106,11 +110,17 @@ func rebuild_all() -> void:
 		return
 	_buf_f.fill(0.0)
 	_buf_t.fill(0)
+	_k_src.clear()
+	_k_wide.clear()
+	var all_keys: Array = []
 	for key: Vector2i in field.chunk_keys():
 		_copy_chunk(key)
+		all_keys.append(key)
 	for key: Vector2i in field.bed_keys():
 		if not field.has_chunk(key):
 			_copy_chunk(key)   # чанк только с ложем трака
+			all_keys.append(key)
+	_refresh_k(all_keys)
 	_dirty = true
 	_update_visible()
 
@@ -129,6 +139,7 @@ func _on_changed(keys: Array) -> void:
 		return
 	for key: Vector2i in keys:
 		_copy_chunk(key)
+	_refresh_k(keys)
 	_dirty = true
 	_update_visible()
 
@@ -212,6 +223,7 @@ func _copy_chunk(key: Vector2i) -> void:
 		bt = bed["t"]
 	var lh := field.layer_height
 	var have := not words.is_empty()
+	var srcs := PackedInt32Array()
 	for rz in range(CHUNK):
 		var row := (cj0 + rz) * _dims.x + ci0
 		for rx in range(CHUNK):
@@ -243,12 +255,90 @@ func _copy_chunk(key: Vector2i) -> void:
 					un = FieldMaterials.SLOT_BED
 					tr = 0
 					bl = 0
+			if bl > 0 and th >= THIN_EPS:
+				srcs.append(ci0 + rx)
+				srcs.append(cj0 + rz)
+				srcs.append(bl)
 			_buf_f[o * 2] = f0
 			_buf_f[o * 2 + 1] = th
 			_buf_t[o * 4] = ty
 			_buf_t[o * 4 + 1] = mt | (un << 4)
 			_buf_t[o * 4 + 2] = tr | (bl << 4)
 			_buf_t[o * 4 + 3] = 255 if th >= THIN_EPS else 0
+	if srcs.is_empty():
+		_k_src.erase(key)
+	else:
+		_k_src[key] = srcs
+	_k_wide.erase(key)   # биты K чанка сброшены записью типа, _refresh_k выставит заново
+
+
+## H2e: радиус окна шейдера по клеткам (tmap.r, биты 8 и 16: K - 1). Окно 2x2 (K = 1) точно, пока в округе нет слоя с материалом с
+## шириной перехода; такой узел расширяет окно клеток, до которых дотягивается его переход. Пересчёт только чанков keys и их соседей,
+## где есть узлы с переходом рядом или были раньше
+func _refresh_k(keys: Array) -> void:
+	var todo := {}
+	for key: Vector2i in keys:
+		for dj in range(-1, 2):
+			for di in range(-1, 2):
+				todo[key + Vector2i(di, dj)] = true
+	for ck: Vector2i in todo:
+		var ci0 := ck.x * CHUNK - _origin.x
+		var cj0 := ck.y * CHUNK - _origin.y
+		if ci0 < 0 or cj0 < 0 or ci0 + CHUNK > _dims.x or cj0 + CHUNK > _dims.y:
+			continue
+		var near := false
+		for dj in range(-1, 2):
+			for di in range(-1, 2):
+				if _k_src.has(ck + Vector2i(di, dj)):
+					near = true
+		if not near and not _k_wide.has(ck):
+			continue
+		var kl := PackedByteArray()
+		kl.resize(CHUNK * CHUNK)
+		kl.fill(0)
+		if near:
+			for dj in range(-1, 2):
+				for di in range(-1, 2):
+					var src: PackedInt32Array = _k_src.get(ck + Vector2i(di, dj), PackedInt32Array())
+					for q in range(0, src.size(), 3):
+						scatter_k(kl, src[q] - ci0, src[q + 1] - cj0, src[q + 2])
+		var wide := false
+		for rz in range(CHUNK):
+			var row := (cj0 + rz) * _dims.x + ci0
+			for rx in range(CHUNK):
+				var kb := kl[rz * CHUNK + rx]
+				var o := (row + rx) * 4
+				_buf_t[o] = (_buf_t[o] & 7) | (kb << 3)
+				if kb > 0:
+					wide = true
+		if wide:
+			_k_wide[ck] = true
+		else:
+			_k_wide.erase(ck)
+
+
+## H2e: вклад узла слоя с шириной перехода bn (1..15) в радиус окна клеток чанка. (lx, lz): узел в клетках относительно угла чанка
+## (может лежать вне 0..CHUNK-1: узел соседнего чанка). kl: на клетку K - 1 (0..KR_MAX - 1), берётся наибольшее. Узел на смещении (ox, oz)
+## от клетки (узел минус клетка) влияет на неё, если расстояние от узла до квадрата клетки меньше его радиуса влияния 1 + ширина
+## перехода в ячейках (как reach в field_surface.gdshader), и входит в окно K, если ox и oz лежат в [1 - K, K]
+static func scatter_k(kl: PackedByteArray, lx: int, lz: int, bn: int) -> void:
+	var reach := 1.0 + minf(float(bn) / 15.0 * FieldSurface.BLEND_MAX / STEP, float(KR_MAX) - 1.0)
+	for oz in range(-2, 4):
+		var cz := lz - oz
+		if cz < 0 or cz >= CHUNK:
+			continue
+		var dz := float(oz - 1) if oz > 0 else float(-oz)
+		var kz := oz if oz > 0 else 1 - oz
+		for ox in range(-2, 4):
+			var cx := lx - ox
+			if cx < 0 or cx >= CHUNK:
+				continue
+			var dx := float(ox - 1) if ox > 0 else float(-ox)
+			if sqrt(dx * dx + dz * dz) >= reach:
+				continue
+			var kx := ox if ox > 0 else 1 - ox
+			var idx := cz * CHUNK + cx
+			kl[idx] = maxi(int(kl[idx]), maxi(kx, kz) - 1)
 
 
 func _upload() -> void:
